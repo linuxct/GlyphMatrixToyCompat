@@ -10,6 +10,7 @@ import android.os.Messenger
 import com.nothing.ketchum.GlyphToy
 import space.linuxct.glyphmatrixtoycompat.Core
 import space.linuxct.glyphmatrixtoycompat.core.DebugLog
+import space.linuxct.glyphmatrixtoycompat.core.PrefKeys
 
 /**
  * The system-facing Glyph Toy (registered with aod_support=1 + longpress=1).
@@ -31,6 +32,8 @@ class AodToyService : Service() {
                 super.handleMessage(msg)
                 return
             }
+            // Any toy message is as much proof of selection as a bind.
+            Core.prefs.putLong(PrefKeys.TOY_LAST_BOUND, System.currentTimeMillis())
             val event = msg.data?.getString(GlyphToy.MSG_GLYPH_TOY_DATA)
             DebugLog.i(C, "system toy message: '$event'")
             when (event) {
@@ -53,12 +56,16 @@ class AodToyService : Service() {
 
     override fun onBind(intent: Intent?): IBinder {
         DebugLog.i(C, "onBind (system selected us as the active toy)")
+        // Proof of selection for the setup checklist: the system only binds
+        // the toy it has selected.
+        Core.prefs.putLong(PrefKeys.TOY_LAST_BOUND, System.currentTimeMillis())
         Core.arbiter.setToyBound(true)
         return messenger.binder
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
         DebugLog.i(C, "onUnbind")
+        Core.prefs.putLong(PrefKeys.TOY_LAST_BOUND, System.currentTimeMillis())
         Core.arbiter.setToyBound(false)
         return false
     }

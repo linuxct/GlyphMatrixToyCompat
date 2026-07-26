@@ -84,12 +84,12 @@
     <string name="checklist_accessibility_off">Off — tap to enable in Accessibility settings</string>
     <string name="checklist_toy">Always-on Glyph Toy</string>
     <string name="checklist_toy_hint">Select “Glyph Matrix Toy Compat” in Glyph settings so toys keep running on AOD (tap to open)</string>
+    <string name="checklist_toy_on">Selected — verified by a system toy binding (tap to change)</string>
     <string name="checklist_notifications">Notifications (Tea Time chime)</string>
     <string name="checklist_mic">Microphone (music visualizer)</string>
     <string name="checklist_location">Location (compass declination, optional)</string>
     <string name="checklist_exact_alarm">Exact alarms (Tea Time backstop)</string>
-    <string name="checklist_essential_space">Hand the Essential Key over to Glyph Matrix Toy Compat (do NOT disable the Essential Space or Essential Recorder apps):\n1. Settings → Intelligence Toolkit → Essential Key Settings → enable “Activate with single tap before use”.\n2. Settings → Intelligence Toolkit → Essential Voice → disable “Activate via Essential Key”.\nThis stops the system from acting on the key directly; if a pop-up still slips through, Glyph Matrix Toy Compat dismisses it automatically.</string>
-    <string name="checklist_restricted">If you sideloaded this app (not via adb), you may need to allow “restricted settings” from App info before the accessibility service can be enabled.</string>
+    <string name="checklist_hint_guides">Step-by-step guides for the trickier items live in the How it works tab.</string>
     <string name="checklist_granted">Granted</string>
     <string name="checklist_tap_to_grant">Tap to grant</string>
     <string name="checklist_unsupported">This device has no Glyph Matrix — rendering is disabled. (Phone (3) or Phone (4a) Pro required.)</string>
@@ -110,12 +110,34 @@
     <string name="set_active">Set as active toy</string>
     <string name="settings">Settings</string>
 
+    <!-- Settings tab section headers -->
+    <string name="section_initial_setup">Initial setup</string>
+    <string name="section_app_settings">App settings</string>
+
     <!-- How it works / Essential Key tutorial -->
     <string name="tut_section">How it works</string>
-    <string name="tut_button_title">Show Essential Key tutorial</string>
+    <string name="tut_hint">Short guides for using and configuring the Essential Key — tap a topic.</string>
     <string name="tut_button_subtitle">Animated walkthrough of every press, in both key modes</string>
     <string name="tut_title">Essential Key tutorial</string>
     <string name="tut_close">Close</string>
+
+    <!-- Guide: hand the Essential Key over -->
+    <string name="tut_handover_title">Hand over the Essential Key</string>
+    <string name="tut_handover_subtitle">Stop the system from acting on the key so this app gets it</string>
+    <string name="tut_handover_intro">Do NOT disable the Essential Space or Essential Recorder apps — just tell the system to wait before acting on the key:</string>
+    <string name="tut_handover_step1">In Settings → Intelligence Toolkit → Essential Key Settings, enable “Activate with single tap before use”.</string>
+    <string name="tut_handover_step2">In Settings → Intelligence Toolkit → Essential Voice, disable “Activate via Essential Key”.</string>
+    <string name="tut_handover_note">This stops the system from reacting to the key directly. If a pop-up still slips through on some firmware, Glyph Matrix Toy Compat dismisses it automatically.</string>
+
+    <!-- Guide: restricted settings for sideloads -->
+    <string name="tut_restricted_title">Sideloaded? Allow restricted settings</string>
+    <string name="tut_restricted_subtitle">If the accessibility toggle is greyed out</string>
+    <string name="tut_restricted_intro">Android blocks accessibility services for apps installed outside a store (“Restricted setting”). If the toggle is greyed out:</string>
+    <string name="tut_restricted_step1">Open App info for Glyph Matrix Toy Compat (button below)</string>
+    <string name="tut_restricted_step2">Tap the ⋮ menu in the top-right corner</string>
+    <string name="tut_restricted_step3">Choose “Allow restricted settings”</string>
+    <string name="tut_restricted_step4">Return and enable the listener again</string>
+    <string name="tut_restricted_action">Open App info</string>
 
     <string name="tut_c1_title">Single press — Glyph Touch</string>
     <string name="tut_c1_body">Fires the current toy’s action: roll the dice, flip the coin, +1 the counter, start the tea timer. Toys without an action simply ignore it.</string>

@@ -22,8 +22,8 @@ android {
         applicationId = "space.linuxct.glyphmatrixtoycompat"
         minSdk = 33
         targetSdk = 37
-        versionCode = 5
-        versionName = "1.2.3"
+        versionCode = 6
+        versionName = "1.3.0"
     }
 
     signingConfigs {
@@ -85,6 +85,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.compose.material3:material3:1.4.0")
     implementation("androidx.compose.material:material-icons-core:1.7.8")
+    implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
     testImplementation("junit:junit:4.13.2")

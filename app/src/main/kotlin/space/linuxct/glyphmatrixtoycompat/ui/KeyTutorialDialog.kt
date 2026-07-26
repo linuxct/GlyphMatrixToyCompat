@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -60,9 +61,6 @@ import kotlin.math.hypot
  */
 @Composable
 fun KeyTutorialDialog(onDismiss: () -> Unit) {
-    var menuMode by remember { mutableStateOf(false) }
-    val steps = if (menuMode) MENU_STEPS else CLASSIC_STEPS
-
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surface) {
             Column(
@@ -72,48 +70,134 @@ fun KeyTutorialDialog(onDismiss: () -> Unit) {
             ) {
                 Text(stringResource(R.string.tut_title), style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(14.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ModeChip(stringResource(R.string.onb_mode_regular), !menuMode, Modifier.weight(1f)) {
-                        menuMode = false
-                    }
-                    ModeChip(stringResource(R.string.onb_mode_menu), menuMode, Modifier.weight(1f)) {
-                        menuMode = true
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-
-                // Swipe through the selected mode's steps; key() recreates the
-                // pager on mode change so it starts back at the first step.
-                key(menuMode) {
-                    val pagerState = rememberPagerState(pageCount = { steps.size })
-                    HorizontalPager(state = pagerState) { page ->
-                        TutorialPage(steps[page])
-                    }
-                    Spacer(Modifier.height(6.dp))
-
-                    val base = MaterialTheme.colorScheme.onSurface
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        steps.forEachIndexed { i, _ ->
-                            Box(
-                                Modifier
-                                    .padding(horizontal = 3.dp)
-                                    .size(7.dp)
-                                    .background(
-                                        if (i == pagerState.currentPage) base else base.copy(alpha = 0.2f),
-                                        CircleShape,
-                                    ),
-                            )
-                        }
-                    }
-                }
-
+                KeyTutorialContent()
                 Row(Modifier.fillMaxWidth()) {
                     Spacer(Modifier.weight(1f))
                     TextButton(onClick = onDismiss) { Text(stringResource(R.string.tut_close)) }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A short numbered-steps guide pop-up (styled like the tutorial dialog):
+ * title, intro, numbered steps, optional note and optional action button.
+ */
+@Composable
+fun TutorialInfoDialog(
+    title: String,
+    intro: String,
+    steps: List<String>,
+    note: String? = null,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+    onDismiss: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surface) {
+            Column(
+                Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 18.dp),
+            ) {
+                Text(title, style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    intro,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(14.dp))
+                steps.forEachIndexed { i, step ->
+                    Row {
+                        Box(
+                            Modifier
+                                .size(26.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.inverseSurface),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                "${i + 1}",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.inverseOnSurface,
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            step,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (i != steps.lastIndex) Spacer(Modifier.height(12.dp))
+                }
+                note?.let {
+                    Spacer(Modifier.height(14.dp))
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    if (actionLabel != null && onAction != null) {
+                        TextButton(onClick = onAction) { Text(actionLabel) }
+                    }
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.tut_close)) }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The tutorial itself — mode chips plus the swipeable animated steps, shown
+ * inside [KeyTutorialDialog].
+ */
+@Composable
+private fun KeyTutorialContent(modifier: Modifier = Modifier) {
+    var menuMode by remember { mutableStateOf(false) }
+    val steps = if (menuMode) MENU_STEPS else CLASSIC_STEPS
+
+    Column(modifier) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ModeChip(stringResource(R.string.onb_mode_regular), !menuMode, Modifier.weight(1f)) {
+                menuMode = false
+            }
+            ModeChip(stringResource(R.string.onb_mode_menu), menuMode, Modifier.weight(1f)) {
+                menuMode = true
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+
+        // Swipe through the selected mode's steps; key() recreates the
+        // pager on mode change so it starts back at the first step.
+        key(menuMode) {
+            val pagerState = rememberPagerState(pageCount = { steps.size })
+            HorizontalPager(state = pagerState) { page ->
+                TutorialPage(steps[page])
+            }
+            Spacer(Modifier.height(6.dp))
+
+            val base = MaterialTheme.colorScheme.onSurface
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                steps.forEachIndexed { i, _ ->
+                    Box(
+                        Modifier
+                            .padding(horizontal = 3.dp)
+                            .size(7.dp)
+                            .background(
+                                if (i == pagerState.currentPage) base else base.copy(alpha = 0.2f),
+                                CircleShape,
+                            ),
+                    )
                 }
             }
         }

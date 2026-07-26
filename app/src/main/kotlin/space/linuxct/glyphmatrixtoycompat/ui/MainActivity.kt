@@ -16,14 +16,19 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -31,12 +36,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.filled.Casino
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconToggleButton
 import androidx.compose.material3.HorizontalDivider
@@ -60,10 +68,14 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -80,6 +92,7 @@ import space.linuxct.glyphmatrixtoycompat.Core
 import space.linuxct.glyphmatrixtoycompat.R
 import space.linuxct.glyphmatrixtoycompat.core.DebugLog
 import space.linuxct.glyphmatrixtoycompat.core.PrefKeys
+import space.linuxct.glyphmatrixtoycompat.core.SessionArbiter
 import space.linuxct.glyphmatrixtoycompat.ui.theme.GmtcTheme
 import space.linuxct.glyphmatrixtoycompat.update.UpdateChecker
 import space.linuxct.glyphmatrixtoycompat.update.UpdateCheckWorker
@@ -152,17 +165,96 @@ private fun loadOrder(): List<String> {
     return stored + DISPLAY_NAMES.keys.filter { it !in stored }
 }
 
+// ---------- tabs + floating navigation ----------
+
+private enum class Tab(val icon: ImageVector, val label: Int) {
+    TOYS(Icons.Default.Casino, R.string.screens_title),
+    SETTINGS(Icons.Default.Settings, R.string.settings),
+    TUTORIAL(Icons.Default.School, R.string.tut_section),
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MainScreen() {
-    val context = LocalContext.current
-    var refreshTick by remember { mutableIntStateOf(0) }
-    var dialogId by remember { mutableStateOf<String?>(null) }
-    var showTutorial by remember { mutableStateOf(false) }
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions(),
-    ) { refreshTick++ }
+    Scaffold(
+        modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
+        // The whole page — body AND app-bar header — sits on the gray page
+        // background. The app bar is SOLID in that same gray (not transparent,
+        // or content scrolls visibly under the collapsed header) so it stays
+        // opaque yet seamless with the body.
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            LargeTopAppBar(
+                title = { Text(stringResource(Tab.entries[tab].label)) },
+                scrollBehavior = scrollBehavior,
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background,
+                ),
+            )
+        },
+        bottomBar = { FloatingNavBar(selected = tab) { tab = it } },
+    ) { innerPadding ->
+        when (Tab.entries[tab]) {
+            Tab.TOYS -> ToysTab(innerPadding)
+            Tab.SETTINGS -> SettingsTab(innerPadding)
+            Tab.TUTORIAL -> TutorialTab(innerPadding)
+        }
+    }
+}
+
+/** MD3-style floating pill navigation: icons in a raised inverse-color capsule. */
+@Composable
+private fun FloatingNavBar(selected: Int, onSelect: (Int) -> Unit) {
+    Box(
+        Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 14.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Surface(
+            shape = RoundedCornerShape(33.dp),
+            color = MaterialTheme.colorScheme.inverseSurface,
+            shadowElevation = 8.dp,
+        ) {
+            Row(
+                Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Tab.entries.forEachIndexed { i, t ->
+                    val sel = i == selected
+                    Box(
+                        Modifier
+                            .size(50.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (sel) MaterialTheme.colorScheme.inverseOnSurface else Color.Transparent,
+                            )
+                            .clickable { onSelect(i) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            t.icon,
+                            contentDescription = stringResource(t.label),
+                            tint = if (sel) {
+                                MaterialTheme.colorScheme.inverseSurface
+                            } else {
+                                MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.75f)
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------- Glyph Toys tab ----------
+
+@Composable
+private fun ToysTab(innerPadding: PaddingValues) {
+    var dialogId by remember { mutableStateOf<String?>(null) }
 
     // The toy currently on the matrix: tracks the persisted current screen
     // live (cycled from the Essential Key outside this UI); the pref change
@@ -179,6 +271,10 @@ private fun MainScreen() {
         Core.prefs.addChangeListener(listener)
         onDispose { Core.prefs.removeChangeListener(listener) }
     }
+    LifecycleResumeEffect(Unit) {
+        currentToy = Core.prefs.getString(PrefKeys.CURRENT_SCREEN, PrefKeys.CURRENT_SCREEN_DEF)
+        onPauseOrDispose { }
+    }
 
     // Play sets the toy as the currently active one: persist it and switch
     // the live session to it immediately. The pref-change listener above then
@@ -190,239 +286,278 @@ private fun MainScreen() {
         Core.scheduler.run { Core.screenManager.selectScreen(id) }
     }
 
+    val order = remember { mutableStateListOf<String>().apply { addAll(loadOrder()) } }
+    fun persistOrder() = Core.prefs.putString(PrefKeys.SCREEN_ORDER, order.joinToString(","))
+    val drag = remember { DragState() }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        // Extra breathing room below the last row (on top of the floating
+        // nav) so the list never sits flush against the pill.
+        contentPadding = PaddingValues(
+            top = innerPadding.calculateTopPadding(),
+            bottom = innerPadding.calculateBottomPadding() + 24.dp,
+        ),
+    ) {
+        item { HintText(stringResource(R.string.screens_reorder_hint)) }
+
+        itemsIndexed(order, key = { _, id -> id }) { index, id ->
+            DisplayRow(
+                id = id,
+                index = index,
+                drag = drag,
+                order = order,
+                // The toy currently active on the matrix.
+                shown = currentToy == id,
+                // Displaced neighbours slide to their new slot; the dragged
+                // row itself is positioned manually, so it must not fight
+                // the placement animation.
+                placement = if (drag.draggingIndex == index) Modifier else Modifier.animateItem(),
+                onPersist = ::persistOrder,
+                onSelect = { selectToy(id) },
+                onSettings = { dialogId = id },
+            )
+        }
+    }
+
+    dialogId?.let { id ->
+        ScreenSettingsDialog(id = id, onDismiss = { dialogId = null })
+    }
+}
+
+// ---------- Settings tab (first-time setup + app settings) ----------
+
+@Composable
+private fun SettingsTab(innerPadding: PaddingValues) {
+    val context = LocalContext.current
+    var refreshTick by remember { mutableIntStateOf(0) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { refreshTick++ }
+    // Re-probe system state whenever the user returns from system Settings.
     LifecycleResumeEffect(Unit) {
         refreshTick++
-        currentToy = Core.prefs.getString(PrefKeys.CURRENT_SCREEN, PrefKeys.CURRENT_SCREEN_DEF)
         onPauseOrDispose { }
     }
 
-    val order = remember { mutableStateListOf<String>().apply { addAll(loadOrder()) } }
-    fun persistOrder() = Core.prefs.putString(PrefKeys.SCREEN_ORDER, order.joinToString(","))
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Spacer(Modifier.height(innerPadding.calculateTopPadding()))
 
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-
-    Scaffold(
-        modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
-        // The whole page — body AND app-bar header — sits on the gray page
-        // background. The app bar is SOLID in that same gray (not transparent,
-        // or content scrolls visibly under the collapsed header) so it stays
-        // opaque yet seamless with the body.
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            LargeTopAppBar(
-                title = { Text(stringResource(R.string.main_title)) },
-                scrollBehavior = scrollBehavior,
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    scrolledContainerColor = MaterialTheme.colorScheme.background,
-                ),
-            )
-        },
-    ) { innerPadding ->
-        val drag = remember { DragState() }
-
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            // Extra breathing room below the last row (on top of the nav-bar
-            // inset) so the list never sits flush against the bottom edge.
-            contentPadding = PaddingValues(
-                top = innerPadding.calculateTopPadding(),
-                bottom = innerPadding.calculateBottomPadding() + 32.dp,
-            ),
-        ) {
-            if (!Core.glyphLink.isSupported) {
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp, 8.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                        ),
-                    ) {
-                        Text(
-                            stringResource(R.string.checklist_unsupported),
-                            Modifier.padding(16.dp),
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                        )
+        SectionHeader(stringResource(R.string.section_initial_setup))
+        SectionCard {
+            val a11yEnabled = remember(refreshTick) { isEssentialKeyServiceEnabled(context) }
+            val a11ySubtitle = remember(refreshTick) {
+                if (a11yEnabled) {
+                    val beat = Core.prefs.getLong(PrefKeys.SERVICE_HEARTBEAT, PrefKeys.SERVICE_HEARTBEAT_DEF)
+                    val suffix = if (beat > 0) {
+                        val mins = (System.currentTimeMillis() - beat) / 60_000
+                        " (last activity ${if (mins < 1) "just now" else "$mins min ago"})"
+                    } else {
+                        ""
                     }
+                    context.getString(R.string.checklist_accessibility_on) + suffix
+                } else {
+                    context.getString(R.string.checklist_accessibility_off)
                 }
             }
-
-            item { SectionHeader(stringResource(R.string.checklist_title)) }
-            item {
-                SectionCard {
-                    val a11yEnabled = remember(refreshTick) { isEssentialKeyServiceEnabled(context) }
-                    val a11ySubtitle = remember(refreshTick) {
-                        if (a11yEnabled) {
-                            val beat = Core.prefs.getLong(PrefKeys.SERVICE_HEARTBEAT, PrefKeys.SERVICE_HEARTBEAT_DEF)
-                            val suffix = if (beat > 0) {
-                                val mins = (System.currentTimeMillis() - beat) / 60_000
-                                " (last activity ${if (mins < 1) "just now" else "$mins min ago"})"
-                            } else {
-                                ""
-                            }
-                            context.getString(R.string.checklist_accessibility_on) + suffix
-                        } else {
-                            context.getString(R.string.checklist_accessibility_off)
-                        }
-                    }
-                    SetupRow(
-                        title = stringResource(R.string.checklist_accessibility),
-                        subtitle = a11ySubtitle,
-                        good = a11yEnabled,
-                    ) {
-                        context.startActivity(
-                            if (a11yEnabled) {
-                                Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                            } else {
-                                Intent(context, DisclosureActivity::class.java)
-                            },
-                        )
-                    }
-                    HorizontalDivider()
-                    SetupRow(
-                        title = stringResource(R.string.checklist_toy),
-                        subtitle = stringResource(R.string.checklist_toy_hint),
-                        good = null,
-                    ) {
-                        if (!openGlyphToySettings(context)) {
-                            Toast.makeText(context, R.string.glyph_settings_unavailable, Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                    HorizontalDivider()
-                    PermissionRow(
-                        stringResource(R.string.checklist_notifications),
-                        arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                        refreshTick,
-                    ) { permissionLauncher.launch(it) }
-                    HorizontalDivider()
-                    PermissionRow(
-                        stringResource(R.string.checklist_mic),
-                        arrayOf(Manifest.permission.RECORD_AUDIO),
-                        refreshTick,
-                    ) { permissionLauncher.launch(it) }
-                    HorizontalDivider()
-                    PermissionRow(
-                        stringResource(R.string.checklist_location),
-                        arrayOf(
-                            Manifest.permission.ACCESS_COARSE_LOCATION,
-                            Manifest.permission.ACCESS_FINE_LOCATION,
-                        ),
-                        refreshTick,
-                    ) { permissionLauncher.launch(it) }
-                    HorizontalDivider()
-                    val alarmsOk = remember(refreshTick) {
-                        context.getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() == true
-                    }
-                    SetupRow(
-                        title = stringResource(R.string.checklist_exact_alarm),
-                        subtitle = stringResource(
-                            if (alarmsOk) R.string.checklist_granted else R.string.checklist_tap_to_grant,
-                        ),
-                        good = alarmsOk,
-                    ) {
-                        context.startActivity(
-                            Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}")),
-                        )
-                    }
-                }
-            }
-            item { HintText(stringResource(R.string.checklist_essential_space)) }
-            item { HintText(stringResource(R.string.checklist_restricted)) }
-
-            item { SectionHeader(stringResource(R.string.settings)) }
-            item {
-                SectionCard {
-                    var master by remember(refreshTick) {
-                        mutableStateOf(Core.prefs.getBoolean(PrefKeys.MASTER_TOGGLE, PrefKeys.MASTER_TOGGLE_DEF))
-                    }
-                    SwitchRow(
-                        title = stringResource(R.string.master_toggle),
-                        subtitle = stringResource(R.string.master_toggle_summary),
-                        checked = master,
-                    ) {
-                        master = it
-                        Core.prefs.putBoolean(PrefKeys.MASTER_TOGGLE, it)
-                    }
-                    HorizontalDivider()
-                    var menuMode by remember(refreshTick) {
-                        mutableStateOf(Core.prefs.getBoolean(PrefKeys.MENU_MODE_ENABLED, PrefKeys.MENU_MODE_ENABLED_DEF))
-                    }
-                    SwitchRow(
-                        title = stringResource(R.string.pref_menu_mode),
-                        subtitle = stringResource(R.string.pref_menu_mode_summary),
-                        checked = menuMode,
-                    ) {
-                        menuMode = it
-                        Core.prefs.putBoolean(PrefKeys.MENU_MODE_ENABLED, it)
-                    }
-                    HorizontalDivider()
-                    var use12h by remember(refreshTick) {
-                        mutableStateOf(Core.prefs.getBoolean(PrefKeys.USE_12H, false))
-                    }
-                    SwitchRow(title = stringResource(R.string.pref_use12h), subtitle = null, checked = use12h) {
-                        use12h = it
-                        Core.prefs.putBoolean(PrefKeys.USE_12H, it)
-                    }
-                    HorizontalDivider()
-                    Column(Modifier.padding(16.dp, 12.dp)) {
-                        Text(stringResource(R.string.brightness), style = MaterialTheme.typography.titleMedium)
-                        var brightness by remember {
-                            mutableFloatStateOf(Core.prefs.getFloat(PrefKeys.BRIGHTNESS, PrefKeys.BRIGHTNESS_DEF))
-                        }
-                        Slider(
-                            value = brightness,
-                            onValueChange = {
-                                brightness = it.coerceIn(0.05f, 1f)
-                                Core.prefs.putFloat(PrefKeys.BRIGHTNESS, brightness)
-                            },
-                            valueRange = 0.05f..1f,
-                        )
-                    }
-                    HorizontalDivider()
-                    UpdateRow()
-                }
-            }
-
-            item { SectionHeader(stringResource(R.string.tut_section)) }
-            item {
-                SectionCard {
-                    SetupRow(
-                        title = stringResource(R.string.tut_button_title),
-                        subtitle = stringResource(R.string.tut_button_subtitle),
-                        good = null,
-                    ) { showTutorial = true }
-                }
-            }
-
-            item { SectionHeader(stringResource(R.string.screens_title)) }
-            item { HintText(stringResource(R.string.screens_reorder_hint)) }
-
-            itemsIndexed(order, key = { _, id -> id }) { index, id ->
-                DisplayRow(
-                    id = id,
-                    index = index,
-                    drag = drag,
-                    order = order,
-                    // The toy currently active on the matrix.
-                    shown = currentToy == id,
-                    // Displaced neighbours slide to their new slot; the dragged
-                    // row itself is positioned manually, so it must not fight
-                    // the placement animation.
-                    placement = if (drag.draggingIndex == index) Modifier else Modifier.animateItem(),
-                    onPersist = ::persistOrder,
-                    onSelect = { selectToy(id) },
-                    onSettings = { dialogId = id },
+            ChecklistRow(
+                title = stringResource(R.string.checklist_accessibility),
+                subtitle = a11ySubtitle,
+                good = a11yEnabled,
+            ) {
+                context.startActivity(
+                    if (a11yEnabled) {
+                        Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                    } else {
+                        Intent(context, DisclosureActivity::class.java)
+                    },
                 )
             }
+            HorizontalDivider()
+            // No system setting or SDK call exposes the selected always-on
+            // toy, and the system binds the chosen toy LAZILY — often never,
+            // because the accessibility-driven session does the day-to-day
+            // rendering. So this is a latch: the system only ever binds or
+            // messages the toy it has selected, and once that has happened
+            // the selection is proven. (Deselection is equally invisible, so
+            // the mark cannot clear itself — the row still opens the picker.)
+            val toyOk = remember(refreshTick) {
+                Core.arbiter.owner == SessionArbiter.Owner.TOY ||
+                    Core.prefs.getLong(PrefKeys.TOY_LAST_BOUND, PrefKeys.TOY_LAST_BOUND_DEF) > 0L
+            }
+            ChecklistRow(
+                title = stringResource(R.string.checklist_toy),
+                subtitle = stringResource(if (toyOk) R.string.checklist_toy_on else R.string.checklist_toy_hint),
+                good = if (toyOk) true else null,
+            ) {
+                if (!openGlyphToySettings(context)) {
+                    Toast.makeText(context, R.string.glyph_settings_unavailable, Toast.LENGTH_SHORT).show()
+                }
+            }
+            HorizontalDivider()
+            PermissionRow(
+                stringResource(R.string.checklist_notifications),
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                refreshTick,
+            ) { permissionLauncher.launch(it) }
+            HorizontalDivider()
+            PermissionRow(
+                stringResource(R.string.checklist_mic),
+                arrayOf(Manifest.permission.RECORD_AUDIO),
+                refreshTick,
+            ) { permissionLauncher.launch(it) }
+            HorizontalDivider()
+            PermissionRow(
+                stringResource(R.string.checklist_location),
+                arrayOf(
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                ),
+                refreshTick,
+            ) { permissionLauncher.launch(it) }
+            HorizontalDivider()
+            val alarmsOk = remember(refreshTick) {
+                context.getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() == true
+            }
+            ChecklistRow(
+                title = stringResource(R.string.checklist_exact_alarm),
+                subtitle = stringResource(
+                    if (alarmsOk) R.string.checklist_granted else R.string.checklist_tap_to_grant,
+                ),
+                good = alarmsOk,
+            ) {
+                context.startActivity(
+                    Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}")),
+                )
+            }
+        }
+        HintText(stringResource(R.string.checklist_hint_guides))
 
+        SectionHeader(stringResource(R.string.section_app_settings))
+        SectionCard {
+            var master by remember(refreshTick) {
+                mutableStateOf(Core.prefs.getBoolean(PrefKeys.MASTER_TOGGLE, PrefKeys.MASTER_TOGGLE_DEF))
+            }
+            SwitchRow(
+                title = stringResource(R.string.master_toggle),
+                subtitle = stringResource(R.string.master_toggle_summary),
+                checked = master,
+            ) {
+                master = it
+                Core.prefs.putBoolean(PrefKeys.MASTER_TOGGLE, it)
+            }
+            HorizontalDivider()
+            var menuMode by remember(refreshTick) {
+                mutableStateOf(Core.prefs.getBoolean(PrefKeys.MENU_MODE_ENABLED, PrefKeys.MENU_MODE_ENABLED_DEF))
+            }
+            SwitchRow(
+                title = stringResource(R.string.pref_menu_mode),
+                subtitle = stringResource(R.string.pref_menu_mode_summary),
+                checked = menuMode,
+            ) {
+                menuMode = it
+                Core.prefs.putBoolean(PrefKeys.MENU_MODE_ENABLED, it)
+            }
+            HorizontalDivider()
+            var use12h by remember(refreshTick) {
+                mutableStateOf(Core.prefs.getBoolean(PrefKeys.USE_12H, false))
+            }
+            SwitchRow(title = stringResource(R.string.pref_use12h), subtitle = null, checked = use12h) {
+                use12h = it
+                Core.prefs.putBoolean(PrefKeys.USE_12H, it)
+            }
+            HorizontalDivider()
+            Column(Modifier.padding(16.dp, 12.dp)) {
+                Text(stringResource(R.string.brightness), style = MaterialTheme.typography.titleMedium)
+                var brightness by remember {
+                    mutableFloatStateOf(Core.prefs.getFloat(PrefKeys.BRIGHTNESS, PrefKeys.BRIGHTNESS_DEF))
+                }
+                Slider(
+                    value = brightness,
+                    onValueChange = {
+                        brightness = it.coerceIn(0.05f, 1f)
+                        Core.prefs.putFloat(PrefKeys.BRIGHTNESS, brightness)
+                    },
+                    valueRange = 0.05f..1f,
+                )
+            }
+            HorizontalDivider()
+            UpdateRow()
         }
 
-        dialogId?.let { id ->
-            ScreenSettingsDialog(id = id, onDismiss = { dialogId = null })
+        Spacer(Modifier.height(innerPadding.calculateBottomPadding() + 24.dp))
+    }
+}
+
+// ---------- Tutorial tab ----------
+
+private enum class TutorialTopic { KEY, HANDOVER, RESTRICTED }
+
+@Composable
+private fun TutorialTab(innerPadding: PaddingValues) {
+    val context = LocalContext.current
+    var topic by remember { mutableStateOf<TutorialTopic?>(null) }
+
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Spacer(Modifier.height(innerPadding.calculateTopPadding()))
+
+        HintText(stringResource(R.string.tut_hint))
+        SectionCard {
+            SetupRow(
+                title = stringResource(R.string.tut_title),
+                subtitle = stringResource(R.string.tut_button_subtitle),
+                good = null,
+            ) { topic = TutorialTopic.KEY }
+            HorizontalDivider()
+            SetupRow(
+                title = stringResource(R.string.tut_handover_title),
+                subtitle = stringResource(R.string.tut_handover_subtitle),
+                good = null,
+            ) { topic = TutorialTopic.HANDOVER }
+            HorizontalDivider()
+            SetupRow(
+                title = stringResource(R.string.tut_restricted_title),
+                subtitle = stringResource(R.string.tut_restricted_subtitle),
+                good = null,
+            ) { topic = TutorialTopic.RESTRICTED }
         }
-        if (showTutorial) {
-            KeyTutorialDialog(onDismiss = { showTutorial = false })
-        }
+
+        Spacer(Modifier.height(innerPadding.calculateBottomPadding() + 24.dp))
+    }
+
+    when (topic) {
+        TutorialTopic.KEY -> KeyTutorialDialog(onDismiss = { topic = null })
+        TutorialTopic.HANDOVER -> TutorialInfoDialog(
+            title = stringResource(R.string.tut_handover_title),
+            intro = stringResource(R.string.tut_handover_intro),
+            steps = listOf(
+                stringResource(R.string.tut_handover_step1),
+                stringResource(R.string.tut_handover_step2),
+            ),
+            note = stringResource(R.string.tut_handover_note),
+            onDismiss = { topic = null },
+        )
+        TutorialTopic.RESTRICTED -> TutorialInfoDialog(
+            title = stringResource(R.string.tut_restricted_title),
+            intro = stringResource(R.string.tut_restricted_intro),
+            steps = listOf(
+                stringResource(R.string.tut_restricted_step1),
+                stringResource(R.string.tut_restricted_step2),
+                stringResource(R.string.tut_restricted_step3),
+                stringResource(R.string.tut_restricted_step4),
+            ),
+            actionLabel = stringResource(R.string.tut_restricted_action),
+            onAction = {
+                context.startActivity(
+                    Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:${context.packageName}"),
+                    ),
+                )
+            },
+            onDismiss = { topic = null },
+        )
+        null -> {}
     }
 }
 
@@ -601,13 +736,48 @@ private fun SetupRow(title: String, subtitle: String, good: Boolean?, onClick: (
     }
 }
 
+/**
+ * Setup-checklist row: a grey check mark on the left once the item is
+ * configured and working, a grey question mark while it is not (or cannot
+ * be verified).
+ */
+@Composable
+private fun ChecklistRow(title: String, subtitle: String, good: Boolean?, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(16.dp, 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            if (good == true) Icons.Default.Check else Icons.AutoMirrored.Filled.HelpOutline,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = when (good) {
+                    true -> MaterialTheme.colorScheme.primary
+                    false -> MaterialTheme.colorScheme.error
+                    null -> MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
+    }
+}
+
 @Composable
 private fun PermissionRow(title: String, permissions: Array<String>, refreshTick: Int, onRequest: (Array<String>) -> Unit) {
     val context = LocalContext.current
     val granted = remember(refreshTick) {
         permissions.any { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
     }
-    SetupRow(
+    ChecklistRow(
         title = title,
         subtitle = stringResource(if (granted) R.string.checklist_granted else R.string.checklist_tap_to_grant),
         good = granted,

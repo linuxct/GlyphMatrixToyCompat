@@ -100,6 +100,15 @@ object PrefKeys {
     const val SERVICE_HEARTBEAT = "service_heartbeat"
     const val SERVICE_HEARTBEAT_DEF = 0L
 
+    /**
+     * Last time the system bound (or messaged) the AOD toy service. There is
+     * no queryable "selected always-on toy" setting and no SDK query API, and
+     * the system binds the chosen toy lazily — so any recorded bind is taken
+     * as lasting proof of the selection (a latch, not a freshness window).
+     */
+    const val TOY_LAST_BOUND = "toyLastBound"
+    const val TOY_LAST_BOUND_DEF = 0L
+
     /** Release version the daily update check has already notified about. */
     const val UPDATE_NOTIFIED_VERSION = "updateNotifiedVersion"
     const val UPDATE_NOTIFIED_VERSION_DEF = ""
