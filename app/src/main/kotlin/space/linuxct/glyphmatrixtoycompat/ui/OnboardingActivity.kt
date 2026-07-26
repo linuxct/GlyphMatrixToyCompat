@@ -498,9 +498,10 @@ private fun canExactAlarm(context: Context): Boolean =
 // ---------- dot-matrix header art ----------
 
 /**
- * Draws an ASCII pattern as a glyph-matrix-style dot grid: unlit LEDs faintly
- * visible, lit ones revealing in pseudo-random order on page entry and then
- * shimmering gently, like the hardware matrix waking up.
+ * Draws an ASCII pattern centered on a replica of the Glyph Matrix hardware:
+ * a circular disc of 489 LEDs (a 25×25 grid under a circular mask), unlit
+ * LEDs faintly visible, lit ones revealing in pseudo-random order on page
+ * entry and then shimmering gently, like the matrix waking up.
  */
 @Composable
 private fun MatrixArt(pattern: String) {
@@ -518,24 +519,31 @@ private fun MatrixArt(pattern: String) {
         animationSpec = infiniteRepeatable(tween(3000, easing = LinearEasing)),
         label = "phase",
     )
-    val lit = MaterialTheme.colorScheme.primary
+    val lit = MaterialTheme.colorScheme.onSurface
     val unlit = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
 
-    Canvas(Modifier.fillMaxWidth().height(150.dp)) {
-        val cell = minOf(size.width / cols, size.height / rows.size, 16.dp.toPx())
-        val x0 = (size.width - cell * cols) / 2f
-        val y0 = (size.height - cell * rows.size) / 2f
-        rows.forEachIndexed { r, line ->
-            for (c in 0 until cols) {
-                val center = Offset(x0 + (c + 0.5f) * cell, y0 + (r + 0.5f) * cell)
-                val on = line.getOrNull(c) == '#'
-                // Each lit dot gets a stable pseudo-random turn-on threshold.
-                val turnOn = ((r * 7 + c * 13) % 29) / 29f
-                if (on && reveal.value > turnOn) {
-                    val pulse = 0.75f + 0.25f * sin(shimmer + (r + c) * 0.6f)
-                    drawCircle(lit.copy(alpha = pulse), radius = cell * 0.32f, center = center)
-                } else {
-                    drawCircle(unlit, radius = cell * 0.18f, center = center)
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(220.dp)) {
+            val grid = 25
+            val cell = size.minDimension / grid
+            val rowOff = (grid - rows.size) / 2
+            val colOff = (grid - cols) / 2
+            val circleRadius = grid / 2f - 0.2f
+            for (r in 0 until grid) {
+                for (c in 0 until grid) {
+                    val dx = c + 0.5f - grid / 2f
+                    val dy = r + 0.5f - grid / 2f
+                    if (dx * dx + dy * dy > circleRadius * circleRadius) continue
+                    val on = rows.getOrNull(r - rowOff)?.getOrNull(c - colOff) == '#'
+                    val center = Offset((c + 0.5f) * cell, (r + 0.5f) * cell)
+                    // Each lit dot gets a stable pseudo-random turn-on threshold.
+                    val turnOn = ((r * 7 + c * 13) % 29) / 29f
+                    if (on && reveal.value > turnOn) {
+                        val pulse = 0.85f + 0.15f * sin(shimmer + (r + c) * 0.6f)
+                        drawCircle(lit.copy(alpha = pulse), radius = cell * 0.34f, center = center)
+                    } else {
+                        drawCircle(unlit, radius = cell * 0.16f, center = center)
+                    }
                 }
             }
         }
