@@ -26,7 +26,6 @@
     <string name="notif_update_body">GMTC %1$s is out — tap to open the download page.</string>
 
     <!-- Update check -->
-    <string name="update_section">Updates</string>
     <string name="update_check_title">Check for updates</string>
     <string name="update_idle">Version %1$s installed — tap to check now (also checked daily)</string>
     <string name="update_checking">Checking…</string>

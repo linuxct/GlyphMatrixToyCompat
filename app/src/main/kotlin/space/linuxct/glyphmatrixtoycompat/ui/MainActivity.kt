@@ -372,6 +372,8 @@ private fun MainScreen() {
                             valueRange = 0.05f..1f,
                         )
                     }
+                    HorizontalDivider()
+                    UpdateRow()
                 }
             }
 
@@ -396,8 +398,6 @@ private fun MainScreen() {
                 )
             }
 
-            item { SectionHeader(stringResource(R.string.update_section)) }
-            item { SectionCard { UpdateRow() } }
         }
 
         dialogId?.let { id ->
