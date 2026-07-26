@@ -4,10 +4,22 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import space.linuxct.glyphmatrixtoycompat.Core
 import space.linuxct.glyphmatrixtoycompat.core.DebugLog
 import space.linuxct.glyphmatrixtoycompat.key.EssentialKeyService
 
 /** Setup checks/actions shared by MainActivity's checklist and onboarding. */
+
+/**
+ * True only on a Nothing OS device with a Glyph Matrix — i.e. Phone (3) or
+ * Phone (4a) Pro. The matrix size (13/25) pins the exact models; the custom
+ * system feature (declared by /system_ext/etc/permissions/com.nothing.feature.xml
+ * on Nothing OS) confirms the platform. MainActivity dead-ends when this is
+ * false, because uses-feature cannot block sideloaded installs.
+ */
+internal fun isNothingGlyphDevice(context: Context): Boolean =
+    Core.glyphLink.isSupported &&
+        context.packageManager.hasSystemFeature("com.nothing.feature")
 
 internal fun isEssentialKeyServiceEnabled(context: Context): Boolean {
     val component = ComponentName(context, EssentialKeyService::class.java)

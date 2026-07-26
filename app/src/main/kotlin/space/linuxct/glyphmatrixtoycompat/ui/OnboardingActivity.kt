@@ -327,6 +327,7 @@ private fun ModePage() {
     var menuMode by remember {
         mutableStateOf(Core.prefs.getBoolean(PrefKeys.MENU_MODE_ENABLED, PrefKeys.MENU_MODE_ENABLED_DEF))
     }
+    var showTutorial by remember { mutableStateOf(false) }
     fun select(enabled: Boolean) {
         menuMode = enabled
         Core.prefs.putBoolean(PrefKeys.MENU_MODE_ENABLED, enabled)
@@ -345,6 +346,16 @@ private fun ModePage() {
             title = R.string.onb_mode_menu,
             desc = R.string.onb_mode_menu_desc,
         ) { select(true) }
+        Spacer(Modifier.height(8.dp))
+        TextButton(
+            onClick = { showTutorial = true },
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+        ) {
+            Text(stringResource(R.string.onb_mode_how))
+        }
+    }
+    if (showTutorial) {
+        KeyTutorialDialog(onDismiss = { showTutorial = false })
     }
 }
 
@@ -550,27 +561,35 @@ private fun MatrixArt(pattern: String) {
     }
 }
 
+// Patterns are drawn on square cells: shapes must be 1:1 (a circle needs
+// equal width and height in dots) or they render stretched.
+
 private const val ART_KEY = """
-...####..........
-..#....#.........
-.#..##..#........
-.#..##..#########
-..#....#....#..#.
-...####.....#..#.
+..###............
+.#...#...........
+#.....#..........
+#..#..###########
+#.....#.....#..#.
+.#...#......#..#.
+..###............
 """
 
 private const val ART_MATRIX = """
-.....#######.....
-...##.......##...
-..#...........#..
-.#.............#.
-.#.....###.....#.
-.#.....###.....#.
-.#.....###.....#.
-.#.............#.
-..#...........#..
-...##.......##...
-.....#######.....
+....#######....
+..##.......##..
+.#...........#.
+.#...........#.
+#.............#
+#.............#
+#.....###.....#
+#.....###.....#
+#.....###.....#
+#.............#
+#.............#
+.#...........#.
+.#...........#.
+..##.......##..
+....#######....
 """
 
 private const val ART_LOCK = """
@@ -579,33 +598,42 @@ private const val ART_LOCK = """
 ..#......#..
 .##########.
 .#........#.
+.#........#.
 .#...##...#.
 .#...##...#.
 .#....#...#.
+.#....#...#.
+.#........#.
 .#........#.
 .##########.
 """
 
 private const val ART_TOGGLE = """
-..#########......
-.#.........#.....
-#...###.....#....
-#..#####....#....
-#..#####....#....
-#...###.....#....
-.#.........#.....
-..#########......
+...#########.....
+..#.........#....
+.#...###.....#...
+.#..#####....#...
+.#..#####....#...
+.#..#####....#...
+.#...###.....#...
+..#.........#....
+...#########.....
 """
 
 private const val ART_SMILE = """
-.....#######.....
-...##.......##...
-..#...........#..
-.#...##...##...#.
-.#...##...##...#.
-.#.............#.
-.#..#.......#..#.
-..#..#######..#..
-...##.......##...
-.....#######.....
+....#######....
+..##.......##..
+.#...........#.
+.#...........#.
+#...##...##...#
+#...##...##...#
+#.............#
+#.............#
+#..#.......#..#
+#...#.....#...#
+#....#####....#
+.#...........#.
+.#...........#.
+..##.......##..
+....#######....
 """

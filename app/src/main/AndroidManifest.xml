@@ -3,6 +3,15 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:installLocation="internalOnly">
 
+    <!-- Nothing OS declares these custom system features (see
+         /system_ext/etc/permissions/com.nothing.feature*.xml on-device).
+         required="true" makes app stores and catalogues hide/refuse the app on
+         non-Nothing devices. Sideloading ignores uses-feature by design (no
+         Nothing *shared library* exists to hard-block installs with), so
+         MainActivity additionally dead-ends at runtime on unsupported
+         hardware. -->
+    <uses-feature android:name="com.nothing.feature" android:required="true" />
+
     <uses-permission android:name="com.nothing.ketchum.permission.ENABLE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />

@@ -95,6 +95,12 @@ A single Jetpack Compose screen, styled to look native to Nothing OS:
 
 ## Setup
 
+> **Supported devices:** Nothing Phone (3) and Phone (4a) Pro only. The manifest
+> requires Nothing's custom `com.nothing.feature` system feature so stores filter
+> the app from other devices, and — since sideloads ignore `uses-feature`, and
+> Nothing OS declares no shared library that could hard-block installation — the
+> app additionally refuses to run on hardware without a Glyph Matrix.
+
 1. Install the APK and open the app.
 2. Follow the in-app checklist:
    - **Enable the accessibility service** (this is what captures the Essential Key —

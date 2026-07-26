@@ -211,11 +211,20 @@ private val CLASSIC_STEPS = listOf(
             else -> MatrixFrame(DICE_5, true)
         }
     },
-    TutorialStep(R.string.tut_c2_title, R.string.tut_c2_body, 4000, listOf(600, 960)) { t ->
-        MatrixFrame(if (t < 1400) DICE_5 else CLOCK, true)
+    // Two double-presses: dice -> clock -> eyes, then the loop restarts on
+    // dice — three toys, so the carousel reads as a cycle, not a toggle.
+    TutorialStep(R.string.tut_c2_title, R.string.tut_c2_body, 5200, listOf(600, 960, 2600, 2960)) { t ->
+        MatrixFrame(
+            when {
+                t < 1400 -> DICE_5
+                t < 3400 -> CLOCK
+                else -> EYES
+            },
+            true,
+        )
     },
     TutorialStep(R.string.tut_c3_title, R.string.tut_c3_body, 4400, listOf(600, 960, 1320)) { t ->
-        MatrixFrame(if (t < 1800) CLOCK else AMBIENT, true)
+        MatrixFrame(if (t < 1800) EYES else AMBIENT, true)
     },
 )
 
@@ -223,8 +232,14 @@ private val MENU_STEPS = listOf(
     TutorialStep(R.string.tut_m1_title, R.string.tut_m1_body, 5600, listOf(600, 960)) { t ->
         if (t < 1400) MatrixFrame(CLOCK, true) else MatrixFrame(CLOCK, blinkOn(t - 1400))
     },
-    TutorialStep(R.string.tut_m2_title, R.string.tut_m2_body, 5600, listOf(1800)) { t ->
-        if (t < 2100) MatrixFrame(CLOCK, blinkOn(t)) else MatrixFrame(DICE_5, blinkOn(t - 2100))
+    // Two single presses: clock -> dice -> eyes, all still blinking, before
+    // the loop circles back to the clock.
+    TutorialStep(R.string.tut_m2_title, R.string.tut_m2_body, 7200, listOf(1800, 3800)) { t ->
+        when {
+            t < 2100 -> MatrixFrame(CLOCK, blinkOn(t))
+            t < 4100 -> MatrixFrame(DICE_5, blinkOn(t - 2100))
+            else -> MatrixFrame(EYES, blinkOn(t - 4100))
+        }
     },
     TutorialStep(R.string.tut_m3_title, R.string.tut_m3_body, 5600, listOf(1800, 2160)) { t ->
         if (t < 2600) MatrixFrame(DICE_5, blinkOn(t)) else MatrixFrame(DICE_5, true)
@@ -256,7 +271,10 @@ private fun DrawScope.drawTutorialPhone(base: Color, step: TutorialStep, t: Long
     drawRoundRect(
         body,
         topLeft = Offset(bodyLeft, bodyTop),
-        size = Size(bodyW, size.height),
+        // Extend well past the canvas bottom (clipToBounds crops it) so the
+        // bottom rounded corners never show: the crop reads as a zoomed-in
+        // view of a taller device, with straight sides running off-frame.
+        size = Size(bodyW, size.height * 1.5f),
         cornerRadius = CornerRadius(bodyW * 0.17f),
     )
 
@@ -356,16 +374,28 @@ private fun DrawScope.drawTutorialPhone(base: Color, step: TutorialStep, t: Long
         }
     }
 
-    // Press counter: one small dot per press, lit as each press lands.
+    // Press counter: one small dot per press of the current gesture, lit as
+    // each press lands. Presses > 600 ms apart are separate gestures (bursts);
+    // the dots reset for each burst, so repeated gestures read as "x2, twice"
+    // rather than one long chain.
+    val bursts = mutableListOf<MutableList<Long>>()
+    step.presses.forEach { p ->
+        if (bursts.isEmpty() || p - bursts.last().last() > 600) {
+            bursts += mutableListOf(p)
+        } else {
+            bursts.last() += p
+        }
+    }
+    val burst = bursts.lastOrNull { t >= it.first() - 400 } ?: bursts.firstOrNull()
     val markerX = bodyLeft + bodyW + 18.dp.toPx()
-    step.presses.forEachIndexed { i, p ->
+    burst?.forEachIndexed { i, p ->
         val lit = t >= p + 90 && t <= step.durationMs - 250
         drawCircle(
             if (lit) base.copy(alpha = 0.85f) else base.copy(alpha = 0.18f),
             radius = 3.dp.toPx(),
             center = Offset(
                 markerX,
-                keyCenter.y + (i - (step.presses.size - 1) / 2f) * 12.dp.toPx(),
+                keyCenter.y + (i - (burst.size - 1) / 2f) * 12.dp.toPx(),
             ),
         )
     }
@@ -438,6 +468,23 @@ private val DICE_6 = listOf(
 )
 
 private val ROLL = listOf(DICE_3, DICE_6, DICE_2, DICE_6, DICE_3)
+
+/** A pair of eyes with pupils, like the Eyes toy. */
+private val EYES = listOf(
+    ".............",
+    ".............",
+    ".............",
+    ".............",
+    "..###...###..",
+    ".#...#.#...#.",
+    ".#.#.#.#.#.#.",
+    ".#...#.#...#.",
+    "..###...###..",
+    ".............",
+    ".............",
+    ".............",
+    ".............",
+)
 
 /** Stacked "12" / "34" like the pixel clock toy. */
 private val CLOCK = listOf(

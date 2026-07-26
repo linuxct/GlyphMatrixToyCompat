@@ -22,8 +22,8 @@ android {
         applicationId = "space.linuxct.glyphmatrixtoycompat"
         minSdk = 33
         targetSdk = 37
-        versionCode = 4
-        versionName = "1.2.2"
+        versionCode = 5
+        versionName = "1.2.3"
     }
 
     signingConfigs {

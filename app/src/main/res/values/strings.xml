@@ -39,15 +39,15 @@
     <string name="onb_done">Get started</string>
 
     <string name="onb_key_title">Take over the Essential Key</string>
-    <string name="onb_key_body">GMTC listens for your phone’s Essential Key through an accessibility service — the only way a regular app can react to that key, even on the lock screen and Always-On Display.\n\nWith the listener on:\n• Press once — Glyph Touch action on the current toy\n• Press twice — switch to the next toy\n• Press three times — return to the background toy\n\nThe service never reads your screen content and never collects or transmits any data. You can skip this step; the key simply keeps its stock behaviour.</string>
+    <string name="onb_key_body">Glyph Matrix Toy Compat (GMTC) listens for your phone’s Essential Key through an accessibility service — the only way a regular app can react to that key, even on the lock screen and Always-On Display.\n\nWith the listener on:\n• Press once — Glyph Touch action on the current toy\n• Press twice — switch to the next toy\n• Press three times — return to the background toy\n\nThe service never reads your screen content and never collects or transmits any data. You can skip this step; the key simply keeps its stock behaviour.</string>
     <string name="onb_key_enable">Enable the listener</string>
     <string name="onb_key_status_on">Listener running — the Essential Key is yours</string>
     <string name="onb_key_status_off">Listener off — enable it now or skip for later</string>
     <string name="onb_key_sideload_title">Sideloaded this APK?</string>
-    <string name="onb_key_sideload_body">Android blocks accessibility services for apps installed outside a store (“Restricted setting”). If the toggle is greyed out:\n1. Open App info for GMTC (button below)\n2. Tap the ⋮ menu in the top-right corner\n3. Choose “Allow restricted settings”\n4. Come back and enable the listener again</string>
+    <string name="onb_key_sideload_body">Android blocks accessibility services for apps installed outside a store (“Restricted setting”). If the toggle is greyed out:\n1. Open App info for Glyph Matrix Toy Compat (GMTC) — button below\n2. Tap the ⋮ menu in the top-right corner\n3. Choose “Allow restricted settings”\n4. Come back and enable the listener again</string>
     <string name="onb_key_appinfo">Open App info</string>
 
-    <string name="onb_toy_title">Put GMTC on the Glyph Matrix</string>
+    <string name="onb_toy_title">Put Glyph Matrix Toy Compat (GMTC) on the matrix</string>
     <string name="onb_toy_body">Nothing OS shows one Glyph Toy at a time. Select “Glyph Matrix Toy Compat” as your always-on toy and every screen in this app — clock, compass, dice, visualizer and friends — takes over the matrix, Always-On Display included.</string>
     <string name="onb_toy_open">Open Glyph settings</string>
     <string name="onb_toy_hint">Pick “Glyph Matrix Toy Compat” in the list that opens, then come back here.</string>
@@ -55,7 +55,7 @@
     <string name="onb_perms_title">A few small favours</string>
     <string name="onb_perms_body">Each permission powers exactly one thing, and all of them are optional — skip any and the related toy just sits things out.</string>
     <string name="onb_perm_notif">Notifications</string>
-    <string name="onb_perm_notif_why">Tea Time chimes when your steep is done, and you’ll hear about new GMTC releases.</string>
+    <string name="onb_perm_notif_why">Tea Time chimes when your steep is done, and you’ll hear about new Glyph Matrix Toy Compat (GMTC) releases.</string>
     <string name="onb_perm_mic">Microphone</string>
     <string name="onb_perm_mic_why">The Music Visualizer dances to what’s playing. Audio is analysed on-device, never stored, never sent anywhere.</string>
     <string name="onb_perm_loc">Location</string>
@@ -67,10 +67,11 @@
     <string name="onb_mode_body">The listener is on — now pick your pressing style. You can change this any time from the main screen.</string>
     <string name="onb_mode_regular">Regular mode</string>
     <string name="onb_mode_regular_desc">Press once for the toy’s action, twice to jump to the next toy, three times to return to the background toy. Fast, and kind to muscle memory.</string>
+    <string name="onb_mode_how">How do they work?</string>
     <string name="onb_mode_menu">Menu mode</string>
     <string name="onb_mode_menu_desc">Double-press opens a blinking toy selector on the matrix; single presses then cycle through the toys, and the highlighted one is chosen after a short pause. Outside the menu, a single press still fires the toy’s action.</string>
 
-    <string name="onb_done_title">Welcome to GMTC</string>
+    <string name="onb_done_title">Welcome to Glyph Matrix Toy Compat (GMTC)</string>
     <string name="onb_done_body">Your Glyph Matrix is officially over-qualified. Everything you just set up — and plenty you haven’t seen yet — lives in the main screen: reorder toys, tweak their settings, or revisit any of these steps.\n\nNow go press that key.</string>
     <string name="onb_recap_key">Essential Key listener</string>
 
@@ -92,6 +93,10 @@
     <string name="checklist_granted">Granted</string>
     <string name="checklist_tap_to_grant">Tap to grant</string>
     <string name="checklist_unsupported">This device has no Glyph Matrix — rendering is disabled. (Phone (3) or Phone (4a) Pro required.)</string>
+
+    <!-- Hard gate on unsupported hardware -->
+    <string name="unsupported_title">Unsupported device</string>
+    <string name="unsupported_body">Glyph Matrix Toy Compat only works on Nothing phones with a Glyph Matrix — Phone (3) or Phone (4a) Pro running Nothing OS.\n\nThis device has neither the matrix nor the Essential Key the app is built around, so there is nothing for it to do here.</string>
 
     <!-- Settings UI -->
     <string name="master_toggle">Capture Essential Key</string>

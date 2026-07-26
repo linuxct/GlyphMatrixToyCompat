@@ -89,6 +89,18 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Core.init(this)
+        // Hard gate: the app is only meant for Nothing phones with a Glyph
+        // Matrix (Phone (3) / (4a) Pro). uses-feature only filters store
+        // installs, so sideloads on other devices land here and dead-end.
+        if (!isNothingGlyphDevice(this)) {
+            enableEdgeToEdge()
+            setContent {
+                GmtcTheme {
+                    UnsupportedDeviceScreen()
+                }
+            }
+            return
+        }
         // Debug/replay hook — OnboardingActivity itself is not exported, so:
         // adb shell am start -n space.linuxct.glyphmatrixtoycompat/.ui.MainActivity --ez restart_onboarding true
         if (intent?.getBooleanExtra(EXTRA_RESTART_ONBOARDING, false) == true) {
@@ -615,6 +627,29 @@ private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChan
             }
         }
         Switch(checked = checked, onCheckedChange = onChange)
+    }
+}
+
+// ---------- unsupported-device dead end ----------
+
+/** Shown instead of the app on hardware without a Glyph Matrix. */
+@Composable
+private fun UnsupportedDeviceScreen() {
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+            Column {
+                Text(
+                    stringResource(R.string.unsupported_title),
+                    style = MaterialTheme.typography.headlineMedium,
+                )
+                Text(
+                    stringResource(R.string.unsupported_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            }
+        }
     }
 }
 
