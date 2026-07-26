@@ -105,6 +105,31 @@
     <string name="set_active">Set as active toy</string>
     <string name="settings">Settings</string>
 
+    <!-- How it works / Essential Key tutorial -->
+    <string name="tut_section">How it works</string>
+    <string name="tut_button_title">Show Essential Key tutorial</string>
+    <string name="tut_button_subtitle">Animated walkthrough of every press, in both key modes</string>
+    <string name="tut_title">Essential Key tutorial</string>
+    <string name="tut_close">Close</string>
+
+    <string name="tut_c1_title">Single press — Glyph Touch</string>
+    <string name="tut_c1_body">Fires the current toy’s action: roll the dice, flip the coin, +1 the counter, start the tea timer. Toys without an action simply ignore it.</string>
+    <string name="tut_c2_title">Double press — next toy</string>
+    <string name="tut_c2_body">Switches to the next enabled toy in your configured order, wrapping around at the end of the list.</string>
+    <string name="tut_c3_title">Triple press — background toy</string>
+    <string name="tut_c3_body">Jumps straight back to the first toy in your list — the Ambient background — from anywhere.</string>
+
+    <string name="tut_m1_title">Double press — open the selector</string>
+    <string name="tut_m1_body">The current toy starts blinking on the matrix: you are now choosing a toy, not switching yet.</string>
+    <string name="tut_m2_title">Single press — cycle the preview</string>
+    <string name="tut_m2_body">Each press shows the next toy, still blinking. Keep pressing to browse the whole list. (Outside the selector, a single press still fires the toy’s action.)</string>
+    <string name="tut_m3_title">Double press — set the toy</string>
+    <string name="tut_m3_body">Commits the blinking toy: it stops blinking and becomes the current toy.</string>
+    <string name="tut_m4_title">Or just wait — auto-set</string>
+    <string name="tut_m4_body">Five seconds without a press and the blinking toy is set automatically. Every press restarts the countdown.</string>
+    <string name="tut_m5_title">Triple press — background toy</string>
+    <string name="tut_m5_body">Leaves the selector and returns to the Ambient background, exactly like in regular mode.</string>
+
     <!-- Quick Settings tile -->
     <string name="tile_label">Capture Essential Key</string>
     <string name="tile_on">Capturing</string>

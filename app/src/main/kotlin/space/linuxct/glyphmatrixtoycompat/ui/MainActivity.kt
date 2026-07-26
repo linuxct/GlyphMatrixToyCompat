@@ -137,6 +137,7 @@ private fun MainScreen() {
     val context = LocalContext.current
     var refreshTick by remember { mutableIntStateOf(0) }
     var dialogId by remember { mutableStateOf<String?>(null) }
+    var showTutorial by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -361,6 +362,17 @@ private fun MainScreen() {
                 }
             }
 
+            item { SectionHeader(stringResource(R.string.tut_section)) }
+            item {
+                SectionCard {
+                    SetupRow(
+                        title = stringResource(R.string.tut_button_title),
+                        subtitle = stringResource(R.string.tut_button_subtitle),
+                        good = null,
+                    ) { showTutorial = true }
+                }
+            }
+
             item { SectionHeader(stringResource(R.string.screens_title)) }
             item { HintText(stringResource(R.string.screens_reorder_hint)) }
 
@@ -386,6 +398,9 @@ private fun MainScreen() {
 
         dialogId?.let { id ->
             ScreenSettingsDialog(id = id, onDismiss = { dialogId = null })
+        }
+        if (showTutorial) {
+            KeyTutorialDialog(onDismiss = { showTutorial = false })
         }
     }
 }
