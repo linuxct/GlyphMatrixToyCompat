@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Glyph Matrix Toy Compat</string>
+    <string name="main_title">Glyph Matrix Toy Compat (GMTC)</string>
+
+    <!-- Accessibility service -->
+    <string name="accessibility_service_label">Glyph Matrix Toy Compat</string>
+    <string name="accessibility_service_description">Enables Glyph Matrix Toy Compat to detect presses of the Essential Key so you can control Glyph Toys: press once for a Glyph Touch action, twice to switch to the next toy, three times to return to the background toy. The service observes hardware key presses and Essential Space window events (to dismiss it when the system still reacts to a captured press); it never reads screen content.</string>
+
+    <!-- Glyph toy registration -->
+    <string name="toy_name">Glyph Matrix Toy Compat</string>
+    <string name="toy_summary">Glyph Toys, cycled with the Essential Key</string>
+
+    <!-- Disclosure -->
+    <string name="disclosure_title">Accessibility permission needed</string>
+    <string name="disclosure_body">Glyph Matrix Toy Compat uses an accessibility service to detect presses of your phone’s Essential Key, including on the lock screen and Always-On Display. This is the only way a normal app can react to that key.\n\nWhat the service does:\n• Listens for Essential Key presses and consumes them so Essential Space does not open\n• Single press: Glyph Touch action on the current toy\n• Double press: switch to the next toy\n• Triple press: return to the background toy\n\nWhat the service does NOT do:\n• It cannot and does not read your screen content\n• It does not collect or transmit any data\n\nOn the next screen, enable “Glyph Matrix Toy Compat” under Downloaded apps.</string>
+    <string name="disclosure_accept">Continue to Settings</string>
+    <string name="disclosure_decline">Not now</string>
+
+    <!-- Notification channel -->
+    <string name="channel_tea_time">Tea Time</string>
+    <string name="notif_tea_ready_title">Tea is ready</string>
+    <string name="notif_tea_ready_body">Your tea has finished steeping.</string>
+
+    <!-- Setup checklist -->
+    <string name="checklist_title">Setup</string>
+    <string name="checklist_accessibility">Essential Key listener (accessibility service)</string>
+    <string name="checklist_accessibility_on">Running — Essential Key is captured</string>
+    <string name="checklist_accessibility_off">Off — tap to enable in Accessibility settings</string>
+    <string name="checklist_toy">Always-on Glyph Toy</string>
+    <string name="checklist_toy_hint">Select “Glyph Matrix Toy Compat” in Glyph settings so toys keep running on AOD (tap to open)</string>
+    <string name="checklist_notifications">Notifications (Tea Time chime)</string>
+    <string name="checklist_mic">Microphone (music visualizer)</string>
+    <string name="checklist_location">Location (compass declination, optional)</string>
+    <string name="checklist_exact_alarm">Exact alarms (Tea Time backstop)</string>
+    <string name="checklist_essential_space">Hand the Essential Key over to Glyph Matrix Toy Compat (do NOT disable the Essential Space or Essential Recorder apps):\n1. Settings → Intelligence Toolkit → Essential Key Settings → enable “Activate with single tap before use”.\n2. Settings → Intelligence Toolkit → Essential Voice → disable “Activate via Essential Key”.\nThis stops the system from acting on the key directly; if a pop-up still slips through, Glyph Matrix Toy Compat dismisses it automatically.</string>
+    <string name="checklist_restricted">If you sideloaded this app (not via adb), you may need to allow “restricted settings” from App info before the accessibility service can be enabled.</string>
+    <string name="checklist_granted">Granted</string>
+    <string name="checklist_tap_to_grant">Tap to grant</string>
+    <string name="checklist_unsupported">This device has no Glyph Matrix — rendering is disabled. (Phone (3) or Phone (4a) Pro required.)</string>
+
+    <!-- Settings UI -->
+    <string name="master_toggle">Capture Essential Key</string>
+    <string name="master_toggle_summary">When on, all Essential Key presses control Glyph Toys. When off, the key behaves normally.</string>
+    <string name="brightness">Glyph brightness</string>
+    <string name="screens_title">Glyph Toys</string>
+    <string name="screens_reorder_hint">Drag the handle to change the cycle order</string>
+    <string name="preview">Preview</string>
+    <string name="set_active">Set as active toy</string>
+    <string name="settings">Settings</string>
+
+    <!-- Quick Settings tile -->
+    <string name="tile_label">Capture Essential Key</string>
+    <string name="tile_on">Capturing</string>
+    <string name="tile_off">Not capturing</string>
+
+    <!-- Toy display names -->
+    <string name="screen_ambient">Ambient (background)</string>
+    <string name="screen_clock">Pixel Clock</string>
+    <string name="screen_eyes">Eyes</string>
+    <string name="screen_speed">Download Speed</string>
+    <string name="screen_battery">Battery</string>
+    <string name="screen_solar">Solar Path</string>
+    <string name="screen_moon">Moon Phase</string>
+    <string name="screen_dice">Dice</string>
+    <string name="screen_coin">Coin Flip</string>
+    <string name="screen_counter">Counter</string>
+    <string name="screen_breathing">Breathing</string>
+    <string name="screen_tea">Tea Time</string>
+    <string name="screen_compass">Compass</string>
+    <string name="screen_visualizer">Music Visualizer</string>
+
+    <!-- Per-screen settings -->
+    <string name="pref_use12h">12-hour time</string>
+    <string name="pref_breathing_pace">Breathing pace (higher = slower)</string>
+    <string name="pref_tea_duration">Steep duration (seconds)</string>
+    <string name="pref_ambient_background">Background toy</string>
+    <string name="pref_ambient_night">Show background at night (23:00–06:00)</string>
+    <string name="pref_ambient_shake">Only show background for 30 s after a shake</string>
+    <string name="pref_ambient_charging">Charging indicator</string>
+    <string name="pref_ambient_charging_style">Charging style</string>
+    <string name="pref_visualizer_theme">Visualizer theme</string>
+    <string name="pref_visualizer_tuning">Response speed (1 = calmest, 6 = snappiest)</string>
+</resources>

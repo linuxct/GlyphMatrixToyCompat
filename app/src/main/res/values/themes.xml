@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The app content is Compose (monochrome via ui/theme/Theme.kt). This XML
+      theme only governs system-drawn chrome — text cursor/handles, scrollbars,
+      the overscroll edge glow, and the pre-Compose window. Left at the
+      Material3 baseline it inherits the OEM accent (Nothing's RED) for those
+      elements, so force them all to neutral gray. Mid-gray reads correctly in
+      both light and dark, so no -night variant is needed.
+    -->
+    <style name="Theme.GlyphMatrixToyCompat" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#757575</item>
+        <item name="colorSecondary">#757575</item>
+        <item name="colorAccent">#757575</item>
+        <item name="android:colorControlActivated">#757575</item>
+        <item name="android:colorControlNormal">#9A9AA2</item>
+        <item name="android:colorControlHighlight">#22808080</item>
+        <item name="android:textColorHighlight">#40808080</item>
+        <item name="android:colorEdgeEffect">#9A9AA2</item>
+    </style>
+</resources>
