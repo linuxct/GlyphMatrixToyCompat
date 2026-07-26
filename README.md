@@ -39,8 +39,8 @@ while the phone is unlocked:
 ### Menu mode (optional)
 
 By default the mapping above is "blind" — a double press jumps straight to the next toy.
-**Menu mode** is a separate, opt-in alternative (a switch in the app's settings, **off by
-default**) that turns the double press into an on-matrix picker instead:
+**Menu mode** is a separate, opt-in alternative (chosen during onboarding or from the app's
+settings, **off by default**) that turns the double press into an on-matrix picker instead:
 
 - **Double press** opens the selector: the current toy is shown on the matrix and **blinks**.
 - **Single press** cycles the blinking preview to the next toy (while the picker is open it
@@ -77,21 +77,81 @@ Glyph Button feeds the same action pipeline), but the 4a Pro is the primary targ
 
 Every toy can be toggled, reordered and configured from the app.
 
+## First run — onboarding
+
+On first launch the app opens a paged onboarding flow instead of the main screen. Each page
+is headed by an animated replica of the Glyph Matrix itself — a circular disc of 489 LEDs
+(a 25×25 grid under a circular mask) whose dots light up in pseudo-random order and shimmer
+gently, drawing pixel art for the page (a key, the glyph ring, a padlock, a toggle, a smiley).
+
+The pages, in order — every step is skippable with **Next** and everything can be revisited
+later from the main screen:
+
+1. **Take over the Essential Key** — explains what the accessibility service does (and
+   explicitly what it does *not* do), with a live status line, a button into Accessibility
+   settings, and a dedicated card for sideloaded installs: Android's "Restricted setting"
+   block and the App info → ⋮ → *Allow restricted settings* dance, with a direct App info
+   button.
+2. **Put GMTC on the matrix** — explains the always-on Glyph Toy concept and deep-links to
+   the system toy picker (the same deeplink the main screen uses).
+3. **Permissions** — all optional runtime permissions in one card (notifications, microphone,
+   location, exact alarms), each with a plain-language explanation of the single feature it
+   powers. States refresh live as you grant them.
+4. **Key mode** — *only appears if the listener was actually enabled*: choose between
+   Regular mode and Menu mode (two selectable cards explaining the behaviour difference),
+   with a **"How do they work?"** button that opens the same animated Essential Key tutorial
+   as the main screen.
+5. **Welcome** — a status recap of everything you set up, then into the app.
+
+The flow re-probes system state every time you return from Settings, so the status lines
+(and the conditional mode page) update live. Completing it sets a preference; MainActivity
+redirects to onboarding until that happens.
+
 ## The app (interface)
 
-A single Jetpack Compose screen, styled to look native to Nothing OS:
+A Jetpack Compose app styled to look native to Nothing OS, organized into three tabs behind
+a floating pill navigation bar:
+
+- **Glyph Toys** — every toy as a card. **Drag the handle to reorder** the cycle (takes
+  effect on the next key press); the **Play** button *sets* that toy as the currently active
+  one; the toy currently on the matrix is highlighted with a dot; a switch enables/disables
+  each toy; a gear opens per-toy settings.
+- **Settings** — the **Initial setup** checklist (accessibility service, always-on toy
+  selection — verified via the system's actual toy binding — notifications, microphone,
+  location, exact alarms; each row deep-links to the right place) followed by **App
+  settings**: key capture master toggle, Menu mode, 12-hour clock, Glyph brightness, and
+  the update checker (see below).
+- **How it works** — short guides for the trickier parts:
+  - **Essential Key tutorial** — an animated, fully Compose-drawn walkthrough (no image
+    assets): a phone lying face-down with its camera island, Glyph Matrix and Essential Key,
+    looping small timelines of what single, double and triple presses do — in both Regular
+    and Menu mode, with the real blink cadence and the 5 s auto-set countdown.
+  - **Hand over the Essential Key** — the system-settings steps to stop Nothing OS acting
+    on the key (see Setup below).
+  - **Restricted settings** — the sideload unlock steps, with a button straight into App info.
+
+Other UI notes:
 
 - **Nothing-styled theme** — strictly monochrome (black / white / grays, no accent colour), a
   `#F2F2FA` page background with pure-white cards, and the **NType82-Regular** headline serif
   used for the title. That font is not bundled: it's loaded at runtime from the device's
   `/system/fonts`, so the title matches the system Settings headline exactly (and nothing
   proprietary lands in the repo).
-- **Glyph Toys list** — every toy as a card. **Drag the handle to reorder** the cycle (takes
-  effect on the next key press); the **Play** button *sets* that toy as the currently active
-  one; the toy currently on the matrix is highlighted with a dot; a switch enables/disables
-  each toy; a gear opens per-toy settings.
 - **Quick Settings tile** — a "Capture Essential Key" toggle to turn key capture on/off from
   the notification shade (works on the lock screen too).
+
+## Updates
+
+The app checks GitHub Releases of this repository for new versions — its only network
+activity (the sole reason for the `INTERNET` permission):
+
+- **Once a day** in the background (WorkManager, network-constrained, survives reboots).
+  A newer release posts a notification — once per version — that opens the release page.
+- **On demand** from Settings → "Check for updates", which shows the installed version and
+  turns into a download link when an update is found.
+
+The check is a single unauthenticated GET to the GitHub API; nothing is sent beyond the
+request itself.
 
 ## Setup
 
@@ -101,37 +161,41 @@ A single Jetpack Compose screen, styled to look native to Nothing OS:
 > Nothing OS declares no shared library that could hard-block installation — the
 > app additionally refuses to run on hardware without a Glyph Matrix.
 
-1. Install the APK and open the app.
-2. Follow the in-app checklist:
+1. Install the APK and open the app — **onboarding walks you through everything below**.
+2. What it sets up (all revisitable from the Settings tab checklist):
    - **Enable the accessibility service** (this is what captures the Essential Key —
      including on the lock screen and before the first unlock after a reboot; it never
-     reads screen content).
-   - **Select "Glyph Matrix Toy Compat" as the Always-on Glyph Toy** — the checklist row
-     deep-links straight to the picker (Settings → Glyph Interface → Flip to Glyph) so the
-     system keeps the matrix rendering during AOD.
-   - **Hand the Essential Key over to GMTC** — do **not** disable the Essential Space or
-     Essential Recorder apps. Instead:
-     1. Settings → Intelligence Toolkit → **Essential Key Settings** → enable
-        *"Activate with single tap before use"*.
-     2. Settings → Intelligence Toolkit → **Essential Voice** → disable
-        *"Activate via Essential Key"*.
-
-     This stops the system from acting on the key directly; if a pop-up still slips
-     through on some firmware, GMTC dismisses it automatically.
+     reads screen content). Sideloaded installs may need *Allow restricted settings*
+     first — both onboarding and the How it works tab walk through it.
+   - **Select "Glyph Matrix Toy Compat" as the Always-on Glyph Toy** — deep-linked straight
+     to the picker (Settings → Glyph Interface → Flip to Glyph) so the system keeps the
+     matrix rendering during AOD. The checklist verifies the selection by the system's
+     actual toy binding.
+   - **Pick a key mode** — Regular or Menu mode (only offered once the listener is on).
    - Grant the optional permissions you want: microphone (music visualizer), location
      (solar path, compass declination), notifications + exact alarms (Tea Time).
-3. Press the Essential Key twice to start cycling.
+3. **Hand the Essential Key over to GMTC** (manual system steps — also available as a guide
+   in the How it works tab). Do **not** disable the Essential Space or Essential Recorder
+   apps. Instead:
+   1. Settings → Intelligence Toolkit → **Essential Key Settings** → enable
+      *"Activate with single tap before use"*.
+   2. Settings → Intelligence Toolkit → **Essential Voice** → disable
+      *"Activate via Essential Key"*.
+
+   This stops the system from acting on the key directly; if a pop-up still slips
+   through on some firmware, GMTC dismisses it automatically.
+4. Press the Essential Key twice to start cycling.
 
 The accessibility service survives reboots automatically — no re-enabling needed.
 
 ## Building
 
-Requirements: JDK 17 and an Android SDK with platform 35. Toolchain: AGP 8.9.3, Kotlin
-2.1.21 (+ Compose compiler plugin), Gradle 8.11.1 wrapper, minSdk 33 / compileSdk 35.
+Requirements: JDK 17 and an Android SDK with platform 37. Toolchain: AGP 9.3.0, Kotlin
+2.2.10 (+ Compose compiler plugin), Gradle 9.5.0 wrapper, minSdk 33 / target & compileSdk 37.
 
 ```sh
 ./gradlew :app:assembleDebug          # debug build
-./gradlew :app:assembleRelease        # release build (R8 shrink, ~3.5 MB)
+./gradlew :app:assembleRelease        # release build (R8 shrink)
 ./gradlew :app:testDebugUnitTest      # run the JVM test suite
 ./gradlew :app:lintDebug              # lint
 ```
@@ -140,9 +204,20 @@ Point the build at your SDK with `local.properties` (`sdk.dir=…`). The officia
 Matrix SDK is bundled at `app/libs/glyph-matrix-sdk-2.0.aar`.
 
 The **release** build runs R8 (shrinking + resource stripping) — this trims the Compose
-runtime down from ~26 MB to ~3.5 MB. R8 never removes logging (that only happens under an
+runtime down by an order of magnitude. R8 never removes logging (that only happens under an
 `-assumenosideeffects` rule, which `app/proguard-rules.pro` deliberately forbids), and the
 proguard file keeps the Glyph SDK, the frozen component names, and `DebugLog`.
+
+### CI / releases
+
+Two GitHub Actions workflows live in `.github/workflows/`:
+
+- **CI** (`ci.yaml`) — builds a debug APK on every push/PR and uploads it as an artifact.
+- **Release** (`release.yaml`) — manual dispatch: decodes the signing keystore from repo
+  secrets (`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`), builds a
+  signed release APK, and publishes a GitHub release tagged `v<versionName>` with
+  commit-derived release notes. Signing config is driven by a repo-root
+  `keystore.properties`; without it, local release builds are simply unsigned.
 
 ### Tests and ASCII goldens
 
@@ -168,6 +243,13 @@ Unrecognized hardware keys are logged with their scan code — the Essential Key
 code varies between firmware revisions (250 and 304 seen so far), so if your unit uses a
 new one, the log will show it and it can be added to `KNOWN_SCAN_CODES`.
 
+Replay the onboarding at any time (resets the completed flag and routes through the real
+first-launch path):
+
+```sh
+adb shell am start -S -n space.linuxct.glyphmatrixtoycompat/.ui.MainActivity --ez restart_onboarding true
+```
+
 ### Essential Key coexistence
 
 The accessibility service watches window events from the Essential Space / Essential
@@ -189,5 +271,8 @@ app/src/main/kotlin/space/linuxct/glyphmatrixtoycompat/
 ├── toy/       System Glyph Toy service, Tea Time alarm backstop
 ├── audio/     Shared FFT engine
 ├── sensors/   Shake / tilt / compass
-└── ui/        Compose setup checklist + settings, theme/ (Nothing-styled monochrome)
+├── update/    GitHub Releases update checker + daily WorkManager job
+└── ui/        Compose UI: tabbed main screen, first-run onboarding (animated glyph-disc
+               pages), animated Essential Key tutorial, setup guides,
+               theme/ (Nothing-styled monochrome, runtime NType82)
 ```
