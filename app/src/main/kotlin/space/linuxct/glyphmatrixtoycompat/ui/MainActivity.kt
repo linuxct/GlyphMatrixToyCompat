@@ -2,7 +2,6 @@ package space.linuxct.glyphmatrixtoycompat.ui
 
 import android.Manifest
 import android.app.AlarmManager
-import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -81,7 +80,6 @@ import space.linuxct.glyphmatrixtoycompat.Core
 import space.linuxct.glyphmatrixtoycompat.R
 import space.linuxct.glyphmatrixtoycompat.core.DebugLog
 import space.linuxct.glyphmatrixtoycompat.core.PrefKeys
-import space.linuxct.glyphmatrixtoycompat.key.EssentialKeyService
 import space.linuxct.glyphmatrixtoycompat.ui.theme.GmtcTheme
 import space.linuxct.glyphmatrixtoycompat.update.UpdateChecker
 import space.linuxct.glyphmatrixtoycompat.update.UpdateCheckWorker
@@ -91,6 +89,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Core.init(this)
+        if (!Core.prefs.getBoolean(PrefKeys.ONBOARDING_DONE, PrefKeys.ONBOARDING_DONE_DEF)) {
+            startActivity(Intent(this, OnboardingActivity::class.java))
+            finish()
+            return
+        }
         // Safe here (never reached in Direct Boot); keeps the daily
         // background release check alive.
         UpdateCheckWorker.schedule(this)
@@ -225,7 +228,7 @@ private fun MainScreen() {
             item { SectionHeader(stringResource(R.string.checklist_title)) }
             item {
                 SectionCard {
-                    val a11yEnabled = remember(refreshTick) { isAccessibilityEnabled(context) }
+                    val a11yEnabled = remember(refreshTick) { isEssentialKeyServiceEnabled(context) }
                     val a11ySubtitle = remember(refreshTick) {
                         if (a11yEnabled) {
                             val beat = Core.prefs.getLong(PrefKeys.SERVICE_HEARTBEAT, PrefKeys.SERVICE_HEARTBEAT_DEF)
@@ -259,27 +262,8 @@ private fun MainScreen() {
                         subtitle = stringResource(R.string.checklist_toy_hint),
                         good = null,
                     ) {
-                        // Prefer the direct AOD-toy picker (one tap from selecting
-                        // us); fall back to the general toys manager on firmware
-                        // where the picker activity is not launchable.
-                        val candidates = listOf(
-                            "com.nothing.thirdparty.matrix.toys.manager.AodToySelectActivity",
-                            "com.nothing.thirdparty.matrix.toys.manager.ToysManagerActivity",
-                        )
-                        val launched = candidates.any { cls ->
-                            try {
-                                context.startActivity(
-                                    Intent().setComponent(ComponentName("com.nothing.thirdparty", cls)),
-                                )
-                                DebugLog.i("Ui", "opened $cls")
-                                true
-                            } catch (e: Exception) {
-                                DebugLog.d("Ui", "$cls not launchable: ${e.message}")
-                                false
-                            }
-                        }
-                        if (!launched) {
-                            Toast.makeText(context, "Glyph settings not available", Toast.LENGTH_SHORT).show()
+                        if (!openGlyphToySettings(context)) {
+                            Toast.makeText(context, R.string.glyph_settings_unavailable, Toast.LENGTH_SHORT).show()
                         }
                     }
                     HorizontalDivider()
@@ -664,18 +648,6 @@ private fun UpdateRow() {
                 }
             }
         }
-    }
-}
-
-private fun isAccessibilityEnabled(context: android.content.Context): Boolean {
-    val component = ComponentName(context, EssentialKeyService::class.java)
-    val enabled = Settings.Secure.getString(
-        context.contentResolver,
-        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-    ) ?: return false
-    return enabled.split(':').any {
-        it.equals(component.flattenToString(), ignoreCase = true) ||
-            it.equals(component.flattenToShortString(), ignoreCase = true)
     }
 }
 

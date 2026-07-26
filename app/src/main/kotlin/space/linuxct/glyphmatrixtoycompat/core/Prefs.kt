@@ -103,4 +103,8 @@ object PrefKeys {
     /** Release version the daily update check has already notified about. */
     const val UPDATE_NOTIFIED_VERSION = "updateNotifiedVersion"
     const val UPDATE_NOTIFIED_VERSION_DEF = ""
+
+    /** First-run onboarding completed; MainActivity redirects there until set. */
+    const val ONBOARDING_DONE = "onboardingDone"
+    const val ONBOARDING_DONE_DEF = false
 }

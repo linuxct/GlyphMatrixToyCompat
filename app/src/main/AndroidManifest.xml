@@ -41,6 +41,10 @@
             android:name=".ui.DisclosureActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".ui.OnboardingActivity"
+            android:exported="false" />
+
         <service
             android:name=".key.EssentialKeyService"
             android:directBootAware="true"
