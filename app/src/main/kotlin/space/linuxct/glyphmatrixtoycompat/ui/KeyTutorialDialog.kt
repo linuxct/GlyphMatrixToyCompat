@@ -295,20 +295,20 @@ private val CLASSIC_STEPS = listOf(
             else -> MatrixFrame(DICE_5, true)
         }
     },
-    // Two double-presses: dice -> clock -> moon, then the loop restarts on
+    // Two double-presses: dice -> clock -> compass, then the loop restarts on
     // dice — three toys, so the carousel reads as a cycle, not a toggle.
     TutorialStep(R.string.tut_c2_title, R.string.tut_c2_body, 5200, listOf(600, 960, 2600, 2960)) { t ->
         MatrixFrame(
             when {
                 t < 1400 -> DICE_5
                 t < 3400 -> CLOCK
-                else -> MOON
+                else -> COMPASS
             },
             true,
         )
     },
     TutorialStep(R.string.tut_c3_title, R.string.tut_c3_body, 4400, listOf(600, 960, 1320)) { t ->
-        MatrixFrame(if (t < 1800) MOON else AMBIENT, true)
+        MatrixFrame(if (t < 1800) COMPASS else AMBIENT, true)
     },
 )
 
@@ -316,13 +316,13 @@ private val MENU_STEPS = listOf(
     TutorialStep(R.string.tut_m1_title, R.string.tut_m1_body, 5600, listOf(600, 960)) { t ->
         if (t < 1400) MatrixFrame(CLOCK, true) else MatrixFrame(CLOCK, blinkOn(t - 1400))
     },
-    // Two single presses: clock -> dice -> moon, all still blinking, before
+    // Two single presses: clock -> dice -> compass, all still blinking, before
     // the loop circles back to the clock.
     TutorialStep(R.string.tut_m2_title, R.string.tut_m2_body, 7200, listOf(1800, 3800)) { t ->
         when {
             t < 2100 -> MatrixFrame(CLOCK, blinkOn(t))
             t < 4100 -> MatrixFrame(DICE_5, blinkOn(t - 2100))
-            else -> MatrixFrame(MOON, blinkOn(t - 4100))
+            else -> MatrixFrame(COMPASS, blinkOn(t - 4100))
         }
     },
     TutorialStep(R.string.tut_m3_title, R.string.tut_m3_body, 5600, listOf(1800, 2160)) { t ->
@@ -400,8 +400,9 @@ private fun DrawScope.drawTutorialPhone(base: Color, step: TutorialStep, t: Long
         for (c in 0 until 13) {
             val center = Offset(g0x + c * cell, g0y + r * cell)
             if (hypot(center.x - mc.x, center.y - mc.y) > mr * 0.93f) continue
-            // Per-cell brightness so shaded patterns (the moon) render like
-            // the real dimmed LEDs; '#' stays the full-white used elsewhere.
+            // Per-cell brightness so shaded patterns (the compass) render
+            // like the real dimmed LEDs; '#' stays the full-white used
+            // elsewhere.
             val level = when (rowPattern[c]) {
                 '#' -> 1f
                 '+' -> 0.55f
@@ -565,24 +566,24 @@ private val DICE_6 = listOf(
 private val ROLL = listOf(DICE_3, DICE_6, DICE_2, DICE_6, DICE_3)
 
 /**
- * The Moon Phase toy at first quarter (50/50), taken from the real renderer's
- * 13x13 output (the moon_13_firstquarter golden): ':' is the faint earthshine
- * disc, '+' the lit surface, '#' the brightest highlands.
+ * The Compass toy pointing north, taken from the real renderer's 13x13
+ * output (the compass_13_north golden): '#' needle, ':' tail, cardinal ring
+ * with '+' W/E/S markers and ':' intercardinal dots.
  */
-private val MOON = listOf(
-    "...:::::::...",
-    "..:::::+:::..",
-    ".:::::::::+:.",
-    "::::::::::++:",
-    ":::::::::::+:",
-    "::::::++:::+:",
-    "::::::+#+::::",
-    "::::::+##++::",
-    "::::::+##++::",
-    "::::::+##+++:",
-    ".:::::+#++#:.",
-    "..::::++++:..",
-    "...::::++:...",
+private val COMPASS = listOf(
+    "......#......",
+    "......#......",
+    "..:...#...:..",
+    "......#......",
+    "......#......",
+    "......#......",
+    "+.....+.....+",
+    "......:......",
+    "......:......",
+    "......:......",
+    "..:.......:..",
+    ".............",
+    "......+......",
 )
 
 /** Stacked "12" / "34" like the pixel clock toy. */
