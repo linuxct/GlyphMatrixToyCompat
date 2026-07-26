@@ -104,7 +104,7 @@ object Core {
             if (running) shake.start() else shake.stop()
         }
 
-        router = KeyActionRouter(arbiter, screenManager, scheduler)
+        router = KeyActionRouter(arbiter, screenManager, scheduler, prefs)
 
         shake.onShake = {
             scheduler.run { screenManager.dispatchGlyphEvent(Events.SHAKE) }

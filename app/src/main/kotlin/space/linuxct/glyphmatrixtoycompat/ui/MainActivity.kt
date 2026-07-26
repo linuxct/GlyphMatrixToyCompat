@@ -72,19 +72,28 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import space.linuxct.glyphmatrixtoycompat.Core
 import space.linuxct.glyphmatrixtoycompat.R
 import space.linuxct.glyphmatrixtoycompat.core.DebugLog
 import space.linuxct.glyphmatrixtoycompat.core.PrefKeys
 import space.linuxct.glyphmatrixtoycompat.key.EssentialKeyService
 import space.linuxct.glyphmatrixtoycompat.ui.theme.GmtcTheme
+import space.linuxct.glyphmatrixtoycompat.update.UpdateChecker
+import space.linuxct.glyphmatrixtoycompat.update.UpdateCheckWorker
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Core.init(this)
+        // Safe here (never reached in Direct Boot); keeps the daily
+        // background release check alive.
+        UpdateCheckWorker.schedule(this)
         enableEdgeToEdge()
         setContent {
             GmtcTheme {
@@ -329,6 +338,18 @@ private fun MainScreen() {
                         Core.prefs.putBoolean(PrefKeys.MASTER_TOGGLE, it)
                     }
                     HorizontalDivider()
+                    var menuMode by remember(refreshTick) {
+                        mutableStateOf(Core.prefs.getBoolean(PrefKeys.MENU_MODE_ENABLED, PrefKeys.MENU_MODE_ENABLED_DEF))
+                    }
+                    SwitchRow(
+                        title = stringResource(R.string.pref_menu_mode),
+                        subtitle = stringResource(R.string.pref_menu_mode_summary),
+                        checked = menuMode,
+                    ) {
+                        menuMode = it
+                        Core.prefs.putBoolean(PrefKeys.MENU_MODE_ENABLED, it)
+                    }
+                    HorizontalDivider()
                     var use12h by remember(refreshTick) {
                         mutableStateOf(Core.prefs.getBoolean(PrefKeys.USE_12H, false))
                     }
@@ -374,6 +395,9 @@ private fun MainScreen() {
                     onSettings = { dialogId = id },
                 )
             }
+
+            item { SectionHeader(stringResource(R.string.update_section)) }
+            item { SectionCard { UpdateRow() } }
         }
 
         dialogId?.let { id ->
@@ -583,6 +607,63 @@ private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChan
             }
         }
         Switch(checked = checked, onCheckedChange = onChange)
+    }
+}
+
+// ---------- update check ----------
+
+private sealed interface UpdateUiState {
+    data object Idle : UpdateUiState
+    data object Checking : UpdateUiState
+    data object UpToDate : UpdateUiState
+    data class Available(val version: String, val url: String) : UpdateUiState
+    data class Failed(val reason: String) : UpdateUiState
+}
+
+@Composable
+private fun UpdateRow() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val installed = remember {
+        try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
+        } catch (e: Exception) {
+            "?"
+        }
+    }
+    var state by remember { mutableStateOf<UpdateUiState>(UpdateUiState.Idle) }
+
+    SetupRow(
+        title = stringResource(R.string.update_check_title),
+        subtitle = when (val s = state) {
+            UpdateUiState.Idle -> stringResource(R.string.update_idle, installed)
+            UpdateUiState.Checking -> stringResource(R.string.update_checking)
+            UpdateUiState.UpToDate -> stringResource(R.string.update_up_to_date, installed)
+            is UpdateUiState.Available -> stringResource(R.string.update_available, s.version)
+            is UpdateUiState.Failed -> stringResource(R.string.update_failed, s.reason)
+        },
+        good = when (state) {
+            is UpdateUiState.Available -> true
+            is UpdateUiState.Failed -> false
+            else -> null
+        },
+    ) {
+        when (val s = state) {
+            // Once an update is known, the row becomes the download link.
+            is UpdateUiState.Available ->
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s.url)))
+            UpdateUiState.Checking -> {}
+            else -> scope.launch {
+                state = UpdateUiState.Checking
+                val result = withContext(Dispatchers.IO) { UpdateChecker.check(installed) }
+                state = when (result) {
+                    is UpdateChecker.Result.UpdateAvailable ->
+                        UpdateUiState.Available(result.version, result.url)
+                    UpdateChecker.Result.UpToDate -> UpdateUiState.UpToDate
+                    is UpdateChecker.Result.Failed -> UpdateUiState.Failed(result.reason)
+                }
+            }
+        }
     }
 }
 

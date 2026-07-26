@@ -36,6 +36,23 @@ while the phone is unlocked:
   consumed so Essential Space never sees it. Turn it off and the key behaves completely
   normally again — no interception.
 
+### Menu mode (optional)
+
+By default the mapping above is "blind" — a double press jumps straight to the next toy.
+**Menu mode** is a separate, opt-in alternative (a switch in the app's settings, **off by
+default**) that turns the double press into an on-matrix picker instead:
+
+- **Double press** opens the selector: the current toy is shown on the matrix and **blinks**.
+- **Single press** cycles the blinking preview to the next toy (while the picker is open it
+  does *not* fire the toy's Glyph Touch action).
+- **Double press** again **sets** the previewed toy and closes the picker — it stops blinking.
+- **Triple press** leaves the picker and jumps back to the Ambient background.
+- **Wait ~5 seconds** and the previewed toy is set automatically; every press resets that timer.
+
+Outside the picker, Menu mode changes nothing else: a **single press still triggers the Glyph
+Touch action** on interactive toys, and a triple press still jumps home — only the double press
+is repurposed (next toy → open picker). Leave the toggle off for the classic behaviour above.
+
 Phone (3) is also supported (25×25 rendering paths exist for every screen, and its real
 Glyph Button feeds the same action pipeline), but the 4a Pro is the primary target.
 

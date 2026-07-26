@@ -182,4 +182,132 @@ class ScreenManagerTest {
         m.startSession()
         assertEquals(1, b.activations)
     }
+
+    // ---------- menu mode ----------
+
+    @Test
+    fun `enterMenu blinks the previewed toy between content and blank`() {
+        val m = manager(a, b, c)
+        m.startSession()
+        assertEquals(1, output.size) // steady content frame
+        m.enterMenu()
+        assertTrue(m.inMenu)
+
+        // After BLINK_ON_MS the toy is blinked off: an all-zero frame.
+        scheduler.advanceTime(450)
+        assertTrue("blink-off frame should be blank", output.last().all { it == 0 })
+
+        // After BLINK_OFF_MS the content returns.
+        scheduler.advanceTime(300)
+        assertTrue("blink-on frame should have content", output.last().any { it != 0 })
+    }
+
+    @Test
+    fun `menuNext previews the next toy without persisting current screen`() {
+        val m = manager(a, b, c)
+        m.startSession()
+        m.enterMenu() // previews ambient
+        m.menuNext() // -> clock
+        assertEquals(1, b.activations)
+        assertEquals("ambient", persistedScreen())
+        m.menuNext() // -> dice
+        assertEquals(1, c.activations)
+        assertEquals("ambient", persistedScreen())
+        m.menuNext() // wraps back to ambient
+        assertEquals(2, a.activations)
+        assertEquals("ambient", persistedScreen())
+    }
+
+    @Test
+    fun `menu auto-commits the preview after the timeout and stops blinking`() {
+        val m = manager(a, b, c)
+        m.startSession()
+        m.enterMenu()
+        m.menuNext() // preview clock
+        assertEquals("ambient", persistedScreen())
+
+        scheduler.advanceTime(5000) // no press within the window
+        assertFalse(m.inMenu)
+        assertEquals("clock", persistedScreen())
+
+        // Blinking has stopped: no further frames are produced by advancing time.
+        val n = output.size
+        scheduler.advanceTime(5000)
+        assertEquals(n, output.size)
+    }
+
+    @Test
+    fun `a press before the timeout re-arms auto-commit`() {
+        val m = manager(a, b, c)
+        m.startSession()
+        m.enterMenu() // preview ambient; commit timer armed at t+5000
+        scheduler.advanceTime(4000)
+        m.menuNext() // preview clock; timer re-armed to t+9000
+        assertTrue(m.inMenu)
+        scheduler.advanceTime(4000) // t=8000: original 5s would have fired; re-armed one has not
+        assertTrue(m.inMenu)
+        assertEquals("ambient", persistedScreen())
+        scheduler.advanceTime(1000) // t=9000: re-armed timer fires -> commits clock
+        assertFalse(m.inMenu)
+        assertEquals("clock", persistedScreen())
+    }
+
+    @Test
+    fun `commitMenu sets the previewed toy immediately and shows it steady`() {
+        val m = manager(a, b, c)
+        m.startSession()
+        m.enterMenu()
+        m.menuNext() // preview clock
+        m.commitMenu()
+        assertFalse(m.inMenu)
+        assertEquals("clock", persistedScreen())
+        assertTrue("committed toy shows steady content", output.last().any { it != 0 })
+
+        val n = output.size
+        scheduler.advanceTime(5000)
+        assertEquals(n, output.size) // no lingering blink
+    }
+
+    @Test
+    fun `home from within the menu exits and jumps to ambient`() {
+        val m = manager(a, b, c)
+        m.startSession()
+        m.next() // on clock
+        m.enterMenu()
+        m.menuNext() // preview dice
+        m.home()
+        assertFalse(m.inMenu)
+        assertEquals("ambient", persistedScreen())
+
+        val n = output.size
+        scheduler.advanceTime(5000)
+        assertEquals(n, output.size) // menu blink cancelled on exit
+    }
+
+    @Test
+    fun `stopSession cancels the menu`() {
+        val m = manager(a, b, c)
+        m.startSession()
+        m.enterMenu()
+        assertTrue(m.inMenu)
+        m.stopSession()
+        assertFalse(m.inMenu)
+        val n = output.size
+        scheduler.advanceTime(5000) // no blink, no auto-commit after stop
+        assertEquals(n, output.size)
+    }
+
+    @Test
+    fun `menu methods are no-ops when the menu is not open`() {
+        val m = manager(a, b, c)
+        m.startSession()
+        m.menuNext() // ignored: not in menu
+        m.commitMenu() // ignored: not in menu
+        assertFalse(m.inMenu)
+        assertEquals(1, a.activations) // nothing re-activated
+        assertEquals("ambient", persistedScreen())
+    }
+
+    private fun persistedScreen() =
+        prefs.getString(PrefKeys.CURRENT_SCREEN, PrefKeys.CURRENT_SCREEN_DEF)
 }

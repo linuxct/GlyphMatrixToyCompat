@@ -3,8 +3,16 @@ package space.linuxct.glyphmatrixtoycompat
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import androidx.work.Configuration
 
-class App : Application() {
+// Configuration.Provider + the WorkManagerInitializer removal in the manifest
+// defer WorkManager init until first getInstance() call (from MainActivity):
+// this process also starts in Direct Boot, where WorkManager's
+// credential-encrypted store must not be touched.
+class App : Application(), Configuration.Provider {
+
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder().build()
 
     override fun onCreate() {
         super.onCreate()
@@ -27,9 +35,17 @@ class App : Application() {
                 NotificationManager.IMPORTANCE_HIGH,
             ),
         )
+        nm.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_UPDATES,
+                getString(R.string.channel_updates),
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ),
+        )
     }
 
     companion object {
         const val CHANNEL_TEA_TIME = "tea_time"
+        const val CHANNEL_UPDATES = "app_updates"
     }
 }

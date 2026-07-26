@@ -1,6 +1,18 @@
 package space.linuxct.glyphmatrixtoycompat.core
 
 /**
+ * The slice of the arbiter the key router depends on. Kept as an interface so
+ * the router can be unit-tested without the Android-coupled GlyphLink.
+ */
+interface SessionControl {
+    /** True while some source (toy / direct / preview) wants the session running. */
+    val sessionShouldRun: Boolean
+
+    /** Re-evaluate conditions and (re)start the session if it should be running. */
+    fun revive()
+}
+
+/**
  * Decides when the single render session runs and on behalf of whom.
  * All sources drive the same ScreenManager, so ownership changes never
  * restart the session — the session runs while ANY source wants it:
@@ -18,7 +30,7 @@ class SessionArbiter(
     private val screenManager: ScreenManager,
     private val prefs: Prefs,
     private val onSessionChanged: (running: Boolean) -> Unit = {},
-) {
+) : SessionControl {
     enum class Owner { NONE, TOY, DIRECT, PREVIEW }
 
     @Volatile
@@ -48,11 +60,11 @@ class SessionArbiter(
 
     /** Re-evaluates conditions; used by the key router to revive a dead session. */
     @Synchronized
-    fun revive() {
+    override fun revive() {
         recompute()
     }
 
-    val sessionShouldRun: Boolean
+    override val sessionShouldRun: Boolean
         get() = owner != Owner.NONE
 
     private fun masterOn() = prefs.getBoolean(PrefKeys.MASTER_TOGGLE, PrefKeys.MASTER_TOGGLE_DEF)

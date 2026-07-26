@@ -28,6 +28,10 @@ object PrefKeys {
     const val MASTER_TOGGLE = "master_toggle"
     const val MASTER_TOGGLE_DEF = true
 
+    /** Optional Essential-Key "menu mode": double-press opens a blinking toy selector. */
+    const val MENU_MODE_ENABLED = "menuModeEnabled"
+    const val MENU_MODE_ENABLED_DEF = false
+
     const val SCREEN_ORDER = "screen_order"
     const val SCREEN_ORDER_DEF = "ambient,clock,eyes,speed,battery,solar,moon,dice,coin,counter,breathing,tea,compass,visualizer"
 
@@ -95,4 +99,8 @@ object PrefKeys {
 
     const val SERVICE_HEARTBEAT = "service_heartbeat"
     const val SERVICE_HEARTBEAT_DEF = 0L
+
+    /** Release version the daily update check has already notified about. */
+    const val UPDATE_NOTIFIED_VERSION = "updateNotifiedVersion"
+    const val UPDATE_NOTIFIED_VERSION_DEF = ""
 }

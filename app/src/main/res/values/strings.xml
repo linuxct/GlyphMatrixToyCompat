@@ -21,6 +21,18 @@
     <string name="channel_tea_time">Tea Time</string>
     <string name="notif_tea_ready_title">Tea is ready</string>
     <string name="notif_tea_ready_body">Your tea has finished steeping.</string>
+    <string name="channel_updates">App updates</string>
+    <string name="notif_update_title">Update available</string>
+    <string name="notif_update_body">GMTC %1$s is out — tap to open the download page.</string>
+
+    <!-- Update check -->
+    <string name="update_section">Updates</string>
+    <string name="update_check_title">Check for updates</string>
+    <string name="update_idle">Version %1$s installed — tap to check now (also checked daily)</string>
+    <string name="update_checking">Checking…</string>
+    <string name="update_up_to_date">Up to date (version %1$s)</string>
+    <string name="update_available">Version %1$s available — tap to download</string>
+    <string name="update_failed">Check failed: %1$s</string>
 
     <!-- Setup checklist -->
     <string name="checklist_title">Setup</string>
@@ -42,6 +54,8 @@
     <!-- Settings UI -->
     <string name="master_toggle">Capture Essential Key</string>
     <string name="master_toggle_summary">When on, all Essential Key presses control Glyph Toys. When off, the key behaves normally.</string>
+    <string name="pref_menu_mode">Essential Key menu mode</string>
+    <string name="pref_menu_mode_summary">Double-press opens a blinking on-glyph selector; single-press cycles toys, and the shown toy is set automatically after a few seconds. Single-press still triggers toy actions outside the menu.</string>
     <string name="brightness">Glyph brightness</string>
     <string name="screens_title">Glyph Toys</string>
     <string name="screens_reorder_hint">Drag the handle to change the cycle order</string>

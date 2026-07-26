@@ -20,19 +20,34 @@ class ScreenManager(
     var sessionLive = false
         private set
 
+    /** True while the blinking Essential-Key "menu" selector is open. */
+    var inMenu = false
+        private set
+
     private var transientId: String? = null
     private var activeScreen: GlyphScreen? = null
     private var lastPushed: IntArray? = null
+
+    // Menu-mode state: the previewed toy blinks (content <-> blank) until the
+    // user commits (double press) or the auto-commit timer fires.
+    private var blinkOn = true
+    private var lastContentFrame: IntArray? = null
+    private val blank = IntArray(size * size)
+    private var blink: Cancelable? = null
+    private var commitTimer: Cancelable? = null
 
     private val context: ScreenContext = ScreenContext(size, prefs, ports, scheduler) { frame ->
         val ceilinged = BrightnessCeiling.apply(
             frame,
             prefs.getFloat(PrefKeys.BRIGHTNESS, PrefKeys.BRIGHTNESS_DEF),
         )
+        lastContentFrame = ceilinged
+        // While the menu is blinked "off", suppress the toy's frame with black.
+        val toSend = if (inMenu && !blinkOn) blank else ceilinged
         val last = lastPushed
-        if (last != null && last.contentEquals(ceilinged)) return@ScreenContext
-        lastPushed = ceilinged.copyOf()
-        output(ceilinged)
+        if (last != null && last.contentEquals(toSend)) return@ScreenContext
+        lastPushed = toSend.copyOf()
+        output(toSend)
     }
 
     /** Roster in configured order, filtered to enabled; falls back to the full roster if all are disabled. */
@@ -67,21 +82,31 @@ class ScreenManager(
     fun stopSession() {
         if (!sessionLive) return
         DebugLog.i(C, "session STOP (was '${activeScreen?.id}')")
+        exitMenuState()
         deactivate()
         transientId = null
         sessionLive = false
         lastPushed = null
+        lastContentFrame = null
     }
 
     fun next() = moveBy(1)
 
     fun home() {
         if (!sessionLive) return
+        val wasInMenu = inMenu
+        exitMenuState()
         val homeScreen = enabledScreens().first()
         transientId = null
-        if (activeScreen?.id == homeScreen.id) return
         prefs.putString(PrefKeys.CURRENT_SCREEN, homeScreen.id)
-        switchTo(homeScreen)
+        if (wasInMenu) {
+            // Exiting the menu: a mid-blink call may have left a blank frame, so
+            // force a fresh render even if home was already active.
+            forceActivate(homeScreen)
+        } else {
+            if (activeScreen?.id == homeScreen.id) return
+            switchTo(homeScreen)
+        }
     }
 
     private fun moveBy(delta: Int) {
@@ -133,8 +158,86 @@ class ScreenManager(
         if (sessionLive) switchTo(currentScreen())
     }
 
+    // ---------- menu mode (blinking Essential-Key selector) ----------
+
+    /** Opens the blinking selector previewing the current toy. */
+    fun enterMenu() {
+        if (!sessionLive || inMenu) return
+        DebugLog.i(C, "menu ENTER on '${currentScreen().id}'")
+        inMenu = true
+        blinkOn = true
+        transientId = currentScreen().id
+        startBlink()
+        armCommit()
+    }
+
+    /** Advances the blinking preview to the next enabled toy. */
+    fun menuNext() {
+        if (!inMenu) return
+        val screens = enabledScreens()
+        val cur = activeScreen ?: currentScreen()
+        val idx = screens.indexOfFirst { it.id == cur.id }
+        val nextScreen = screens[((if (idx < 0) 0 else idx) + 1) % screens.size]
+        DebugLog.i(C, "menu NEXT '${cur.id}' -> '${nextScreen.id}'")
+        transientId = nextScreen.id
+        switchTo(nextScreen)
+        armCommit()
+    }
+
+    /** Sets the previewed toy as current, stops blinking, and closes the menu. */
+    fun commitMenu() {
+        if (!inMenu) return
+        val id = transientId ?: currentScreen().id
+        DebugLog.i(C, "menu COMMIT '$id'")
+        exitMenuState()
+        transientId = null
+        prefs.putString(PrefKeys.CURRENT_SCREEN, id)
+        val screen = enabledScreens().firstOrNull { it.id == id }
+            ?: allScreens.firstOrNull { it.id == id } ?: currentScreen()
+        // Re-activate so the committed toy shows steady immediately (the blink
+        // may have left a blank frame on screen).
+        forceActivate(screen)
+    }
+
+    private fun startBlink() {
+        blink?.cancel()
+        scheduleBlink()
+    }
+
+    private fun scheduleBlink() {
+        val delay = if (blinkOn) BLINK_ON_MS else BLINK_OFF_MS
+        blink = scheduler.postDelayed(delay) {
+            if (!inMenu) return@postDelayed
+            blinkOn = !blinkOn
+            val frame = if (blinkOn) lastContentFrame else blank
+            if (frame != null) {
+                lastPushed = frame.copyOf()
+                output(frame)
+            }
+            scheduleBlink()
+        }
+    }
+
+    private fun armCommit() {
+        commitTimer?.cancel()
+        commitTimer = scheduler.postDelayed(MENU_TIMEOUT_MS) { commitMenu() }
+    }
+
+    private fun exitMenuState() {
+        blink?.cancel(); blink = null
+        commitTimer?.cancel(); commitTimer = null
+        inMenu = false
+        blinkOn = true
+    }
+
     private fun switchTo(screen: GlyphScreen) {
         if (activeScreen === screen) return
+        deactivate()
+        activate(screen)
+    }
+
+    /** Activate [screen] unconditionally (even if already active), forcing a fresh render. */
+    private fun forceActivate(screen: GlyphScreen) {
         deactivate()
         activate(screen)
     }
@@ -152,5 +255,8 @@ class ScreenManager(
 
     private companion object {
         const val C = "Screens"
+        const val MENU_TIMEOUT_MS = 5000L
+        const val BLINK_ON_MS = 450L
+        const val BLINK_OFF_MS = 300L
     }
 }

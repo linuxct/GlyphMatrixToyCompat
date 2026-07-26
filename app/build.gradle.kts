@@ -16,14 +16,14 @@ val keystoreProperties = Properties().apply {
 
 android {
     namespace = "space.linuxct.glyphmatrixtoycompat"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "space.linuxct.glyphmatrixtoycompat"
         minSdk = 33
-        targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        targetSdk = 37
+        versionCode = 2
+        versionName = "1.0.0"
     }
 
     signingConfigs {
@@ -86,6 +86,7 @@ dependencies {
     implementation("androidx.compose.material3:material3:1.4.0")
     implementation("androidx.compose.material:material-icons-core:1.7.8")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
     testImplementation("junit:junit:4.13.2")
 }
 
