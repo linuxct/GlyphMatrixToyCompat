@@ -89,6 +89,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Core.init(this)
+        // Debug/replay hook — OnboardingActivity itself is not exported, so:
+        // adb shell am start -n space.linuxct.glyphmatrixtoycompat/.ui.MainActivity --ez restart_onboarding true
+        if (intent?.getBooleanExtra(EXTRA_RESTART_ONBOARDING, false) == true) {
+            Core.prefs.putBoolean(PrefKeys.ONBOARDING_DONE, false)
+        }
         if (!Core.prefs.getBoolean(PrefKeys.ONBOARDING_DONE, PrefKeys.ONBOARDING_DONE_DEF)) {
             startActivity(Intent(this, OnboardingActivity::class.java))
             finish()
@@ -103,6 +108,10 @@ class MainActivity : ComponentActivity() {
                 MainScreen()
             }
         }
+    }
+
+    companion object {
+        const val EXTRA_RESTART_ONBOARDING = "restart_onboarding"
     }
 }
 

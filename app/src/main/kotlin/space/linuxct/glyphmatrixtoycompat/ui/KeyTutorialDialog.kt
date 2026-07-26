@@ -15,12 +15,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,7 +28,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,20 +61,7 @@ import kotlin.math.hypot
 @Composable
 fun KeyTutorialDialog(onDismiss: () -> Unit) {
     var menuMode by remember { mutableStateOf(false) }
-    var stepIndex by remember { mutableIntStateOf(0) }
     val steps = if (menuMode) MENU_STEPS else CLASSIC_STEPS
-    val step = steps[stepIndex.coerceIn(0, steps.lastIndex)]
-
-    // Millisecond timeline looping over the step's duration; restarts whenever
-    // the shown step changes. Read only inside the Canvas draw block, so each
-    // frame is a redraw, not a recomposition.
-    var timeMs by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(step) {
-        val t0 = withFrameNanos { it }
-        while (true) {
-            withFrameNanos { now -> timeMs = ((now - t0) / 1_000_000) % step.durationMs }
-        }
-    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surface) {
@@ -89,66 +76,83 @@ fun KeyTutorialDialog(onDismiss: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ModeChip(stringResource(R.string.onb_mode_regular), !menuMode, Modifier.weight(1f)) {
                         menuMode = false
-                        stepIndex = 0
                     }
                     ModeChip(stringResource(R.string.onb_mode_menu), menuMode, Modifier.weight(1f)) {
                         menuMode = true
-                        stepIndex = 0
                     }
                 }
                 Spacer(Modifier.height(8.dp))
 
-                val base = MaterialTheme.colorScheme.onSurface
-                Canvas(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(205.dp)
-                        .clipToBounds(),
-                ) {
-                    drawTutorialPhone(base, step, timeMs)
-                }
-                Spacer(Modifier.height(6.dp))
+                // Swipe through the selected mode's steps; key() recreates the
+                // pager on mode change so it starts back at the first step.
+                key(menuMode) {
+                    val pagerState = rememberPagerState(pageCount = { steps.size })
+                    HorizontalPager(state = pagerState) { page ->
+                        TutorialPage(steps[page])
+                    }
+                    Spacer(Modifier.height(6.dp))
 
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    steps.forEachIndexed { i, _ ->
-                        Box(
-                            Modifier
-                                .padding(horizontal = 3.dp)
-                                .size(7.dp)
-                                .background(
-                                    if (i == stepIndex) base else base.copy(alpha = 0.2f),
-                                    CircleShape,
-                                ),
-                        )
+                    val base = MaterialTheme.colorScheme.onSurface
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        steps.forEachIndexed { i, _ ->
+                            Box(
+                                Modifier
+                                    .padding(horizontal = 3.dp)
+                                    .size(7.dp)
+                                    .background(
+                                        if (i == pagerState.currentPage) base else base.copy(alpha = 0.2f),
+                                        CircleShape,
+                                    ),
+                            )
+                        }
                     }
                 }
-                Spacer(Modifier.height(10.dp))
 
-                Text(stringResource(step.titleRes), style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    stringResource(step.bodyRes),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.heightIn(min = 72.dp),
-                )
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.tut_close)) }
+                Row(Modifier.fillMaxWidth()) {
                     Spacer(Modifier.weight(1f))
-                    TextButton(onClick = {
-                        stepIndex = (stepIndex - 1 + steps.size) % steps.size
-                    }) { Text(stringResource(R.string.onb_back)) }
-                    Spacer(Modifier.width(8.dp))
-                    Button(onClick = {
-                        stepIndex = (stepIndex + 1) % steps.size
-                    }) { Text(stringResource(R.string.onb_next)) }
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.tut_close)) }
                 }
             }
         }
+    }
+}
+
+/** One swipeable step: its looping animation plus title and description. */
+@Composable
+private fun TutorialPage(step: TutorialStep) {
+    // Millisecond timeline looping over the step's duration; starts fresh each
+    // time the page enters the pager's composition. Read only inside the
+    // Canvas draw block, so each frame is a redraw, not a recomposition.
+    var timeMs by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(step) {
+        val t0 = withFrameNanos { it }
+        while (true) {
+            withFrameNanos { now -> timeMs = ((now - t0) / 1_000_000) % step.durationMs }
+        }
+    }
+
+    val base = MaterialTheme.colorScheme.onSurface
+    Column {
+        Canvas(
+            Modifier
+                .fillMaxWidth()
+                .height(205.dp)
+                .clipToBounds(),
+        ) {
+            drawTutorialPhone(base, step, timeMs)
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(stringResource(step.titleRes), style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            stringResource(step.bodyRes),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.heightIn(min = 88.dp),
+        )
     }
 }
 
