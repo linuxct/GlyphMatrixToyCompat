@@ -52,7 +52,7 @@ import space.linuxct.glyphmatrixtoycompat.R
 import kotlin.math.hypot
 
 /**
- * "How it works" tutorial pop-up: a Nothing-settings-style illustration of the
+ * Essential Key tutorial pop-up: a Nothing-settings-style illustration of the
  * phone lying face down — camera island, Glyph Matrix and the Essential Key on
  * the right edge just below the island — animated entirely in Compose (no
  * image or animation assets). Each step loops a small timeline showing what a

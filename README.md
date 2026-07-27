@@ -125,7 +125,7 @@ a floating pill navigation bar:
   location, exact alarms; each row deep-links to the right place) followed by **App
   settings**: key capture master toggle, Menu mode, 12-hour clock, Glyph brightness, and
   the update checker (see below).
-- **How it works** — short guides for the trickier parts:
+- **Tutorials** — short guides for the trickier parts:
   - **Essential Key tutorial** — an animated, fully Compose-drawn walkthrough (no image
     assets): a phone lying face-down with its camera island, Glyph Matrix and Essential Key,
     looping small timelines of what single, double and triple presses do — in both Regular
@@ -136,11 +136,15 @@ a floating pill navigation bar:
 
 Other UI notes:
 
-- **Nothing-styled theme** — strictly monochrome (black / white / grays, no accent colour), a
-  `#F2F2FA` page background with pure-white cards, and the **NType82-Regular** headline serif
-  used for the title. That font is not bundled: it's loaded at runtime from the device's
-  `/system/fonts`, so the title matches the system Settings headline exactly (and nothing
-  proprietary lands in the repo).
+- **Nothing-styled theme** — strictly monochrome (black / white / grays, no accent colour),
+  sampled from Nothing OS Settings in both modes: a `#F2F2FA` page with pure-white cards in
+  light mode, a pure-black page with `#191C20` cards (and near-black divider hairlines) in
+  dark mode. The **NType82-Regular** headline serif is used for the title; that font is not
+  bundled but loaded at runtime from the device's `/system/fonts`, so the title matches the
+  system Settings headline exactly (and nothing proprietary lands in the repo).
+- **Floating pill navigation** — an MD3-style capsule with an icon and a caption per tab
+  (Toys / Settings / Tutorial), its own theme colours so it stays a mid-grey pill in dark
+  mode instead of a glaring near-white slab.
 - **Quick Settings tile** — a "Capture Essential Key" toggle to turn key capture on/off from
   the notification shade (works on the lock screen too).
 
@@ -170,7 +174,7 @@ request itself.
    - **Enable the accessibility service** (this is what captures the Essential Key —
      including on the lock screen and before the first unlock after a reboot; it never
      reads screen content). Sideloaded installs may need *Allow restricted settings*
-     first — both onboarding and the How it works tab walk through it.
+     first — both onboarding and the Tutorials tab walk through it.
    - **Select "Glyph Matrix Toy Compat" as the Always-on Glyph Toy** — deep-linked straight
      to the picker (Settings → Glyph Interface → Flip to Glyph) so the system keeps the
      matrix rendering during AOD. The checklist verifies the selection by the system's
@@ -179,7 +183,7 @@ request itself.
    - Grant the optional permissions you want: microphone (music visualizer), location
      (solar path, compass declination), notifications + exact alarms (Tea Time).
 3. **Hand the Essential Key over to GMTC** (manual system steps — also available as a guide
-   in the How it works tab). Do **not** disable the Essential Space or Essential Recorder
+   in the Tutorials tab). Do **not** disable the Essential Space or Essential Recorder
    apps. Instead:
    1. Settings → Intelligence Toolkit → **Essential Key Settings** → enable
       *"Activate with single tap before use"*.

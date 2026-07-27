@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -94,6 +95,8 @@ import space.linuxct.glyphmatrixtoycompat.core.DebugLog
 import space.linuxct.glyphmatrixtoycompat.core.PrefKeys
 import space.linuxct.glyphmatrixtoycompat.core.SessionArbiter
 import space.linuxct.glyphmatrixtoycompat.ui.theme.GmtcTheme
+import space.linuxct.glyphmatrixtoycompat.ui.theme.NavPillColors
+import space.linuxct.glyphmatrixtoycompat.ui.theme.navPill
 import space.linuxct.glyphmatrixtoycompat.update.UpdateChecker
 import space.linuxct.glyphmatrixtoycompat.update.UpdateCheckWorker
 
@@ -167,10 +170,22 @@ private fun loadOrder(): List<String> {
 
 // ---------- tabs + floating navigation ----------
 
-private enum class Tab(val icon: ImageVector, val label: Int) {
-    TOYS(Icons.Default.Casino, R.string.screens_title),
-    SETTINGS(Icons.Default.Settings, R.string.settings),
-    TUTORIAL(Icons.Default.School, R.string.tut_section),
+/**
+ * Breathing room every tab body adds *below* the Scaffold's own bottom inset,
+ * so scrolled-to-the-end content never sits flush under the floating pill.
+ * Roomier than it used to be: the pill grew when the items gained captions.
+ */
+private val NAV_PILL_CLEARANCE = 40.dp
+
+/**
+ * The three pages. [caption] is the short label under the nav-pill icon;
+ * [title] is the (longer) page title in the app bar — they are deliberately
+ * separate, e.g. the "Tutorial" chip heading the "Tutorials" page.
+ */
+private enum class Tab(val icon: ImageVector, val caption: Int, val title: Int) {
+    TOYS(Icons.Default.Casino, R.string.nav_toys, R.string.screens_title),
+    SETTINGS(Icons.Default.Settings, R.string.nav_settings, R.string.settings),
+    TUTORIAL(Icons.Default.School, R.string.nav_tutorial, R.string.tut_section),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -181,14 +196,14 @@ private fun MainScreen() {
 
     Scaffold(
         modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
-        // The whole page — body AND app-bar header — sits on the gray page
-        // background. The app bar is SOLID in that same gray (not transparent,
-        // or content scrolls visibly under the collapsed header) so it stays
-        // opaque yet seamless with the body.
+        // The whole page — body AND app-bar header — sits on the page
+        // background (light gray / pure black). The app bar is SOLID in that
+        // same colour (not transparent, or content scrolls visibly under the
+        // collapsed header) so it stays opaque yet seamless with the body.
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             LargeTopAppBar(
-                title = { Text(stringResource(Tab.entries[tab].label)) },
+                title = { Text(stringResource(Tab.entries[tab].title)) },
                 scrollBehavior = scrollBehavior,
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
@@ -206,42 +221,58 @@ private fun MainScreen() {
     }
 }
 
-/** MD3-style floating pill navigation: icons in a raised inverse-color capsule. */
+/**
+ * MD3-style floating pill navigation: a raised, centred capsule holding one
+ * icon-above-caption item per tab.
+ *
+ * Colours come from the theme's [NavPillColors] rather than the M3 `inverse*`
+ * roles — those stay reserved for the tutorial's numbered-step bubbles, and
+ * would make this pill a near-white slab in dark mode.
+ */
 @Composable
 private fun FloatingNavBar(selected: Int, onSelect: (Int) -> Unit) {
+    val pill = MaterialTheme.navPill
     Box(
         Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
         Surface(
-            shape = RoundedCornerShape(33.dp),
-            color = MaterialTheme.colorScheme.inverseSurface,
+            // Percent radius, not a fixed 33.dp: the pill is taller now that
+            // the items carry captions, and grows further with the user's font
+            // scale — this keeps it a true capsule at any height.
+            shape = RoundedCornerShape(percent = 50),
+            color = pill.container,
             shadowElevation = 8.dp,
         ) {
             Row(
-                Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Tab.entries.forEachIndexed { i, t ->
                     val sel = i == selected
-                    Box(
+                    val tint = if (sel) pill.selectedContent else pill.content
+                    // ~66 x 56 dp: comfortably past the 48 dp minimum target,
+                    // and a MINIMUM width only — at large font scales the item
+                    // grows with its caption instead of clipping it.
+                    Column(
                         Modifier
-                            .size(50.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (sel) MaterialTheme.colorScheme.inverseOnSurface else Color.Transparent,
-                            )
-                            .clickable { onSelect(i) },
-                        contentAlignment = Alignment.Center,
+                            .widthIn(min = 66.dp)
+                            .clip(RoundedCornerShape(percent = 50))
+                            .background(if (sel) pill.selectedContainer else Color.Transparent)
+                            .clickable { onSelect(i) }
+                            .padding(horizontal = 6.dp, vertical = 7.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Icon(
-                            t.icon,
-                            contentDescription = stringResource(t.label),
-                            tint = if (sel) {
-                                MaterialTheme.colorScheme.inverseSurface
-                            } else {
-                                MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.75f)
-                            },
+                        // The caption below is the accessible label; a content
+                        // description here would only repeat it.
+                        Icon(t.icon, contentDescription = null, tint = tint)
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            stringResource(t.caption),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = tint,
+                            maxLines = 1,
+                            softWrap = false,
                         )
                     }
                 }
@@ -293,10 +324,11 @@ private fun ToysTab(innerPadding: PaddingValues) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         // Extra breathing room below the last row (on top of the floating
-        // nav) so the list never sits flush against the pill.
+        // nav) so the list never sits flush against the pill — widened for the
+        // taller captioned pill.
         contentPadding = PaddingValues(
             top = innerPadding.calculateTopPadding(),
-            bottom = innerPadding.calculateBottomPadding() + 24.dp,
+            bottom = innerPadding.calculateBottomPadding() + NAV_PILL_CLEARANCE,
         ),
     ) {
         item { HintText(stringResource(R.string.screens_reorder_hint)) }
@@ -485,7 +517,7 @@ private fun SettingsTab(innerPadding: PaddingValues) {
             UpdateRow()
         }
 
-        Spacer(Modifier.height(innerPadding.calculateBottomPadding() + 24.dp))
+        Spacer(Modifier.height(innerPadding.calculateBottomPadding() + NAV_PILL_CLEARANCE))
     }
 }
 
@@ -522,7 +554,7 @@ private fun TutorialTab(innerPadding: PaddingValues) {
             ) { topic = TutorialTopic.RESTRICTED }
         }
 
-        Spacer(Modifier.height(innerPadding.calculateBottomPadding() + 24.dp))
+        Spacer(Modifier.height(innerPadding.calculateBottomPadding() + NAV_PILL_CLEARANCE))
     }
 
     when (topic) {

@@ -6,7 +6,11 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -20,6 +24,10 @@ import java.io.File
  * Nothing-styled theme, strictly MONOCHROME: black, white and grays only —
  * no hue anywhere. Attention states rely on contrast (full-strength ink vs
  * muted grays), and Nothing's own headline typeface is used for page titles.
+ *
+ * Both schemes mirror Nothing OS Settings: a light lavender-gray page with
+ * white cards, and a pure-black page with #191C20 cards in dark mode (values
+ * sampled from the device).
  *
  * The headline font (NType82-Regular) is loaded AT RUNTIME from the
  * firmware's font directories (the app runs on a Nothing phone, so the exact
@@ -69,43 +77,123 @@ private val LightScheme = lightColorScheme(
     onErrorContainer = Color(0xFF17171C),
 )
 
+// ---- Nothing OS dark-mode palette, sampled from the device's Settings ----
+// The greys are the firmware's own faintly cool neutrals (R/G/B within a few
+// points of each other); nothing else with a hue is introduced.
+
+/** Card / row surface — by far the dominant colour of the dark Settings page. */
+private val DarkCard = Color(0xFF191C20)
+
+/** One step above the cards: the floating navigation pill. */
+private val DarkPill = Color(0xFF26292E)
+
+/** Filled containers (chips, the highlighted "active toy" row). */
+private val DarkContainer = Color(0xFF2E3138)
+
+/**
+ * Divider hairline. Nothing OS separates rows inside a card with what is
+ * effectively the page showing through, so this is near-black rather than the
+ * usual lighter-than-the-card line.
+ */
+private val DarkHairline = Color(0xFF0D0F12)
+
+/** Primary text / full-strength ink. */
+private val DarkInk = Color(0xFFEFF0F7)
+
+/** Secondary text. */
+private val DarkInkMuted = Color(0xFF84868C)
+
+/** Brighter secondary tone (section headers, nav captions). */
+private val DarkInkDim = Color(0xFFC5C6CC)
+
 private val DarkScheme = darkColorScheme(
-    primary = Color(0xFFEDEDED),
-    onPrimary = Color(0xFF17171C),
-    primaryContainer = Color(0xFF2A2A2E),
-    onPrimaryContainer = Color(0xFFEDEDED),
-    secondary = Color(0xFFB5B5BC),
-    onSecondary = Color(0xFF17171C),
-    secondaryContainer = Color(0xFF2A2A2E),
-    onSecondaryContainer = Color(0xFFEDEDED),
-    tertiary = Color(0xFFB5B5BC),
-    onTertiary = Color(0xFF17171C),
-    tertiaryContainer = Color(0xFF2A2A2E),
-    onTertiaryContainer = Color(0xFFEDEDED),
-    background = Color(0xFF0D0D0F),
-    onBackground = Color(0xFFEDEDED),
-    surface = Color(0xFF17171A),
-    onSurface = Color(0xFFEDEDED),
-    surfaceVariant = Color(0xFF242428),
-    onSurfaceVariant = Color(0xFF9A9AA2),
-    // Explicit neutral surface roles (see light scheme).
-    surfaceTint = Color(0xFFEDEDED),
-    surfaceBright = Color(0xFF38383C),
-    surfaceDim = Color(0xFF0D0D0F),
-    surfaceContainerLowest = Color(0xFF090909),
-    surfaceContainerLow = Color(0xFF17171A),
-    surfaceContainer = Color(0xFF1B1B1E),
-    surfaceContainerHigh = Color(0xFF252528),
-    surfaceContainerHighest = Color(0xFF303034),
-    inverseSurface = Color(0xFFEDEDED),
-    inverseOnSurface = Color(0xFF2E2E33),
-    outline = Color(0xFF5A5A62),
-    outlineVariant = Color(0xFF33333A),
-    error = Color(0xFFEDEDED),
-    onError = Color(0xFF17171C),
-    errorContainer = Color(0xFF33333A),
-    onErrorContainer = Color(0xFFEDEDED),
+    primary = DarkInk,
+    onPrimary = DarkCard,
+    primaryContainer = DarkContainer,
+    onPrimaryContainer = DarkInk,
+    secondary = DarkInkDim,
+    onSecondary = DarkCard,
+    secondaryContainer = DarkContainer,
+    onSecondaryContainer = DarkInk,
+    tertiary = DarkInkDim,
+    onTertiary = DarkCard,
+    tertiaryContainer = DarkContainer,
+    onTertiaryContainer = DarkInk,
+    // Page background (behind everything, incl. the app-bar header): pure
+    // black, matching Nothing OS Settings in dark mode. Cards/chips sit on top
+    // in #191C20.
+    background = Color.Black,
+    onBackground = DarkInk,
+    surface = DarkCard,
+    onSurface = DarkInk,
+    surfaceVariant = Color(0xFF23262B),
+    onSurfaceVariant = DarkInkMuted,
+    // Every card/chip surface role is spelled out at the sampled card colour:
+    // any role left unset falls back to M3's hue-tinted baseline palette.
+    // surfaceTint equals the card colour so Surface's tonal elevation is a
+    // visual no-op (same trick as the light scheme's white tint) — elevated
+    // rows keep the exact sampled grey instead of creeping lighter.
+    surfaceTint = DarkCard,
+    surfaceBright = DarkCard,
+    surfaceDim = Color.Black,
+    surfaceContainerLowest = DarkCard,
+    surfaceContainerLow = DarkCard,
+    surfaceContainer = DarkCard,
+    surfaceContainerHigh = DarkCard,
+    surfaceContainerHighest = DarkCard,
+    // Kept LIGHT on purpose: the only user is the tutorial's numbered-step
+    // bubbles (light bubble, dark digits). The nav pill uses [NavPillColors].
+    inverseSurface = DarkInk,
+    inverseOnSurface = DarkCard,
+    outline = Color(0xFF5A5D63),
+    outlineVariant = DarkHairline,
+    error = DarkInk,
+    onError = DarkCard,
+    errorContainer = DarkContainer,
+    onErrorContainer = DarkInk,
 )
+
+/**
+ * Colours for the floating navigation pill.
+ *
+ * Deliberately NOT the M3 `inverse*` pair: those are also the tutorial's
+ * numbered-step bubbles, which must stay a light bubble with dark digits in
+ * both modes — while an `inverseSurface` pill in dark mode is a near-white
+ * slab across the bottom of a black page.
+ */
+@Immutable
+data class NavPillColors(
+    val container: Color,
+    val content: Color,
+    val selectedContainer: Color,
+    val selectedContent: Color,
+)
+
+/** Light mode: dark pill, light icons, light selected chip with a dark icon. */
+private val LightNavPill = NavPillColors(
+    container = Color(0xFF2E2E33),
+    content = Color(0xFFF2F2FA).copy(alpha = 0.75f),
+    selectedContainer = Color(0xFFF2F2FA),
+    selectedContent = Color(0xFF2E2E33),
+)
+
+/**
+ * Dark mode: the pill sits one step above the cards, unselected items are
+ * light grey, and the selected chip is a light fill with a dark icon so the
+ * selection still reads at a glance without any near-white expanse.
+ */
+private val DarkNavPill = NavPillColors(
+    container = DarkPill,
+    content = DarkInkDim,
+    selectedContainer = Color(0xFFDDDEE4),
+    selectedContent = DarkCard,
+)
+
+private val LocalNavPillColors = staticCompositionLocalOf { LightNavPill }
+
+/** Nav-pill colours for the active theme; see [NavPillColors]. */
+val MaterialTheme.navPill: NavPillColors
+    @Composable @ReadOnlyComposable get() = LocalNavPillColors.current
 
 private val FONT_DIRS = listOf("/system/fonts", "/product/fonts", "/system_ext/fonts")
 
@@ -169,9 +257,14 @@ fun GmtcTheme(content: @Composable () -> Unit) {
         }
         buildTypography(headline)
     }
-    MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) DarkScheme else LightScheme,
-        typography = typography,
-        content = content,
-    )
+    // Single source of truth for light/dark, shared by the M3 scheme and the
+    // extra nav-pill roles.
+    val dark = isSystemInDarkTheme()
+    CompositionLocalProvider(LocalNavPillColors provides if (dark) DarkNavPill else LightNavPill) {
+        MaterialTheme(
+            colorScheme = if (dark) DarkScheme else LightScheme,
+            typography = typography,
+            content = content,
+        )
+    }
 }

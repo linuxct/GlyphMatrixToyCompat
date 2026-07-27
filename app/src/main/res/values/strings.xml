@@ -89,7 +89,7 @@
     <string name="checklist_mic">Microphone (music visualizer)</string>
     <string name="checklist_location">Location (compass declination, optional)</string>
     <string name="checklist_exact_alarm">Exact alarms (Tea Time backstop)</string>
-    <string name="checklist_hint_guides">Step-by-step guides for the trickier items live in the How it works tab.</string>
+    <string name="checklist_hint_guides">Step-by-step guides for the trickier items live in the Tutorials tab.</string>
     <string name="checklist_granted">Granted</string>
     <string name="checklist_tap_to_grant">Tap to grant</string>
     <string name="checklist_unsupported">This device has no Glyph Matrix — rendering is disabled. (Phone (3) or Phone (4a) Pro required.)</string>
@@ -110,12 +110,17 @@
     <string name="set_active">Set as active toy</string>
     <string name="settings">Settings</string>
 
+    <!-- Floating navigation pill captions (kept short: they sit under the icons) -->
+    <string name="nav_toys">Toys</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_tutorial">Tutorial</string>
+
     <!-- Settings tab section headers -->
     <string name="section_initial_setup">Initial setup</string>
     <string name="section_app_settings">App settings</string>
 
-    <!-- How it works / Essential Key tutorial -->
-    <string name="tut_section">How it works</string>
+    <!-- Tutorials / Essential Key tutorial -->
+    <string name="tut_section">Tutorials</string>
     <string name="tut_hint">Short guides for using and configuring the Essential Key — tap a topic.</string>
     <string name="tut_button_subtitle">Animated walkthrough of every press, in both key modes</string>
     <string name="tut_title">Essential Key tutorial</string>
