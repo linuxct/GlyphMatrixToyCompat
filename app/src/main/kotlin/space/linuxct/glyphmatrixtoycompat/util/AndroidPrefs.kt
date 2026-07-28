@@ -38,6 +38,9 @@ class AndroidPrefs(context: Context) : Prefs {
     override fun getLong(key: String, def: Long): Long = sp.getLong(key, def)
     override fun getFloat(key: String, def: Float): Float = sp.getFloat(key, def)
     override fun getString(key: String, def: String): String = sp.getString(key, def) ?: def
+    override fun contains(key: String): Boolean = sp.contains(key)
+
+    override fun remove(key: String) = sp.edit().remove(key).apply()
 
     override fun putBoolean(key: String, v: Boolean) = sp.edit().putBoolean(key, v).apply()
     override fun putInt(key: String, v: Int) = sp.edit().putInt(key, v).apply()

@@ -4,25 +4,30 @@ import android.content.Context
 import com.nothing.ketchum.Common
 import space.linuxct.glyphmatrixtoycompat.audio.AudioVisualizerEngine
 import space.linuxct.glyphmatrixtoycompat.core.AndroidRenderScheduler
+import space.linuxct.glyphmatrixtoycompat.core.AutoBrightness
 import space.linuxct.glyphmatrixtoycompat.core.DebugLog
 import space.linuxct.glyphmatrixtoycompat.core.Events
 import space.linuxct.glyphmatrixtoycompat.core.GlyphLink
 import space.linuxct.glyphmatrixtoycompat.core.Ports
 import space.linuxct.glyphmatrixtoycompat.core.PrefKeys
 import space.linuxct.glyphmatrixtoycompat.core.Prefs
+import space.linuxct.glyphmatrixtoycompat.core.PrefsMigration
 import space.linuxct.glyphmatrixtoycompat.core.ScreenManager
 import space.linuxct.glyphmatrixtoycompat.core.SessionArbiter
 import space.linuxct.glyphmatrixtoycompat.key.KeyActionRouter
 import space.linuxct.glyphmatrixtoycompat.screens.ScreenRegistry
 import space.linuxct.glyphmatrixtoycompat.sensors.CompassSensor
+import space.linuxct.glyphmatrixtoycompat.sensors.InclineSensor
+import space.linuxct.glyphmatrixtoycompat.sensors.LightSensor
 import space.linuxct.glyphmatrixtoycompat.sensors.ShakeDetector
 import space.linuxct.glyphmatrixtoycompat.sensors.TiltSensor
-import space.linuxct.glyphmatrixtoycompat.toy.AndroidTeaSignal
+import space.linuxct.glyphmatrixtoycompat.toy.AndroidTimerSignal
 import space.linuxct.glyphmatrixtoycompat.util.AndroidConnectivityPort
 import space.linuxct.glyphmatrixtoycompat.util.AndroidLocationPort
 import space.linuxct.glyphmatrixtoycompat.util.AndroidPrefs
 import space.linuxct.glyphmatrixtoycompat.util.BatteryReader
 import space.linuxct.glyphmatrixtoycompat.util.JavaRandomPort
+import space.linuxct.glyphmatrixtoycompat.util.ScreenStateWatcher
 import space.linuxct.glyphmatrixtoycompat.util.SystemClockPort
 import space.linuxct.glyphmatrixtoycompat.util.TrafficSpeedPort
 
@@ -51,6 +56,10 @@ object Core {
         private set
     lateinit var shake: ShakeDetector
         private set
+    lateinit var autoBrightness: AutoBrightness
+        private set
+    lateinit var screenState: ScreenStateWatcher
+        private set
     lateinit var audio: AudioVisualizerEngine
         private set
     lateinit var router: KeyActionRouter
@@ -73,6 +82,9 @@ object Core {
         DebugLog.i("Core", "init on ${android.os.Build.MODEL} (matrix=${Common.getDeviceMatrixLength()})")
 
         prefs = AndroidPrefs(app)
+        // Must precede every prefs reader below (ScreenManager and the arbiter
+        // read the screen order and current screen as they are built).
+        if (PrefsMigration.run(prefs)) DebugLog.i("Core", "prefs migrated to v${PrefKeys.PREFS_VERSION_CURRENT}")
         glyphLink = GlyphLink(app)
         scheduler = AndroidRenderScheduler()
         shake = ShakeDetector(app)
@@ -87,9 +99,11 @@ object Core {
             azimuth = CompassSensor(app),
             shake = shake,
             tilt = TiltSensor(app),
+            incline = InclineSensor(app),
+            light = LightSensor(app),
             connectivity = AndroidConnectivityPort(app),
             location = AndroidLocationPort(app),
-            tea = AndroidTeaSignal(app),
+            timer = AndroidTimerSignal(app),
         )
 
         screenManager = ScreenManager(
@@ -100,8 +114,24 @@ object Core {
             size = glyphLink.size,
         ) { frame -> glyphLink.pushFrame(frame) }
 
+        autoBrightness = AutoBrightness(prefs, ports.light, scheduler) {
+            // Already on the scheduler thread (the controller marshals), so the
+            // re-push can call straight into the manager.
+            screenManager.reapplyBrightness()
+        }
+        screenState = ScreenStateWatcher(app) { on -> autoBrightness.setScreenOn(on) }
+
         arbiter = SessionArbiter(glyphLink, scheduler, screenManager, prefs) { running ->
-            if (running) shake.start() else shake.stop()
+            if (running) {
+                shake.start()
+                // start() seeds the screen state, so it must precede the poller.
+                screenState.start()
+                autoBrightness.start()
+            } else {
+                autoBrightness.stop()
+                screenState.stop()
+                shake.stop()
+            }
         }
 
         router = KeyActionRouter(arbiter, screenManager, scheduler, prefs)
@@ -111,7 +141,12 @@ object Core {
         }
 
         prefs.addChangeListener { key ->
-            if (key == PrefKeys.MASTER_TOGGLE) arbiter.onMasterToggleChanged()
+            when (key) {
+                PrefKeys.MASTER_TOGGLE -> arbiter.onMasterToggleChanged()
+                // Turning auto-brightness off (including implicitly, by dragging
+                // the brightness slider) must stop the polling right away.
+                PrefKeys.AUTO_BRIGHTNESS -> autoBrightness.onEnabledChanged()
+            }
         }
 
         built = true

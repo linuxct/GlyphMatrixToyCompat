@@ -28,10 +28,13 @@ class App : Application(), Configuration.Provider {
 
     private fun createNotificationChannels() {
         val nm = getSystemService(NotificationManager::class.java) ?: return
+        // The Timer channel used to be called "tea_time"; drop the stale one so
+        // upgraders don't see two channels in system settings.
+        nm.deleteNotificationChannel(LEGACY_CHANNEL_TEA_TIME)
         nm.createNotificationChannel(
             NotificationChannel(
-                CHANNEL_TEA_TIME,
-                getString(R.string.channel_tea_time),
+                CHANNEL_TIMER,
+                getString(R.string.channel_timer),
                 NotificationManager.IMPORTANCE_HIGH,
             ),
         )
@@ -45,7 +48,10 @@ class App : Application(), Configuration.Provider {
     }
 
     companion object {
-        const val CHANNEL_TEA_TIME = "tea_time"
+        const val CHANNEL_TIMER = "timer"
         const val CHANNEL_UPDATES = "app_updates"
+
+        /** Pre-rename id of [CHANNEL_TIMER], deleted on first launch of this build. */
+        private const val LEGACY_CHANNEL_TEA_TIME = "tea_time"
     }
 }

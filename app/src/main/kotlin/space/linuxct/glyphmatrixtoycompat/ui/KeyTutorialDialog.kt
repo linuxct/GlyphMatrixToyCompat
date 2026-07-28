@@ -341,6 +341,15 @@ private val MENU_STEPS = listOf(
 
 // ---------- the illustration ----------
 
+/**
+ * Side of a square LED as a fraction of the cell pitch: 80 %, leaving a 20 %
+ * gap between neighbours, so the grid reads as a dot-matrix panel.
+ */
+private const val PIXEL_FRACTION = 0.80f
+
+/** 13x13 grid extent as a fraction of the Glyph Matrix disc diameter. */
+private const val GRID_EXTENT = 0.84f
+
 private fun DrawScope.drawTutorialPhone(base: Color, step: TutorialStep, t: Long) {
     val body = base.copy(alpha = 0.26f)
     val island = base.copy(alpha = 0.13f)
@@ -392,14 +401,27 @@ private fun DrawScope.drawTutorialPhone(base: Color, step: TutorialStep, t: Long
     val mr = iH * 0.335f
     drawCircle(Color(0xFF0E0E0E), radius = mr, center = mc)
     val frame = step.matrix(t)
-    val cell = mr * 2f * 0.94f / 13f
+    // Grid extent as a fraction of the disc diameter. Cell centres sit at
+    // g0 + i * cell, so the outermost row/column is 6 cells (0.775 * mr) out;
+    // with a half-pixel of 0.4 * cell its far corner reaches 0.85 * mr, which
+    // keeps every lit LED clear of the rim. At the old 0.94 the corner pips
+    // landed at 1.01 * mr and visibly spilled out of the black disc.
+    val cell = mr * 2f * GRID_EXTENT / 13f
     val g0x = mc.x - cell * 6f
     val g0y = mc.y - cell * 6f
+    // One square pixel size for lit and unlit alike — a hardware LED covers
+    // the same area either way, only its brightness changes.
+    val px = cell * PIXEL_FRACTION
+    val pxSize = Size(px, px)
+    val pxCorner = CornerRadius(px * 0.16f)
     for (r in 0 until 13) {
         val rowPattern = frame.pattern[r]
         for (c in 0 until 13) {
             val center = Offset(g0x + c * cell, g0y + r * cell)
-            if (hypot(center.x - mc.x, center.y - mc.y) > mr * 0.93f) continue
+            // Circular mask in pixel space. 0.90 culls the four diagonal
+            // corner cells (6.71 cells is the furthest kept, 0.94 * mr once
+            // the square's half-diagonal is added) so no pixel touches the rim.
+            if (hypot(center.x - mc.x, center.y - mc.y) > mr * 0.90f) continue
             // Per-cell brightness so shaded patterns (the compass) render
             // like the real dimmed LEDs; '#' stays the full-white used
             // elsewhere.
@@ -409,15 +431,9 @@ private fun DrawScope.drawTutorialPhone(base: Color, step: TutorialStep, t: Long
                 ':' -> 0.25f
                 else -> 0f
             }
-            if (frame.on && level > 0f) {
-                drawCircle(
-                    Color.White.copy(alpha = level),
-                    radius = cell * (0.26f + 0.10f * level),
-                    center = center,
-                )
-            } else {
-                drawCircle(Color.White.copy(alpha = 0.10f), radius = cell * 0.15f, center = center)
-            }
+            val topLeft = Offset(center.x - px / 2f, center.y - px / 2f)
+            val alpha = if (frame.on && level > 0f) level else 0.10f
+            drawRoundRect(Color.White.copy(alpha = alpha), topLeft, pxSize, pxCorner)
         }
     }
 
@@ -498,7 +514,36 @@ private fun DrawScope.drawTutorialPhone(base: Color, step: TutorialStep, t: Long
 }
 
 // ---------- 13x13 matrix patterns ----------
+//
+// [CLOCK], [AMBIENT] and [COMPASS] are transcribed from ASCII goldens of the
+// real renderer's 13x13 output (app/src/test/resources/goldens/), so the
+// tutorial shows what the hardware actually shows. Golden charset
+// '#'/'+'/'.'/' ' maps to this file's '#'/'+'/':'/'.' (off).
+//
+// The DICE_* faces are the deliberate exception: hand-authored rather than
+// golden-derived. On the real 13x13 matrix a D6 face is drawn a half cell
+// up-and-left of centre, which is barely visible on the hardware but obvious
+// in this much larger illustration. The faces below re-centre it, trading
+// fidelity for legibility. See [DICE_2] for the placement and why it is what
+// it is.
+//
+// Each row MUST be exactly 13 characters: the draw loop indexes
+// pattern[r][c] for r,c in 0..12 with no bounds guard.
 
+/**
+ * Dice toy showing a 2.
+ *
+ * All four faces place their 2x2 pips on the row/column pairs {2,3} (low),
+ * {5,6} (middle) and {9,10} (high), so every face's lit bounding box is 2..10
+ * on both axes — margins 2|2 — and reads as centred on the disc.
+ *
+ * Not 3-wide pips at 1..3 / 5..7 / 9..11, which would be both symmetric and
+ * evenly spaced: with `GRID_EXTENT` 0.84 the cell pitch is 0.1292 * mr and the
+ * 0.90 * mr cull keeps cells only out to 6.96 cells, while cell (1,1) sits at
+ * sqrt(50) = 7.07 cells, so the outer pips would render visibly notched. The
+ * 2x2 placement's furthest cell (2,2) is at sqrt(32) = 5.66 cells = 0.731 * mr,
+ * comfortably inside.
+ */
 private val DICE_2 = listOf(
     ".............",
     ".............",
@@ -515,6 +560,7 @@ private val DICE_2 = listOf(
     ".............",
 )
 
+/** Dice toy showing a 3; pip placement per [DICE_2]. */
 private val DICE_3 = listOf(
     ".............",
     ".............",
@@ -531,6 +577,7 @@ private val DICE_3 = listOf(
     ".............",
 )
 
+/** Dice toy showing a 5; pip placement per [DICE_2]. */
 private val DICE_5 = listOf(
     ".............",
     ".............",
@@ -547,11 +594,12 @@ private val DICE_5 = listOf(
     ".............",
 )
 
+/** Dice toy showing a 6; pip placement per [DICE_2]. */
 private val DICE_6 = listOf(
     ".............",
-    "..##.....##..",
-    "..##.....##..",
     ".............",
+    "..##.....##..",
+    "..##.....##..",
     ".............",
     "..##.....##..",
     "..##.....##..",
@@ -586,7 +634,10 @@ private val COMPASS = listOf(
     "......+......",
 )
 
-/** Stacked "12" / "34" like the pixel clock toy. */
+/**
+ * The Pixel Clock toy on its plain-digits theme reading 12:34, stacked "12"
+ * over "34" — the clock_13_1234_t0 golden.
+ */
 private val CLOCK = listOf(
     ".............",
     "....#..###...",
@@ -597,25 +648,31 @@ private val CLOCK = listOf(
     ".............",
     "...###.#.#...",
     ".....#.#.#...",
-    "...###.###...",
+    "....##.###...",
     ".....#...#...",
     "...###...#...",
     ".............",
 )
 
-/** Analog-clock ring, the Ambient background's default look. */
+/**
+ * The Ambient toy — the *analog* clock background at 10:08 (hour and minute
+ * hands), from the ambient_13_bg_analog_1008 golden. Deliberately not the
+ * default digital background: digits here would look almost identical to
+ * [CLOCK] and the "cycle between toys" animations would read as no change at
+ * all.
+ */
 private val AMBIENT = listOf(
-    "....#####....",
-    "..##.....##..",
-    ".#.........#.",
-    ".#.........#.",
-    "#.....#.....#",
-    "#.....#.....#",
-    "#.....###...#",
-    "#...........#",
-    "#...........#",
-    ".#.........#.",
-    ".#.........#.",
-    "..##.....##..",
-    "....#####....",
+    ".............",
+    ".............",
+    "..........+..",
+    "..#......+...",
+    "...##...+....",
+    ".....#.+.....",
+    "......#......",
+    ".............",
+    ".............",
+    ".............",
+    ".............",
+    ".............",
+    ".............",
 )

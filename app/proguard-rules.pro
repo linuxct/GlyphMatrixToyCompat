@@ -21,4 +21,4 @@
 -keep class space.linuxct.glyphmatrixtoycompat.key.EssentialKeyService { *; }
 -keep class space.linuxct.glyphmatrixtoycompat.key.KeyCaptureTileService { *; }
 -keep class space.linuxct.glyphmatrixtoycompat.toy.AodToyService { *; }
--keep class space.linuxct.glyphmatrixtoycompat.toy.TeaTimeAlarmReceiver { *; }
+-keep class space.linuxct.glyphmatrixtoycompat.toy.TimerAlarmReceiver { *; }

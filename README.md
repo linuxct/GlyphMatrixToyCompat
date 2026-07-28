@@ -24,7 +24,7 @@ while the phone is unlocked:
 
 | Essential Key | Action |
 |---|---|
-| Single press | Glyph Touch action on the current toy (roll the dice, start the tea timer, +1 the counter, …) |
+| Single press | Glyph Touch action on the current toy (roll the dice, start the timer, +1 the counter, …) |
 | Double press | Switch to the next toy |
 | Triple press | Jump back to the Ambient background toy |
 
@@ -33,8 +33,9 @@ while the phone is unlocked:
 - **Presses are grouped by timing.** Any presses within ~400 ms count as one gesture, so a
   *single* press's action fires ~400 ms after you release (the app waits to see if a second
   or third press follows). Each recognized press gives a short vibration.
-- **Single press only does something on interactive toys** (Dice, Coin Flip, Counter,
-  Breathing, Tea Time — the ✅ rows below). On passive toys it's a no-op; double/triple
+- **Single press only does something on interactive toys** (Dice, Coin Flip, Dino Run,
+  Spin the Bottle, Rock Paper Scissors, Counter, Breathing, Timer — the ✅ rows below).
+  On passive toys it's a no-op; double/triple
   press still switch and jump home from any toy.
 - **Capture is on/off.** While on (the master toggle / Quick Settings tile), each press is
   consumed so Essential Space never sees it. Turn it off and the key behaves completely
@@ -66,17 +67,21 @@ Glyph Button feeds the same action pipeline), but the 4a Pro is the primary targ
 |---|---|---|
 | Ambient (background) | – | The home screen: a compositor with 10 selectable backgrounds (digital/analog clock, connection status, battery %, download speed, tilt ball, themed pixel clock, battery gauge, solar path, moon phase), a charging indicator layer (4 styles) and a music-reactive layer that takes over while audio plays. Night and shake-to-show gating included. |
 | Pixel Clock | – | Stacked HH/MM pixel clock; themes add a battery bar or battery ring. |
-| Eyes | – | A pair of eyes that wander and blink. |
+| Eyes | – | A pair of eyes that wander and blink, drawn with a bright rim so the eye shape reads even with the pupil centred. |
 | Download Speed | – | Live network download speed. |
-| Battery | – | Battery gauge: the matrix fills to the charge level; charging adds a rising wave and a pulsing bolt. |
+| Battery | – | Battery gauge: the matrix fills to the charge level; charging adds a rising wave and a pulsing bolt. Optionally shows the charging wattage instead while plugged in. |
 | Solar Path | – | The sun's position along its daily arc for your location (falls back to a 06:00/18:00 day without location access). |
 | Moon Phase | – | The current lunar phase, rendered on a textured lunar surface (maria dim, highlands bright) with a soft terminator and faint earthshine on the dark side. |
 | Dice | ✅ | D4/D6/D8/D12/D20 — press (or shake) to roll. |
-| Coin Flip | ✅ | Press (or shake) to flip. |
+| Coin Flip | ✅ | Press (or shake) to flip. Two designs: H/T letters, or a monarch's profile and a euro-style numeral "1". |
+| Dino Run | ✅ | An endless runner. Press to start, press to jump, and the score is revealed blinking when you clip a cactus — one more press starts again. |
+| Spin the Bottle | ✅ | Press to spin an outlined bottle about the matrix centre: ~3 s, four to five turns, a ratcheted stop at a random angle, then a pulsing diamond burst. |
+| Rock Paper Scissors | ✅ | Press and the matrix throws: a "SET" banner, a shaking 3-2-1 countdown, then a fist, a flat hand or scissors — held until the next press. No opponent, no score; you throw with your real hand. |
 | Counter | ✅ | Press to increment (wraps at 999), shake to reset. |
 | Breathing | ✅ | Press to start/stop a guided-breathing pulse. |
-| Tea Time | ✅ | Press to start a steep timer with a progress ring; chimes when ready, survives screen switches and process death. |
+| Timer | ✅ | Press to start the countdown; the matrix becomes an hourglass with no hourglass in it — grains fall from the top and the settled sand rises until every LED is lit at zero. Chimes when it runs out, survives screen switches and process death. |
 | Compass | – | Sensor-fused compass needle with cardinal ring. |
+| Level | – | Spirit level: a bubble that centres inside a target ring when the device lies flat and rolls toward the low edge as it tilts. The ring lights up within a few degrees of level. |
 | Music Visualizer | – | FFT spectrum with log-spaced bands, three themes, adjustable response speed, and an always-on noise floor while audio plays. |
 
 Every toy can be toggled, reordered and configured from the app.
@@ -181,7 +186,7 @@ request itself.
      actual toy binding.
    - **Pick a key mode** — Regular or Menu mode (only offered once the listener is on).
    - Grant the optional permissions you want: microphone (music visualizer), location
-     (solar path, compass declination), notifications + exact alarms (Tea Time).
+     (solar path, compass declination), notifications + exact alarms (Timer).
 3. **Hand the Essential Key over to GMTC** (manual system steps — also available as a guide
    in the Tutorials tab). Do **not** disable the Essential Space or Essential Recorder
    apps. Instead:
@@ -276,9 +281,9 @@ app/src/main/kotlin/space/linuxct/glyphmatrixtoycompat/
 ├── screens/   All toys (+ ambient/ compositor with its backgrounds)
 ├── key/       Essential Key accessibility service, click counting, action routing,
 │              Quick Settings tile
-├── toy/       System Glyph Toy service, Tea Time alarm backstop
+├── toy/       System Glyph Toy service, Timer alarm backstop
 ├── audio/     Shared FFT engine
-├── sensors/   Shake / tilt / compass
+├── sensors/   Shake / tilt / incline / compass / light
 ├── update/    GitHub Releases update checker + daily WorkManager job
 └── ui/        Compose UI: tabbed main screen, first-run onboarding (animated glyph-disc
                pages), animated Essential Key tutorial, setup guides,

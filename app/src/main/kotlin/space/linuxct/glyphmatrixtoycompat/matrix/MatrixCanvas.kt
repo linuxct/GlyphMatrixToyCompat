@@ -147,7 +147,7 @@ class MatrixCanvas(val size: Int) {
 
     /**
      * Ring segment from [fromDeg] sweeping [sweepDeg] clockwise (0 deg = up).
-     * Used for circular progress (Tea Time, charging, battery themes).
+     * Used for circular progress (charging, battery themes).
      */
     fun arcRing(cx: Float, cy: Float, rInner: Float, rOuter: Float, fromDeg: Float, sweepDeg: Float, v: Int) {
         if (sweepDeg <= 0f) return

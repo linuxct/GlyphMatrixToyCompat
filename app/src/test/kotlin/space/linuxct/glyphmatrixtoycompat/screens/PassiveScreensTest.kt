@@ -1,6 +1,7 @@
 package space.linuxct.glyphmatrixtoycompat.screens
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import space.linuxct.glyphmatrixtoycompat.GoldenAscii
 import space.linuxct.glyphmatrixtoycompat.TestHarness
@@ -58,13 +59,25 @@ class EyesScreenTest {
         GoldenAscii.check("eyes_13_initial", h.lastFrame(), 13)
 
         // Blink starts at +2500 ms (tick 50 at 50 ms); closed is 2 ticks later.
+        // The half-closed step proves the rim squints down with the lid instead
+        // of leaving a fixed box around a shrinking eye.
         h.scheduler.tick(50)
+        GoldenAscii.check("eyes_13_squint", h.lastFrame(), 13)
         h.scheduler.tick(2)
         GoldenAscii.check("eyes_13_closed", h.lastFrame(), 13)
 
         val h25 = TestHarness(25)
         EyesScreen().onActivate(h25.context)
         GoldenAscii.check("eyes_25_initial", h25.lastFrame(), 25)
+    }
+
+    @Test
+    fun `the lid clips the outline into a lens instead of erasing rows`() {
+        // Phase 0 is the half-closed step: the rim survives only between the
+        // two lids, which follow the eye's own width at their row.
+        GoldenAscii.check("eyes_25_squint", EyesScreen.renderFrame(25, 0f, 0f, 0), 25)
+        // Phase 2 is fully closed: one line, the eye's widest chord.
+        GoldenAscii.check("eyes_25_closed", EyesScreen.renderFrame(25, 0f, 0f, 2), 25)
     }
 }
 
@@ -119,5 +132,122 @@ class CompassScreenTest {
         // difference check uses a clearly distinct heading.)
         assert(CompassScreen.renderFrame(13, 92f).contentEquals(CompassScreen.renderFrame(13, 90f)))
         assert(!CompassScreen.renderFrame(13, 135f).contentEquals(CompassScreen.renderFrame(13, 90f)))
+    }
+}
+
+class LevelScreenTest {
+
+    /** Brightness-weighted centroid of the ball: the frame minus ring/ticks. */
+    private fun ballCentroid(frame: IntArray, size: Int): Pair<Float, Float> {
+        // The ball is the only element drawn away from the centre ring, so take
+        // the centroid of everything at full brightness.
+        var wx = 0f
+        var wy = 0f
+        var w = 0f
+        for (y in 0 until size) for (x in 0 until size) {
+            val v = frame[y * size + x]
+            if (v < 4095) continue
+            wx += x * v; wy += y * v; w += v
+        }
+        return (wx / w) to (wy / w)
+    }
+
+    @Test
+    fun `render goldens`() {
+        GoldenAscii.check("level_13_flat", LevelScreen.renderFrame(13, 0f, 0f), 13)
+        GoldenAscii.check("level_13_right_low", LevelScreen.renderFrame(13, 0f, 20f), 13)
+        GoldenAscii.check("level_13_top_low", LevelScreen.renderFrame(13, 25f, -10f), 13)
+        GoldenAscii.check("level_13_nosensor", LevelScreen.renderFrame(13, null, null), 13)
+        GoldenAscii.check("level_25_flat", LevelScreen.renderFrame(25, 0f, 0f), 25)
+        GoldenAscii.check("level_25_right_low", LevelScreen.renderFrame(25, 0f, 20f), 25)
+        GoldenAscii.check("level_25_nosensor", LevelScreen.renderFrame(25, null, null), 25)
+    }
+
+    @Test
+    fun `flat centres the ball and lights the target`() {
+        for (size in intArrayOf(13, 25)) {
+            val c = (size - 1) / 2f
+            val (bx, by) = ballCentroid(LevelScreen.renderFrame(size, 0f, 0f), size)
+            assertEquals(c, bx, 0.01f)
+            assertEquals(c, by, 0.01f)
+            // A cell on the target ring straight above centre (radius 3 on 13,
+            // 5 on 25), well clear of the ball at either inclination: full
+            // brightness only while the reading is inside the tolerance.
+            val probe = (size / 2 - (if (size >= 25) 5 else 3)) * size + size / 2
+            assertEquals(4095, LevelScreen.renderFrame(size, 0f, 0f)[probe])
+            assertEquals(4095, LevelScreen.renderFrame(size, 2f, 2f)[probe])
+            // Rolled, not pitched: keeps the ball off the vertical probe.
+            assertTrue(LevelScreen.renderFrame(size, 0f, 20f)[probe] < 4095)
+            assertTrue(LevelScreen.renderFrame(size, 0f, 20f)[probe] > 0)
+        }
+    }
+
+    @Test
+    fun `tolerance is a few degrees around flat`() {
+        assertTrue(LevelScreen.isLevel(0f, 0f))
+        assertTrue(LevelScreen.isLevel(2f, 2f)) // hypot 2.83 <= 3
+        assertTrue(!LevelScreen.isLevel(0f, 4f))
+        assertTrue(!LevelScreen.isLevel(-4f, 0f))
+        assertTrue(!LevelScreen.isLevel(3f, 3f)) // hypot 4.24
+    }
+
+    @Test
+    fun `the ball rolls toward the low edge and stays on-matrix`() {
+        for (size in intArrayOf(13, 25)) {
+            val c = (size - 1) / 2f
+            // Positive roll = right edge low -> ball moves right (+x), y unmoved.
+            val right = ballCentroid(LevelScreen.renderFrame(size, 0f, 15f), size)
+            assertTrue("right $right on $size", right.first > c + 0.5f)
+            assertEquals(c, right.second, 0.01f)
+            val left = ballCentroid(LevelScreen.renderFrame(size, 0f, -15f), size)
+            assertTrue("left $left on $size", left.first < c - 0.5f)
+            // Positive pitch = top edge low -> ball moves UP the matrix (-y).
+            val top = ballCentroid(LevelScreen.renderFrame(size, 15f, 0f), size)
+            assertTrue("top $top on $size", top.second < c - 0.5f)
+            val bottom = ballCentroid(LevelScreen.renderFrame(size, -15f, 0f), size)
+            assertTrue("bottom $bottom on $size", bottom.second > c + 0.5f)
+
+            // Extreme angles clamp: the ball is whole, on-matrix, and identical
+            // to the frame at the clamp threshold.
+            val pinned = LevelScreen.renderFrame(size, 90f, 90f)
+            GoldenAscii.assertFrameValid(pinned, size)
+            assertTrue(pinned.contentEquals(LevelScreen.renderFrame(size, LevelScreen.MAX_TILT_DEG, LevelScreen.MAX_TILT_DEG)))
+            val corner = ballCentroid(pinned, size)
+            assertTrue("corner $corner on $size", corner.first > c && corner.second < c)
+        }
+    }
+
+    @Test
+    fun `a missing sensor draws a question mark, not a ball`() {
+        for (size in intArrayOf(13, 25)) {
+            val none = LevelScreen.renderFrame(size, null, null)
+            GoldenAscii.assertFrameValid(none, size)
+            // Nothing at full brightness: no ball, and the target stays idle.
+            assertTrue(none.none { it == 4095 })
+            assertTrue(none.any { it > 0 })
+            // A half-delivered reading is treated the same way.
+            assertTrue(none.contentEquals(LevelScreen.renderFrame(size, 0f, null)))
+            assertTrue(none.contentEquals(LevelScreen.renderFrame(size, null, 0f)))
+        }
+    }
+
+    @Test
+    fun `the ticker polls faster than the sensor idle timeout`() {
+        val h = TestHarness(13)
+        val screen = LevelScreen()
+        screen.onActivate(h.context)
+        assertEquals(66L, h.scheduler.tickerInterval)
+        assertTrue(h.scheduler.tickerInterval!! < 5000L) // InclineSensor unregisters at 5 s
+        assertEquals(1, h.frames.size)
+        assertTrue(h.lastFrame().contentEquals(LevelScreen.renderFrame(13, 0f, 0f)))
+
+        h.incline.roll = 20f
+        h.scheduler.tick()
+        assertTrue(h.lastFrame().contentEquals(LevelScreen.renderFrame(13, 0f, 20f)))
+
+        h.incline.pitch = null
+        h.incline.roll = null
+        h.scheduler.tick()
+        assertTrue(h.lastFrame().contentEquals(LevelScreen.renderFrame(13, null, null)))
     }
 }

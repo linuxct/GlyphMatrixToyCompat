@@ -10,12 +10,14 @@ import space.linuxct.glyphmatrixtoycompat.FakeRandom
 import space.linuxct.glyphmatrixtoycompat.FakeAzimuth
 import space.linuxct.glyphmatrixtoycompat.FakeBattery
 import space.linuxct.glyphmatrixtoycompat.FakeConnectivity
+import space.linuxct.glyphmatrixtoycompat.FakeIncline
+import space.linuxct.glyphmatrixtoycompat.FakeLight
 import space.linuxct.glyphmatrixtoycompat.FakeLocation
 import space.linuxct.glyphmatrixtoycompat.FakeScheduler
 import space.linuxct.glyphmatrixtoycompat.FakeShake
 import space.linuxct.glyphmatrixtoycompat.FakeSpectrum
 import space.linuxct.glyphmatrixtoycompat.FakeSpeed
-import space.linuxct.glyphmatrixtoycompat.FakeTea
+import space.linuxct.glyphmatrixtoycompat.FakeTimer
 import space.linuxct.glyphmatrixtoycompat.FakeTilt
 
 private class ProbeScreen(
@@ -58,7 +60,8 @@ class ScreenManagerTest {
     private val scheduler = FakeScheduler(clock)
     private val ports = Ports(
         clock, FakeRandom(), FakeBattery(), FakeSpeed(), FakeSpectrum(),
-        FakeAzimuth(), FakeShake(), FakeTilt(), FakeConnectivity(), FakeLocation(), FakeTea(),
+        FakeAzimuth(), FakeShake(), FakeTilt(), FakeIncline(), FakeLight(), FakeConnectivity(),
+        FakeLocation(), FakeTimer(),
     )
     private val output = mutableListOf<IntArray>()
 
@@ -145,6 +148,44 @@ class ScreenManagerTest {
         assertEquals(2048, output[0][0])
         a.push() // identical frame: deduped
         assertEquals(1, output.size)
+    }
+
+    @Test
+    fun `reapplyBrightness re-pushes at the new ceiling without a redraw`() {
+        prefs.putFloat(PrefKeys.BRIGHTNESS, 1.0f)
+        val m = manager(a, b, c)
+        m.startSession()
+        assertEquals(4095, output[0][0])
+
+        // Auto-brightness changes the pref in the background; the screen has not
+        // drawn again (a static toy might not for a minute).
+        prefs.putFloat(PrefKeys.BRIGHTNESS, 0.5f)
+        m.reapplyBrightness()
+        assertEquals(2, output.size)
+        assertEquals(2048, output[1][0])
+
+        // Re-applying the SAME level repeatedly must not drift: the raw frame,
+        // not the already-normalized one, is the source (integer rounding in
+        // max-normalization would otherwise dim the display a little each pass).
+        repeat(20) { m.reapplyBrightness() }
+        assertEquals(2048, output.last()[0])
+
+        // Back up to full: no residual loss from the trip through 0.5.
+        prefs.putFloat(PrefKeys.BRIGHTNESS, 1.0f)
+        m.reapplyBrightness()
+        assertEquals(4095, output.last()[0])
+    }
+
+    @Test
+    fun `reapplyBrightness is a no-op without a live session`() {
+        val m = manager(a, b, c)
+        m.reapplyBrightness()
+        assertTrue(output.isEmpty())
+        m.startSession()
+        m.stopSession()
+        val n = output.size
+        m.reapplyBrightness()
+        assertEquals(n, output.size)
     }
 
     @Test

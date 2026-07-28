@@ -18,10 +18,14 @@ object ScreenRegistry {
         MoonScreen(),
         DiceScreen(),
         CoinScreen(),
+        DinoScreen(),
+        BottleScreen(),
+        RpsScreen(),
         CounterScreen(),
         BreathingScreen(),
-        TeaScreen(),
+        TimerScreen(),
         CompassScreen(),
+        LevelScreen(),
         VisualizerScreen(),
     )
 }

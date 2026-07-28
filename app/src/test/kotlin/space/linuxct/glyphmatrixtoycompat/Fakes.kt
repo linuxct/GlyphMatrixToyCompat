@@ -6,6 +6,8 @@ import space.linuxct.glyphmatrixtoycompat.core.Cancelable
 import space.linuxct.glyphmatrixtoycompat.core.ClockPort
 import space.linuxct.glyphmatrixtoycompat.core.ConnectionState
 import space.linuxct.glyphmatrixtoycompat.core.ConnectivityPort
+import space.linuxct.glyphmatrixtoycompat.core.InclinePort
+import space.linuxct.glyphmatrixtoycompat.core.LightPort
 import space.linuxct.glyphmatrixtoycompat.core.LocationPort
 import space.linuxct.glyphmatrixtoycompat.core.Ports
 import space.linuxct.glyphmatrixtoycompat.core.Prefs
@@ -15,7 +17,7 @@ import space.linuxct.glyphmatrixtoycompat.core.ScreenContext
 import space.linuxct.glyphmatrixtoycompat.core.ShakePort
 import space.linuxct.glyphmatrixtoycompat.core.SpectrumPort
 import space.linuxct.glyphmatrixtoycompat.core.SpeedPort
-import space.linuxct.glyphmatrixtoycompat.core.TeaSignalPort
+import space.linuxct.glyphmatrixtoycompat.core.TimerSignalPort
 import space.linuxct.glyphmatrixtoycompat.core.TiltPort
 
 class FakePrefs : Prefs {
@@ -27,6 +29,11 @@ class FakePrefs : Prefs {
     override fun getLong(key: String, def: Long) = map[key] as? Long ?: def
     override fun getFloat(key: String, def: Float) = map[key] as? Float ?: def
     override fun getString(key: String, def: String) = map[key] as? String ?: def
+    override fun contains(key: String) = map.containsKey(key)
+
+    override fun remove(key: String) {
+        if (map.remove(key) != null) listeners.forEach { it(key) }
+    }
 
     private fun put(key: String, v: Any) {
         map[key] = v
@@ -81,9 +88,15 @@ class FakeRandom(seed: Long = 42L) : RandomPort {
     override fun nextFloat(): Float = ((nextBits() % 10000 + 10000) % 10000) / 10000f
 }
 
-class FakeBattery(var level: Int = 80, var charging: Boolean = false) : BatteryPort {
+class FakeBattery(
+    var level: Int = 80,
+    var charging: Boolean = false,
+    /** null models "platform will not tell us" — the common case. */
+    var watts: Float? = null,
+) : BatteryPort {
     override fun levelPercent() = level
     override fun isCharging() = charging
+    override fun chargeWatts() = watts
 }
 
 class FakeSpeed(var total: Long = 0L) : SpeedPort {
@@ -110,6 +123,26 @@ class FakeTilt(var x: Float = 0f, var y: Float = 0f) : TiltPort {
     override fun tiltY() = y
 }
 
+/**
+ * Both nullable on purpose: null models "no gravity sensor / no reading yet".
+ * Defaults to dead flat. Signs follow [space.linuxct.glyphmatrixtoycompat.core.InclinePort]:
+ * positive = that edge of the device is the low one.
+ */
+class FakeIncline(var pitch: Float? = 0f, var roll: Float? = 0f) : InclinePort {
+    override fun pitchDegrees() = pitch
+    override fun rollDegrees() = roll
+}
+
+/** [lux] is nullable on purpose: null models "no sensor / no reading yet". */
+class FakeLight(var lux: Float? = null) : LightPort {
+    var polls = 0
+
+    override fun lux(): Float? {
+        polls++
+        return lux
+    }
+}
+
 class FakeConnectivity(var value: ConnectionState = ConnectionState.WIFI) : ConnectivityPort {
     override fun state() = value
 }
@@ -118,7 +151,7 @@ class FakeLocation(var value: Pair<Double, Double>? = 0.0 to 0.0) : LocationPort
     override fun latLon() = value
 }
 
-class FakeTea : TeaSignalPort {
+class FakeTimer : TimerSignalPort {
     var scheduledAt: Long? = null
     var cancelCount = 0
     var chimeCount = 0
@@ -211,11 +244,16 @@ class TestHarness(
     val azimuth = FakeAzimuth()
     val shake = FakeShake()
     val tilt = FakeTilt()
+    val incline = FakeIncline()
+    val light = FakeLight()
     val connectivity = FakeConnectivity()
     val location = FakeLocation()
-    val tea = FakeTea()
+    val timer = FakeTimer()
 
-    val ports = Ports(clock, random, battery, speed, spectrum, azimuth, shake, tilt, connectivity, location, tea)
+    val ports = Ports(
+        clock, random, battery, speed, spectrum, azimuth, shake, tilt, incline, light,
+        connectivity, location, timer,
+    )
 
     val frames = mutableListOf<IntArray>()
 

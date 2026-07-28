@@ -32,15 +32,24 @@ class ScreenManager(
     // user commits (double press) or the auto-commit timer fires.
     private var blinkOn = true
     private var lastContentFrame: IntArray? = null
+
+    /**
+     * The last frame as the screen drew it, BEFORE the brightness ceiling — the
+     * source of truth for [reapplyBrightness]. Kept separately on purpose:
+     * BrightnessCeiling max-normalizes with integer division, so re-ceilinging
+     * an already-ceilinged frame rounds down a little each pass and repeated
+     * re-applies (every 60 s under auto-brightness) would slowly dim the matrix.
+     */
+    private var lastRawFrame: IntArray? = null
     private val blank = IntArray(size * size)
     private var blink: Cancelable? = null
     private var commitTimer: Cancelable? = null
 
     private val context: ScreenContext = ScreenContext(size, prefs, ports, scheduler) { frame ->
-        val ceilinged = BrightnessCeiling.apply(
-            frame,
-            prefs.getFloat(PrefKeys.BRIGHTNESS, PrefKeys.BRIGHTNESS_DEF),
-        )
+        val raw = lastRawFrame
+        // Reuse the buffer: frames are fixed-size and this runs per pushed frame.
+        if (raw != null && raw.size == frame.size) frame.copyInto(raw) else lastRawFrame = frame.copyOf()
+        val ceilinged = BrightnessCeiling.apply(frame, brightness())
         lastContentFrame = ceilinged
         // While the menu is blinked "off", suppress the toy's frame with black.
         val toSend = if (inMenu && !blinkOn) blank else ceilinged
@@ -88,7 +97,32 @@ class ScreenManager(
         sessionLive = false
         lastPushed = null
         lastContentFrame = null
+        lastRawFrame = null
     }
+
+    /**
+     * Re-pushes the last drawn frame at the current brightness pref. The ceiling
+     * is otherwise only applied when a screen draws, and byte-identical frames
+     * are dropped — so a background brightness change (auto-brightness) would
+     * not reach a static toy until its next redraw (up to a minute for the
+     * clock). Bypasses the dedup deliberately: the pref, not the frame, changed.
+     *
+     * Scheduler-thread only, like every other method here.
+     */
+    fun reapplyBrightness() {
+        if (!sessionLive) return
+        val raw = lastRawFrame ?: return
+        // apply() returns its input unchanged when no rescale is needed; copy so
+        // lastContentFrame never aliases the reused raw buffer.
+        val ceilinged = BrightnessCeiling.apply(raw, brightness()).let { if (it === raw) raw.copyOf() else it }
+        lastContentFrame = ceilinged
+        // Blinked "off" inside the menu: the next blink-on pushes the new level.
+        if (inMenu && !blinkOn) return
+        lastPushed = ceilinged.copyOf()
+        output(ceilinged)
+    }
+
+    private fun brightness() = prefs.getFloat(PrefKeys.BRIGHTNESS, PrefKeys.BRIGHTNESS_DEF)
 
     fun next() = moveBy(1)
 

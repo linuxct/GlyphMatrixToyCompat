@@ -8,40 +8,40 @@ import android.os.Looper
 import space.linuxct.glyphmatrixtoycompat.Core
 import space.linuxct.glyphmatrixtoycompat.core.BrightnessCeiling
 import space.linuxct.glyphmatrixtoycompat.core.PrefKeys
-import space.linuxct.glyphmatrixtoycompat.screens.TeaScreen
+import space.linuxct.glyphmatrixtoycompat.screens.TimerScreen
 
 /**
- * Backstop for Tea Time completion when the process was dead or the tea
- * screen's 1 s ticker was not running (user cycled away / long doze). The
- * in-process ticker is the primary path: it clears teaTimeStart and cancels
+ * Backstop for Timer completion when the process was dead or the timer
+ * screen's ticker was not running (user cycled away / long doze). The
+ * in-process ticker is the primary path: it clears timerStartMillis and cancels
  * this alarm, making the receiver a no-op; the alarm itself fires with a few
  * seconds of slack so the ticker always wins while alive.
  *
- * The receiver deliberately does NOT clear the persisted start — TeaScreen's
+ * The receiver deliberately does NOT clear the persisted start — TimerScreen's
  * stale-start path shows the done state on re-entry and clears it there. It
  * records which start it chimed for so that path (and a resumed ticker)
  * never double-chimes. Device selection happens inside GlyphLink from the
  * runtime matrix length, so the receiver renders correctly on any Glyph
  * Matrix device.
  */
-class TeaTimeAlarmReceiver : BroadcastReceiver() {
+class TimerAlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         Core.init(context)
-        val start = Core.prefs.getLong(PrefKeys.TEA_START, PrefKeys.TEA_START_DEF)
+        val start = Core.prefs.getLong(PrefKeys.TIMER_START, PrefKeys.TIMER_START_DEF)
         if (start == 0L) return // primary path already completed
-        if (Core.prefs.getLong(PrefKeys.TEA_CHIMED_FOR, PrefKeys.TEA_CHIMED_FOR_DEF) == start) return
+        if (Core.prefs.getLong(PrefKeys.TIMER_CHIMED_FOR, PrefKeys.TIMER_CHIMED_FOR_DEF) == start) return
 
-        Core.prefs.putLong(PrefKeys.TEA_CHIMED_FOR, start)
-        Core.ports.tea.chime()
+        Core.prefs.putLong(PrefKeys.TIMER_CHIMED_FOR, start)
+        Core.ports.timer.chime()
 
         // Render the done frame only when no live session would overwrite it
         // within a tick anyway (e.g. process was dead and is cold-starting).
         if (!Core.screenManager.sessionLive) {
             val pending = goAsync()
-            val lease = Core.glyphLink.acquire("tea-alarm")
+            val lease = Core.glyphLink.acquire("timer-alarm")
             val frame = BrightnessCeiling.apply(
-                TeaScreen.renderDone(Core.glyphLink.size),
+                TimerScreen.renderDone(Core.glyphLink.size),
                 Core.prefs.getFloat(PrefKeys.BRIGHTNESS, PrefKeys.BRIGHTNESS_DEF),
             )
             Core.glyphLink.pushFrame(frame)

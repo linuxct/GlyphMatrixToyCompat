@@ -8,6 +8,8 @@ import space.linuxct.glyphmatrixtoycompat.FakeAzimuth
 import space.linuxct.glyphmatrixtoycompat.FakeBattery
 import space.linuxct.glyphmatrixtoycompat.FakeClock
 import space.linuxct.glyphmatrixtoycompat.FakeConnectivity
+import space.linuxct.glyphmatrixtoycompat.FakeIncline
+import space.linuxct.glyphmatrixtoycompat.FakeLight
 import space.linuxct.glyphmatrixtoycompat.FakeLocation
 import space.linuxct.glyphmatrixtoycompat.FakePrefs
 import space.linuxct.glyphmatrixtoycompat.FakeRandom
@@ -15,7 +17,7 @@ import space.linuxct.glyphmatrixtoycompat.FakeScheduler
 import space.linuxct.glyphmatrixtoycompat.FakeShake
 import space.linuxct.glyphmatrixtoycompat.FakeSpectrum
 import space.linuxct.glyphmatrixtoycompat.FakeSpeed
-import space.linuxct.glyphmatrixtoycompat.FakeTea
+import space.linuxct.glyphmatrixtoycompat.FakeTimer
 import space.linuxct.glyphmatrixtoycompat.FakeTilt
 import space.linuxct.glyphmatrixtoycompat.core.Events
 import space.linuxct.glyphmatrixtoycompat.core.GlyphScreen
@@ -56,7 +58,8 @@ class KeyActionRouterTest {
     private val scheduler = FakeScheduler(clock)
     private val ports = Ports(
         clock, FakeRandom(), FakeBattery(), FakeSpeed(), FakeSpectrum(),
-        FakeAzimuth(), FakeShake(), FakeTilt(), FakeConnectivity(), FakeLocation(), FakeTea(),
+        FakeAzimuth(), FakeShake(), FakeTilt(), FakeIncline(), FakeLight(), FakeConnectivity(),
+        FakeLocation(), FakeTimer(),
     )
     private val output = mutableListOf<IntArray>()
 

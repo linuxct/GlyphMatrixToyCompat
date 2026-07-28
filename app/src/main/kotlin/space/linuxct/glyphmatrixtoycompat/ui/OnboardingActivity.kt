@@ -63,7 +63,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -509,10 +511,21 @@ private fun canExactAlarm(context: Context): Boolean =
 // ---------- dot-matrix header art ----------
 
 /**
+ * Side of a square LED as a fraction of the cell pitch: 80 %, leaving a 20 %
+ * gap between neighbours — the ratio that reads as a real dot-matrix panel.
+ */
+private const val PIXEL_FRACTION = 0.80f
+
+/**
  * Draws an ASCII pattern centered on a replica of the Glyph Matrix hardware:
  * a circular disc of 489 LEDs (a 25×25 grid under a circular mask), unlit
  * LEDs faintly visible, lit ones revealing in pseudo-random order on page
  * entry and then shimmering gently, like the matrix waking up.
+ *
+ * LEDs are square and share one size whether lit or not — on the real panel a
+ * pixel occupies the same area either way, only its brightness changes — at
+ * 80 % of the cell pitch, so the ~20 % gap reads as a dot-matrix display
+ * rather than a field of sparse dots.
  */
 @Composable
 private fun MatrixArt(pattern: String) {
@@ -540,6 +553,11 @@ private fun MatrixArt(pattern: String) {
             val rowOff = (grid - rows.size) / 2
             val colOff = (grid - cols) / 2
             val circleRadius = grid / 2f - 0.2f
+            // One square pixel size for every LED, lit or not: state is carried
+            // by brightness alone, exactly as on the hardware.
+            val px = cell * PIXEL_FRACTION
+            val pxSize = Size(px, px)
+            val pxCorner = CornerRadius(px * 0.16f)
             for (r in 0 until grid) {
                 for (c in 0 until grid) {
                     val dx = c + 0.5f - grid / 2f
@@ -547,13 +565,14 @@ private fun MatrixArt(pattern: String) {
                     if (dx * dx + dy * dy > circleRadius * circleRadius) continue
                     val on = rows.getOrNull(r - rowOff)?.getOrNull(c - colOff) == '#'
                     val center = Offset((c + 0.5f) * cell, (r + 0.5f) * cell)
+                    val topLeft = Offset(center.x - px / 2f, center.y - px / 2f)
                     // Each lit dot gets a stable pseudo-random turn-on threshold.
                     val turnOn = ((r * 7 + c * 13) % 29) / 29f
                     if (on && reveal.value > turnOn) {
                         val pulse = 0.85f + 0.15f * sin(shimmer + (r + c) * 0.6f)
-                        drawCircle(lit.copy(alpha = pulse), radius = cell * 0.34f, center = center)
+                        drawRoundRect(lit.copy(alpha = pulse), topLeft, pxSize, pxCorner)
                     } else {
-                        drawCircle(unlit, radius = cell * 0.16f, center = center)
+                        drawRoundRect(unlit, topLeft, pxSize, pxCorner)
                     }
                 }
             }

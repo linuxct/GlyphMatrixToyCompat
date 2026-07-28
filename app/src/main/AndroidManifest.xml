@@ -98,7 +98,7 @@
         </service>
 
         <receiver
-            android:name=".toy.TeaTimeAlarmReceiver"
+            android:name=".toy.TimerAlarmReceiver"
             android:directBootAware="true"
             android:exported="false" />
 

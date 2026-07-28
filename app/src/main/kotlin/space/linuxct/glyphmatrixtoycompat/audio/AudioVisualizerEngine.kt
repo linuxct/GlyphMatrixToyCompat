@@ -115,9 +115,9 @@ class AudioVisualizerEngine(
      * frequency, so the upper bars get extra gain) and square-root loudness
      * compression (lifts quiet detail, tames booming lows).
      *
-     * Rise/fall smoothing (visualizerTuning 1..6, default 6; higher =
-     * snappier) keeps the 50 ms tick calm: bars glide up over ~200 ms and
-     * sink over ~300 ms instead of snapping to each FFT frame.
+     * Rise/fall smoothing (visualizerTuning 1..6, default 1 = calmest; higher
+     * = snappier) keeps the 50 ms tick calm: bars glide up and sink over a few
+     * hundred milliseconds instead of snapping to each FFT frame.
      */
     private fun toBands(fft: ByteArray, n: Int): FloatArray {
         val tuning = prefs.getInt(PrefKeys.VISUALIZER_TUNING, PrefKeys.VISUALIZER_TUNING_DEF).coerceIn(1, 6)

@@ -13,7 +13,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -29,7 +33,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -38,6 +41,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Menu
@@ -83,6 +87,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -95,6 +100,7 @@ import space.linuxct.glyphmatrixtoycompat.core.DebugLog
 import space.linuxct.glyphmatrixtoycompat.core.PrefKeys
 import space.linuxct.glyphmatrixtoycompat.core.SessionArbiter
 import space.linuxct.glyphmatrixtoycompat.ui.theme.GmtcTheme
+import space.linuxct.glyphmatrixtoycompat.ui.theme.Md3Motion
 import space.linuxct.glyphmatrixtoycompat.ui.theme.NavPillColors
 import space.linuxct.glyphmatrixtoycompat.ui.theme.navPill
 import space.linuxct.glyphmatrixtoycompat.update.UpdateChecker
@@ -153,14 +159,19 @@ private val DISPLAY_NAMES = mapOf(
     "moon" to R.string.screen_moon,
     "dice" to R.string.screen_dice,
     "coin" to R.string.screen_coin,
+    "dino" to R.string.screen_dino,
+    "bottle" to R.string.screen_bottle,
+    "rps" to R.string.screen_rps,
     "counter" to R.string.screen_counter,
     "breathing" to R.string.screen_breathing,
-    "tea" to R.string.screen_tea,
+    "timer" to R.string.screen_timer,
     "compass" to R.string.screen_compass,
+    "level" to R.string.screen_level,
     "visualizer" to R.string.screen_visualizer,
 )
 
-private val CONFIGURABLE = setOf("ambient", "clock", "dice", "breathing", "tea", "visualizer")
+private val CONFIGURABLE =
+    setOf("ambient", "clock", "dice", "coin", "battery", "breathing", "timer", "visualizer")
 
 private fun loadOrder(): List<String> {
     val stored = Core.prefs.getString(PrefKeys.SCREEN_ORDER, PrefKeys.SCREEN_ORDER_DEF)
@@ -173,19 +184,45 @@ private fun loadOrder(): List<String> {
 /**
  * Breathing room every tab body adds *below* the Scaffold's own bottom inset,
  * so scrolled-to-the-end content never sits flush under the floating pill.
- * Roomier than it used to be: the pill grew when the items gained captions.
+ * This is pure slack — the Scaffold's inset already covers the whole measured
+ * bottom bar, pill height included — so it can never be too small to prevent
+ * overlap, only too mean or too generous to look right.
  */
 private val NAV_PILL_CLEARANCE = 40.dp
 
 /**
- * The three pages. [caption] is the short label under the nav-pill icon;
- * [title] is the (longer) page title in the app bar — they are deliberately
- * separate, e.g. the "Tutorial" chip heading the "Tutorials" page.
+ * Gap between the pill's edge and its chips — **uniform on all four sides**.
+ *
+ * The pill and every chip are stadiums ([NAV_CHIP_SHAPE] resolves to
+ * `minDimension / 2`, and every chip is at least as wide as it is tall), so for
+ * a chip of height `h` inside a uniform padding `p`:
+ *
+ *     chipRadius = h / 2      pillRadius = (h + 2p) / 2 = chipRadius + p
+ *
+ * Concentric stadiums only *look* evenly inset when `chipRadius + gap ==
+ * pillRadius`. Here the chips are 48 dp tall (see [NavChip]) → chipRadius 24,
+ * pill 48 + 2×6 = 60 → pillRadius 30 = 24 + 6. ✓
+ *
+ * The identity holds for ANY chip height, so it survives large font scales —
+ * but only while this stays a single all-sides value. A split padding (it used
+ * to be horizontal = 10, vertical = 6) breaks it, and that is exactly what made
+ * the selected chip look off-centre.
+ */
+private val NAV_PILL_GAP = 6.dp
+
+/** Stadium: radius = half the shorter side, for both the pill and its chips. */
+private val NAV_CHIP_SHAPE = RoundedCornerShape(percent = 50)
+
+/**
+ * The three pages. [caption] is the short label beside the nav-pill icon;
+ * [title] is the (longer) page title in the app bar — they stay separate
+ * because e.g. "Toys" heads the "Glyph Toys" page. Where the two are the same
+ * word, one string serves both.
  */
 private enum class Tab(val icon: ImageVector, val caption: Int, val title: Int) {
     TOYS(Icons.Default.Casino, R.string.nav_toys, R.string.screens_title),
     SETTINGS(Icons.Default.Settings, R.string.nav_settings, R.string.settings),
-    TUTORIAL(Icons.Default.School, R.string.nav_tutorial, R.string.tut_section),
+    TUTORIAL(Icons.Default.School, R.string.tut_section, R.string.tut_section),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -222,8 +259,8 @@ private fun MainScreen() {
 }
 
 /**
- * MD3-style floating pill navigation: a raised, centred capsule holding one
- * icon-above-caption item per tab.
+ * MD3-style floating pill navigation: a raised, centred capsule of one [NavChip]
+ * per tab.
  *
  * Colours come from the theme's [NavPillColors] rather than the M3 `inverse*`
  * roles — those stay reserved for the tutorial's numbered-step bubbles, and
@@ -237,46 +274,108 @@ private fun FloatingNavBar(selected: Int, onSelect: (Int) -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Surface(
-            // Percent radius, not a fixed 33.dp: the pill is taller now that
-            // the items carry captions, and grows further with the user's font
-            // scale — this keeps it a true capsule at any height.
-            shape = RoundedCornerShape(percent = 50),
+            // Percent radius, not a fixed dp: the pill's height follows the
+            // user's font scale, and this keeps it a true capsule at any of
+            // them (see [NAV_PILL_GAP] for why that matters).
+            shape = NAV_CHIP_SHAPE,
             color = pill.container,
             shadowElevation = 8.dp,
         ) {
             Row(
-                Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                // Uniform, all four sides — see [NAV_PILL_GAP] before changing.
+                Modifier.padding(NAV_PILL_GAP),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Tab.entries.forEachIndexed { i, t ->
                     val sel = i == selected
-                    val tint = if (sel) pill.selectedContent else pill.content
-                    // ~66 x 56 dp: comfortably past the 48 dp minimum target,
-                    // and a MINIMUM width only — at large font scales the item
-                    // grows with its caption instead of clipping it.
-                    Column(
-                        Modifier
-                            .widthIn(min = 66.dp)
-                            .clip(RoundedCornerShape(percent = 50))
-                            .background(if (sel) pill.selectedContainer else Color.Transparent)
-                            .clickable { onSelect(i) }
-                            .padding(horizontal = 6.dp, vertical = 7.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        // The caption below is the accessible label; a content
-                        // description here would only repeat it.
-                        Icon(t.icon, contentDescription = null, tint = tint)
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            stringResource(t.caption),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = tint,
-                            maxLines = 1,
-                            softWrap = false,
-                        )
-                    }
+                    // MD3 animates its selection indicator; both of these used
+                    // to snap between frames, which read as the pill's motion
+                    // "not matching" far more than the width spring did.
+                    // EFFECTS spring, never the spatial one: bouncing a colour
+                    // is a flicker (see [Md3Motion]).
+                    //
+                    // The unselected fill fades the SAME colour out to alpha 0,
+                    // not to Color.Transparent — transparent is transparent
+                    // *black*, so lerping to it drags a light chip through grey
+                    // on the way out.
+                    val container by animateColorAsState(
+                        targetValue = pill.selectedContainer.copy(alpha = if (sel) 1f else 0f),
+                        animationSpec = Md3Motion.effects(),
+                        label = "navChipContainer",
+                    )
+                    val tint by animateColorAsState(
+                        targetValue = if (sel) pill.selectedContent else pill.content,
+                        animationSpec = Md3Motion.effects(),
+                        label = "navChipTint",
+                    )
+                    NavChip(
+                        tab = t,
+                        selected = sel,
+                        tint = tint,
+                        modifier = Modifier
+                            .clip(NAV_CHIP_SHAPE)
+                            .background(container)
+                            .clickable { onSelect(i) },
+                    )
                 }
             }
+        }
+    }
+}
+
+/**
+ * One tab chip: its icon, with the caption beside it on the SELECTED chip only —
+ * unselected chips are the bare icon.
+ *
+ * Height 12 + 24 + 12 = **48 dp** → chip radius 24, pill 48 + 2×6 = 60 → pill
+ * radius 30 = 24 + [NAV_PILL_GAP]. Concentric. An unselected chip is 12 + 24 +
+ * 12 = 48 dp wide too — a 48 × 48 target, and a perfect circle. The selected
+ * chip is wider (never shorter than 48 dp), so the stadium radius stays 24
+ * throughout the width animation and the shape never wobbles.
+ */
+@Composable
+private fun NavChip(tab: Tab, selected: Boolean, tint: Color, modifier: Modifier) {
+    Row(
+        modifier
+            // The chip's width changes when the selection moves, and THIS is
+            // what animates the whole pill: the chip reports an animated width
+            // every frame, the Row and the wrap-content Surface above it
+            // re-measure to match, and the centring Box re-centres — so the
+            // capsule outline itself grows/shrinks symmetrically from the
+            // middle. Deliberately not placed on the Surface or the pill's Row:
+            // an animation node clips its content to the animated size, so up
+            // there it would shave the chips against the capsule edge instead
+            // of resizing the capsule (and two nested nodes chase each other,
+            // since the outer one's target is the inner one's animated value).
+            // It sits INSIDE clip+background (which arrive in `modifier`) so
+            // the chip's own fill resizes with it too.
+            //
+            // The spec is explicit: animateContentSize()'s own default is
+            // `spring(stiffness = StiffnessMediumLow)`, and spring()'s default
+            // damping is DampingRatioNoBouncy — 1.0, which cannot overshoot.
+            // MD3's spatial spring is under-damped (0.9) and stiffer (700), so
+            // the pill settles faster AND with the small bounce it should have.
+            // See [Md3Motion] for why the tokens are copied rather than read.
+            .animateContentSize(Md3Motion.spatial(IntSize.VisibilityThreshold))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Unselected chips have no visible label, so the icon has to carry it.
+        Icon(
+            tab.icon,
+            contentDescription = if (selected) null else stringResource(tab.caption),
+            tint = tint,
+        )
+        if (selected) {
+            Spacer(Modifier.width(8.dp))
+            Text(
+                stringResource(tab.caption),
+                style = MaterialTheme.typography.titleSmall,
+                color = tint,
+                maxLines = 1,
+                softWrap = false,
+            )
         }
     }
 }
@@ -504,14 +603,69 @@ private fun SettingsTab(innerPadding: PaddingValues) {
                 var brightness by remember {
                     mutableFloatStateOf(Core.prefs.getFloat(PrefKeys.BRIGHTNESS, PrefKeys.BRIGHTNESS_DEF))
                 }
-                Slider(
-                    value = brightness,
-                    onValueChange = {
-                        brightness = it.coerceIn(0.05f, 1f)
-                        Core.prefs.putFloat(PrefKeys.BRIGHTNESS, brightness)
-                    },
-                    valueRange = 0.05f..1f,
-                )
+                var auto by remember {
+                    mutableStateOf(Core.prefs.getBoolean(PrefKeys.AUTO_BRIGHTNESS, PrefKeys.AUTO_BRIGHTNESS_DEF))
+                }
+                // Auto-brightness writes BRIGHTNESS from the render thread, so the
+                // slider must follow the pref (not just local state) to show what
+                // auto is doing. Pref-change listeners fire on the main thread.
+                DisposableEffect(Unit) {
+                    val listener: (String) -> Unit = { key ->
+                        when (key) {
+                            PrefKeys.BRIGHTNESS ->
+                                brightness = Core.prefs.getFloat(PrefKeys.BRIGHTNESS, PrefKeys.BRIGHTNESS_DEF)
+                            PrefKeys.AUTO_BRIGHTNESS ->
+                                auto = Core.prefs.getBoolean(PrefKeys.AUTO_BRIGHTNESS, PrefKeys.AUTO_BRIGHTNESS_DEF)
+                        }
+                    }
+                    Core.prefs.addChangeListener(listener)
+                    onDispose { Core.prefs.removeChangeListener(listener) }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Filled when on, outlined + muted when off (monochrome: the
+                    // difference is contrast, never colour).
+                    FilledIconToggleButton(
+                        checked = auto,
+                        onCheckedChange = { on ->
+                            auto = on
+                            Core.prefs.putBoolean(PrefKeys.AUTO_BRIGHTNESS, on)
+                        },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .then(
+                                if (auto) {
+                                    Modifier
+                                } else {
+                                    Modifier.border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                                },
+                            ),
+                    ) {
+                        Icon(
+                            Icons.Default.BrightnessAuto,
+                            contentDescription = stringResource(
+                                if (auto) R.string.auto_brightness_on else R.string.auto_brightness_off,
+                            ),
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Slider(
+                        value = brightness,
+                        onValueChange = {
+                            // Fiddling with the slider means "I'll do it myself":
+                            // drop out of auto first, so the controller has stopped
+                            // polling before the manual value lands.
+                            if (auto) {
+                                auto = false
+                                Core.prefs.putBoolean(PrefKeys.AUTO_BRIGHTNESS, false)
+                            }
+                            brightness = it.coerceIn(0.05f, 1f)
+                            Core.prefs.putFloat(PrefKeys.BRIGHTNESS, brightness)
+                        },
+                        valueRange = 0.05f..1f,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
             HorizontalDivider()
             UpdateRow()
@@ -933,6 +1087,19 @@ private fun ScreenSettingsDialog(id: String, onDismiss: () -> Unit) {
                         key = PrefKeys.SELECTED_DICE,
                         def = PrefKeys.SELECTED_DICE_DEF,
                     )
+                    "coin" -> {
+                        Text(stringResource(R.string.pref_coin_design), style = MaterialTheme.typography.labelLarge)
+                        IntChoiceGroup(
+                            options = listOf("Letters (H/T)", "Portrait & numeral"),
+                            key = PrefKeys.COIN_DESIGN,
+                            def = PrefKeys.COIN_DESIGN_DEF,
+                        )
+                    }
+                    "battery" -> PrefSwitch(
+                        stringResource(R.string.pref_battery_watts),
+                        PrefKeys.BATTERY_SHOW_WATTS,
+                        PrefKeys.BATTERY_SHOW_WATTS_DEF,
+                    )
                     "breathing" -> {
                         Text(stringResource(R.string.pref_breathing_pace), style = MaterialTheme.typography.labelLarge)
                         StringChoiceGroup(
@@ -941,13 +1108,15 @@ private fun ScreenSettingsDialog(id: String, onDismiss: () -> Unit) {
                             def = PrefKeys.BREATHING_PACE_DEF,
                         )
                     }
-                    "tea" -> {
-                        Text(stringResource(R.string.pref_tea_duration), style = MaterialTheme.typography.labelLarge)
+                    "timer" -> {
+                        Text(stringResource(R.string.pref_timer_duration), style = MaterialTheme.typography.labelLarge)
                         IntValueChoiceGroup(
-                            options = listOf(30, 60, 120, 180, 240),
-                            labels = listOf("30 s", "60 s", "120 s", "180 s", "240 s"),
-                            key = PrefKeys.TEA_DURATION,
-                            def = PrefKeys.TEA_DURATION_DEF,
+                            // Stored in seconds, labelled in minutes — never
+                            // show a raw second count here.
+                            options = PrefKeys.TIMER_DURATION_OPTIONS,
+                            labels = listOf("1 min", "3 min", "5 min", "7 min", "10 min", "13 min"),
+                            key = PrefKeys.TIMER_DURATION,
+                            def = PrefKeys.TIMER_DURATION_DEF,
                         )
                     }
                     "visualizer" -> {

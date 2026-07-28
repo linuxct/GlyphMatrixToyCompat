@@ -12,28 +12,28 @@ import android.media.RingtoneManager
 import android.util.Log
 import space.linuxct.glyphmatrixtoycompat.App
 import space.linuxct.glyphmatrixtoycompat.R
-import space.linuxct.glyphmatrixtoycompat.core.TeaSignalPort
+import space.linuxct.glyphmatrixtoycompat.core.TimerSignalPort
 
 /**
- * Tea Time side effects. The exact alarm is only a BACKSTOP for process death
- * — the in-process 1 s ticker is the primary completion path. Exact alarms
+ * Timer side effects. The exact alarm is only a BACKSTOP for process death
+ * — the in-process ticker is the primary completion path. Exact alarms
  * are denied by default on Android 14+: when not granted we degrade to
  * setWindow (1 min slack). The chime plays directly via RingtoneManager so it
  * works even when POST_NOTIFICATIONS is denied; the notification is a bonus.
  */
-class AndroidTeaSignal(private val app: Context) : TeaSignalPort {
+class AndroidTimerSignal(private val app: Context) : TimerSignalPort {
 
     private fun pendingIntent(): PendingIntent = PendingIntent.getBroadcast(
         app,
         REQUEST_CODE,
-        Intent(app, TeaTimeAlarmReceiver::class.java),
+        Intent(app, TimerAlarmReceiver::class.java),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
     override fun scheduleAlarm(atEpochMillis: Long) {
         val am = app.getSystemService(AlarmManager::class.java) ?: return
         val pi = pendingIntent()
-        // Slack past the nominal deadline so the in-process 1 s ticker always
+        // Slack past the nominal deadline so the in-process ticker always
         // wins while the app is alive; the backstop only matters after process
         // death or a long doze.
         val at = atEpochMillis + BACKSTOP_SLACK_MS
@@ -66,10 +66,10 @@ class AndroidTeaSignal(private val app: Context) : TeaSignalPort {
         if (app.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
             try {
                 val nm = app.getSystemService(NotificationManager::class.java) ?: return
-                val n = Notification.Builder(app, App.CHANNEL_TEA_TIME)
+                val n = Notification.Builder(app, App.CHANNEL_TIMER)
                     .setSmallIcon(R.drawable.ic_notification)
-                    .setContentTitle(app.getString(R.string.notif_tea_ready_title))
-                    .setContentText(app.getString(R.string.notif_tea_ready_body))
+                    .setContentTitle(app.getString(R.string.notif_timer_title))
+                    .setContentText(app.getString(R.string.notif_timer_body))
                     .setAutoCancel(true)
                     .build()
                 nm.notify(NOTIFICATION_ID, n)
@@ -80,7 +80,7 @@ class AndroidTeaSignal(private val app: Context) : TeaSignalPort {
     }
 
     private companion object {
-        const val TAG = "TeaSignal"
+        const val TAG = "TimerSignal"
         const val REQUEST_CODE = 1001
         const val NOTIFICATION_ID = 2001
         const val WINDOW_MS = 60_000L

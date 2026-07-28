@@ -77,7 +77,7 @@ class UpdateCheckWorker(context: Context, params: WorkerParameters) : Worker(con
 
     companion object {
         private const val WORK_NAME = "update_check"
-        private const val NOTIFICATION_ID = 2002 // Tea Time uses 2001
+        private const val NOTIFICATION_ID = 2002 // Timer uses 2001
 
         /**
          * Idempotent daily schedule (KEEP preserves the existing cadence).

@@ -27,6 +27,13 @@ interface BatteryPort {
     fun levelPercent(): Int
     /** True only for BATTERY_STATUS_CHARGING (not merely plugged in). */
     fun isCharging(): Boolean
+    /**
+     * Instantaneous charge power in watts, or null whenever it cannot be
+     * trusted: not charging, the platform does not expose a current reading, or
+     * the numbers are implausible. Always a positive magnitude — OEM sign
+     * conventions for CURRENT_NOW disagree, so the sign is discarded.
+     */
+    fun chargeWatts(): Float?
 }
 
 interface SpeedPort {
@@ -59,6 +66,43 @@ interface TiltPort {
     fun tiltY(): Float
 }
 
+/**
+ * Static inclination of the device, derived from the gravity vector — unlike
+ * [TiltPort], which reads TYPE_LINEAR_ACCELERATION (gravity removed) and so
+ * reads ~0 at every resting angle.
+ *
+ * Sign convention, in the standard Android device frame (+X = right edge,
+ * +Y = top edge, +Z = out of the screen), with g the gravity vector:
+ *
+ *  - [rollDegrees] = atan2(gx, gz): 0 when the device lies flat on its back;
+ *    POSITIVE when its RIGHT edge is the LOW edge, negative when its LEFT edge
+ *    is low. +-90 when stood on a long edge.
+ *  - [pitchDegrees] = atan2(gy, gz): 0 when flat on its back; POSITIVE when
+ *    the device's TOP edge is the LOW edge (leaning away from an upright
+ *    reader), negative when its BOTTOM edge is low. -90 when stood upright.
+ *
+ * Both are in -180..180 and both read near +-180 with the device face down.
+ * Mnemonic: the sign always points at the edge gravity runs toward, so a ball
+ * rolling on the display moves toward +roll in X and toward +pitch in device Y
+ * (which is UP the screen, i.e. toward matrix row 0).
+ *
+ * Null means no reading has landed yet, or the device has neither a gravity nor
+ * an accelerometer sensor.
+ */
+interface InclinePort {
+    fun pitchDegrees(): Float?
+    fun rollDegrees(): Float?
+}
+
+interface LightPort {
+    /**
+     * Ambient illuminance in lux, or null when unavailable (no light sensor, or
+     * no reading has landed yet — TYPE_LIGHT is an on-change sensor, so the
+     * first poll after registering usually comes back empty).
+     */
+    fun lux(): Float?
+}
+
 enum class ConnectionState { WIFI, CELLULAR, AIRPLANE, NONE }
 
 interface ConnectivityPort {
@@ -70,8 +114,8 @@ interface LocationPort {
     fun latLon(): Pair<Double, Double>?
 }
 
-/** Side-effect port for the Tea Time screen: backstop alarm + completion chime/notification. */
-interface TeaSignalPort {
+/** Side-effect port for the Timer screen: backstop alarm + completion chime/notification. */
+interface TimerSignalPort {
     fun scheduleAlarm(atEpochMillis: Long)
     fun cancelAlarm()
     fun chime()
@@ -86,7 +130,9 @@ class Ports(
     val azimuth: AzimuthPort,
     val shake: ShakePort,
     val tilt: TiltPort,
+    val incline: InclinePort,
+    val light: LightPort,
     val connectivity: ConnectivityPort,
     val location: LocationPort,
-    val tea: TeaSignalPort,
+    val timer: TimerSignalPort,
 )

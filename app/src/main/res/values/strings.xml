@@ -18,9 +18,9 @@
     <string name="disclosure_decline">Not now</string>
 
     <!-- Notification channel -->
-    <string name="channel_tea_time">Tea Time</string>
-    <string name="notif_tea_ready_title">Tea is ready</string>
-    <string name="notif_tea_ready_body">Your tea has finished steeping.</string>
+    <string name="channel_timer">Timer</string>
+    <string name="notif_timer_title">Time’s up</string>
+    <string name="notif_timer_body">Your timer has finished.</string>
     <string name="channel_updates">App updates</string>
     <string name="notif_update_title">Update available</string>
     <string name="notif_update_body">GMTC %1$s is out — tap to open the download page.</string>
@@ -55,13 +55,13 @@
     <string name="onb_perms_title">A few small favours</string>
     <string name="onb_perms_body">Each permission powers exactly one thing, and all of them are optional — skip any and the related toy just sits things out.</string>
     <string name="onb_perm_notif">Notifications</string>
-    <string name="onb_perm_notif_why">Tea Time chimes when your steep is done, and you’ll hear about new Glyph Matrix Toy Compat (GMTC) releases.</string>
+    <string name="onb_perm_notif_why">The Timer chimes when it runs out, and you’ll hear about new Glyph Matrix Toy Compat (GMTC) releases.</string>
     <string name="onb_perm_mic">Microphone</string>
     <string name="onb_perm_mic_why">The Music Visualizer dances to what’s playing. Audio is analysed on-device, never stored, never sent anywhere.</string>
     <string name="onb_perm_loc">Location</string>
     <string name="onb_perm_loc_why">Corrects the Compass for magnetic declination and anchors the Solar Path to your sky.</string>
     <string name="onb_perm_alarm">Exact alarms</string>
-    <string name="onb_perm_alarm_why">Guarantees the Tea Time chime lands on the second, even when the phone is dozing.</string>
+    <string name="onb_perm_alarm_why">Guarantees the Timer chime lands on the second, even when the phone is dozing.</string>
 
     <string name="onb_mode_title">How should the Key behave?</string>
     <string name="onb_mode_body">The listener is on — now pick your pressing style. You can change this any time from the main screen.</string>
@@ -85,10 +85,10 @@
     <string name="checklist_toy">Always-on Glyph Toy</string>
     <string name="checklist_toy_hint">Select “Glyph Matrix Toy Compat” in Glyph settings so toys keep running on AOD (tap to open)</string>
     <string name="checklist_toy_on">Selected — verified by a system toy binding (tap to change)</string>
-    <string name="checklist_notifications">Notifications (Tea Time chime)</string>
+    <string name="checklist_notifications">Notifications (Timer chime)</string>
     <string name="checklist_mic">Microphone (music visualizer)</string>
     <string name="checklist_location">Location (compass declination, optional)</string>
-    <string name="checklist_exact_alarm">Exact alarms (Tea Time backstop)</string>
+    <string name="checklist_exact_alarm">Exact alarms (Timer backstop)</string>
     <string name="checklist_hint_guides">Step-by-step guides for the trickier items live in the Tutorials tab.</string>
     <string name="checklist_granted">Granted</string>
     <string name="checklist_tap_to_grant">Tap to grant</string>
@@ -104,16 +104,19 @@
     <string name="pref_menu_mode">Essential Key menu mode</string>
     <string name="pref_menu_mode_summary">Double-press opens a blinking on-glyph selector; single-press cycles toys, and the shown toy is set automatically after a few seconds. Single-press still triggers toy actions outside the menu.</string>
     <string name="brightness">Glyph brightness</string>
+    <string name="auto_brightness_on">Automatic brightness on — the Glyph follows the room light. Tap to turn off.</string>
+    <string name="auto_brightness_off">Automatic brightness off. Tap to let the Glyph follow the room light.</string>
     <string name="screens_title">Glyph Toys</string>
     <string name="screens_reorder_hint">Drag the handle to change the cycle order</string>
     <string name="preview">Preview</string>
     <string name="set_active">Set as active toy</string>
     <string name="settings">Settings</string>
 
-    <!-- Floating navigation pill captions (kept short: they sit under the icons) -->
+    <!-- Floating navigation pill captions (kept short: they sit beside the icon
+         of the selected tab). The tutorial tab has no entry here: its caption
+         and its page title are the same word, so it reuses tut_section. -->
     <string name="nav_toys">Toys</string>
     <string name="nav_settings">Settings</string>
-    <string name="nav_tutorial">Tutorial</string>
 
     <!-- Settings tab section headers -->
     <string name="section_initial_setup">Initial setup</string>
@@ -145,7 +148,7 @@
     <string name="tut_restricted_action">Open App info</string>
 
     <string name="tut_c1_title">Single press — Glyph Touch</string>
-    <string name="tut_c1_body">Fires the current toy’s action: roll the dice, flip the coin, +1 the counter, start the tea timer. Toys without an action simply ignore it.</string>
+    <string name="tut_c1_body">Fires the current toy’s action: roll the dice, flip the coin, +1 the counter, start or pause the timer. Toys without an action simply ignore it.</string>
     <string name="tut_c2_title">Double press — next toy</string>
     <string name="tut_c2_body">Switches to the next enabled toy in your configured order, wrapping around at the end of the list.</string>
     <string name="tut_c3_title">Triple press — background toy</string>
@@ -177,16 +180,22 @@
     <string name="screen_moon">Moon Phase</string>
     <string name="screen_dice">Dice</string>
     <string name="screen_coin">Coin Flip</string>
+    <string name="screen_dino">Dino Run</string>
+    <string name="screen_bottle">Spin the Bottle</string>
+    <string name="screen_rps">Rock Paper Scissors</string>
     <string name="screen_counter">Counter</string>
     <string name="screen_breathing">Breathing</string>
-    <string name="screen_tea">Tea Time</string>
+    <string name="screen_timer">Timer</string>
     <string name="screen_compass">Compass</string>
+    <string name="screen_level">Level</string>
     <string name="screen_visualizer">Music Visualizer</string>
 
     <!-- Per-screen settings -->
     <string name="pref_use12h">12-hour time</string>
+    <string name="pref_coin_design">Coin design</string>
+    <string name="pref_battery_watts">Show charging wattage while charging</string>
     <string name="pref_breathing_pace">Breathing pace (higher = slower)</string>
-    <string name="pref_tea_duration">Steep duration (seconds)</string>
+    <string name="pref_timer_duration">Timer duration (minutes)</string>
     <string name="pref_ambient_background">Background toy</string>
     <string name="pref_ambient_night">Show background at night (23:00–06:00)</string>
     <string name="pref_ambient_shake">Only show background for 30 s after a shake</string>

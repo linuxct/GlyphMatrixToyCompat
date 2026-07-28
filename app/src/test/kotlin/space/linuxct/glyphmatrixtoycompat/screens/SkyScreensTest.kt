@@ -79,6 +79,58 @@ class BatteryScreenTest {
         val full = BatteryScreen.renderFrame(13, 100, false, 0)
         assertTrue(full.none { it == 0 })
     }
+
+    @Test
+    fun `wattage formatting rounds and clamps`() {
+        assertEquals("5W", BatteryScreen.formatWatts(4.6f))
+        assertEquals("45W", BatteryScreen.formatWatts(45.2f))
+        assertEquals("120W", BatteryScreen.formatWatts(119.7f))
+        assertEquals("1W", BatteryScreen.formatWatts(0.2f)) // never a bare "0W"
+        assertEquals("999W", BatteryScreen.formatWatts(4000f))
+    }
+
+    @Test
+    fun `wattage goldens`() {
+        GoldenAscii.check("battery_13_watts_7", BatteryScreen.renderFrame(13, 60, true, 1_000_000, 7.4f), 13)
+        GoldenAscii.check("battery_13_watts_45", BatteryScreen.renderFrame(13, 60, true, 1_000_000, 45f), 13)
+        // Three digits do not fit beside the unit on 13 columns: stacked.
+        GoldenAscii.check("battery_13_watts_120", BatteryScreen.renderFrame(13, 60, true, 1_000_000, 120f), 13)
+        GoldenAscii.check("battery_25_watts_45", BatteryScreen.renderFrame(25, 60, true, 1_000_000, 45f), 25)
+        GoldenAscii.check("battery_25_watts_120", BatteryScreen.renderFrame(25, 60, true, 1_000_000, 120f), 25)
+    }
+
+    @Test
+    fun `wattage needs both charging and a reading`() {
+        for (size in intArrayOf(13, 25)) {
+            val gauge = BatteryScreen.renderFrame(size, 60, true, 1_000_000)
+            // Default argument, an absent reading, and not-charging all keep the
+            // gauge byte-identical.
+            assertTrue(gauge.contentEquals(BatteryScreen.renderFrame(size, 60, true, 1_000_000, null)))
+            val idle = BatteryScreen.renderFrame(size, 60, false, 1_000_000)
+            assertTrue(idle.contentEquals(BatteryScreen.renderFrame(size, 60, false, 1_000_000, 45f)))
+            assertTrue(!gauge.contentEquals(BatteryScreen.renderFrame(size, 60, true, 1_000_000, 45f)))
+        }
+    }
+
+    @Test
+    fun `the toy only shows wattage when the pref is on`() {
+        val h = TestHarness(13)
+        h.battery.level = 60
+        h.battery.charging = true
+        h.battery.watts = 45f
+        val screen = BatteryScreen()
+        screen.onActivate(h.context)
+        assertTrue(h.lastFrame().contentEquals(BatteryScreen.renderFrame(13, 60, true, h.clock.now)))
+
+        h.prefs.putBoolean(PrefKeys.BATTERY_SHOW_WATTS, true)
+        h.scheduler.tick()
+        assertTrue(h.lastFrame().contentEquals(BatteryScreen.renderWattage(13, 45f)))
+
+        // Unplugged: back to the gauge even with the pref on.
+        h.battery.charging = false
+        h.scheduler.tick()
+        assertTrue(h.lastFrame().contentEquals(BatteryScreen.renderFrame(13, 60, false, h.clock.now)))
+    }
 }
 
 class SolarScreenTest {
@@ -145,6 +197,16 @@ class SkyAmbientBackgroundsTest {
             screen.composite(h.context)
                 .contentEquals(BatteryScreen.renderFrame(13, 60, true, h.clock.now)),
         )
+        // Background 7 is the gauge, full stop: the Battery toy's wattage pref
+        // and an available reading must not leak into the ambient background.
+        h.battery.watts = 45f
+        h.prefs.putBoolean(PrefKeys.BATTERY_SHOW_WATTS, true)
+        assertTrue(
+            screen.composite(h.context)
+                .contentEquals(BatteryScreen.renderFrame(13, 60, true, h.clock.now)),
+        )
+        h.prefs.putBoolean(PrefKeys.BATTERY_SHOW_WATTS, false)
+        h.battery.watts = null
 
         h.battery.charging = false
         h.prefs.putInt(PrefKeys.AMBIENT_BACKGROUND, 9)
