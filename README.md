@@ -4,7 +4,7 @@
 
 # Glyph Matrix Toy Compat (GMTC) <br/> [![Latest Version](https://img.shields.io/github/v/release/linuxct/GlyphMatrixToyCompat)](https://github.com/linuxct/GlyphMatrixToyCompat/releases/latest) ![Compatibility](https://img.shields.io/badge/compatible-Nothing%20Phone%204(a)%20Pro-black) ![Compatibility](https://img.shields.io/badge/compatible-Nothing%20Phone%203-white)
 
-**Add support for Nothing Phone 3-like Glyph Toys to the Nothing Phone 4a Pro.**
+**Add support for Nothing Phone 3-like Glyph Toy actions to the Nothing Phone 4a Pro.**
 
 > **Vibe-coded project notice**  
 > This app was built entirely with AI assistance (Claude) from scratch — it is not a manually maintained codebase.
