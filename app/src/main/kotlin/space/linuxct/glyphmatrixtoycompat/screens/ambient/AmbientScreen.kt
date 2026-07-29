@@ -64,11 +64,22 @@ class AmbientScreen : GlyphScreen {
             c.ports.battery.isCharging() &&
             c.ports.battery.levelPercent() != 100
         ) {
+            val style = c.prefs.getInt(
+                PrefKeys.AMBIENT_CHARGING_STYLE,
+                PrefKeys.AMBIENT_CHARGING_STYLE_DEF,
+            )
             frame = ChargingRenderer.render(
                 c.size,
-                c.prefs.getInt(PrefKeys.AMBIENT_CHARGING_STYLE, PrefKeys.AMBIENT_CHARGING_STYLE_DEF),
+                style,
                 c.ports.battery.levelPercent(),
                 nowMs,
+                // Read the charge power ONLY for the style that draws it. The
+                // port hits the platform battery service, and this composite runs
+                // every tick — the other four styles would pay for a figure they
+                // discard. The Battery toy's own "show watts" preference is
+                // deliberately NOT consulted: charge power is a choice in this
+                // selector now, so the two settings stay independent.
+                if (style == ChargingRenderer.STYLE_WATTS) c.ports.battery.chargeWatts() else null,
             )
         }
 

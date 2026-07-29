@@ -72,19 +72,24 @@ interface TiltPort {
  * reads ~0 at every resting angle.
  *
  * Sign convention, in the standard Android device frame (+X = right edge,
- * +Y = top edge, +Z = out of the screen), with g the gravity vector:
+ * +Y = top edge, +Z = out of the screen), with g the gravity vector — see
+ * [InclineMath], which owns the derivation and the reasoning:
  *
- *  - [rollDegrees] = atan2(gx, gz): 0 when the device lies flat on its back;
- *    POSITIVE when its RIGHT edge is the LOW edge, negative when its LEFT edge
- *    is low. +-90 when stood on a long edge.
- *  - [pitchDegrees] = atan2(gy, gz): 0 when flat on its back; POSITIVE when
- *    the device's TOP edge is the LOW edge (leaning away from an upright
- *    reader), negative when its BOTTOM edge is low. -90 when stood upright.
+ *  - [rollDegrees]: 0 when the device lies flat, EITHER face up or face down;
+ *    POSITIVE when the edge that appears on the RIGHT to whoever is looking at
+ *    the matrix is the LOW edge. +-90 when stood on a long edge.
+ *  - [pitchDegrees]: 0 when flat, either way up; POSITIVE when the device's TOP
+ *    edge is the LOW edge, negative when its BOTTOM edge is low. +-90 when
+ *    stood on a short edge.
  *
- * Both are in -180..180 and both read near +-180 with the device face down.
+ * Both are in -90..90: these are angles away from horizontal, so a device more
+ * than 90 deg from flat simply saturates. Face down — the only orientation the
+ * Glyph Matrix can be read in — is NOT a separate case; it reads 0 flat, and
+ * roll is mirrored so the sign still tracks what the viewer sees.
+ *
  * Mnemonic: the sign always points at the edge gravity runs toward, so a ball
- * rolling on the display moves toward +roll in X and toward +pitch in device Y
- * (which is UP the screen, i.e. toward matrix row 0).
+ * rolling on the matrix moves toward +roll in X and toward +pitch in device Y
+ * (which is UP the matrix, i.e. toward row 0).
  *
  * Null means no reading has landed yet, or the device has neither a gravity nor
  * an accelerometer sensor.

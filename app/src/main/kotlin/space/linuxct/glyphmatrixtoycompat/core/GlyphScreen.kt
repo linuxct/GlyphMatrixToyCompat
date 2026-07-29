@@ -8,8 +8,8 @@ interface Cancelable {
 /**
  * Render scheduling abstraction. The Android implementation runs everything
  * on a single background HandlerThread ("compositor-worker"); the actual SDK
- * push hops to the main looper inside GlyphLink. Tests use a
- * manually-advanced fake.
+ * push hops to a second background looper ("glyph-io") inside GlyphLink.
+ * Tests use a manually-advanced fake.
  *
  * Threading contract: ScreenManager and all screens run exclusively on the
  * scheduler thread; external callers marshal in via [run].

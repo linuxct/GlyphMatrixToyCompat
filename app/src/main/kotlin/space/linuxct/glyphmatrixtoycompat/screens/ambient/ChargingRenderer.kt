@@ -1,5 +1,6 @@
 package space.linuxct.glyphmatrixtoycompat.screens.ambient
 
+import space.linuxct.glyphmatrixtoycompat.screens.BatteryScreen
 import space.linuxct.glyphmatrixtoycompat.matrix.Font3x5
 import space.linuxct.glyphmatrixtoycompat.matrix.MatrixCanvas
 import kotlin.math.roundToInt
@@ -14,10 +15,38 @@ import kotlin.math.sin
  */
 object ChargingRenderer {
 
-    fun render(size: Int, style: Int, levelPercent: Int, nowMs: Long): IntArray = when (style) {
+    /**
+     * Style index of the charge-power readout, and the last entry in the
+     * "Charging style" selector. Named because two files agree on it: the
+     * caller uses it to decide whether reading [chargeWatts] is worth doing at
+     * all, since every other style ignores the value.
+     */
+    const val STYLE_WATTS = 4
+
+    /**
+     * [chargeWatts] is consulted only by [STYLE_WATTS] and defaults to null, so
+     * every other style renders byte-identically whether or not it is supplied.
+     *
+     * The readout is the same one the Battery toy draws
+     * ([BatteryScreen.renderWattage]) rather than a second spelling of it, so the
+     * two cannot drift apart. A null reading — the platform reporting an
+     * implausible figure, which the port filters out — falls back to [numeric]:
+     * having asked for a number, a percentage is a better answer than a blank
+     * matrix or a sudden switch to an abstract animation.
+     */
+    fun render(
+        size: Int,
+        style: Int,
+        levelPercent: Int,
+        nowMs: Long,
+        chargeWatts: Float? = null,
+    ): IntArray = when (style) {
         1 -> particles(size, nowMs)
         2 -> batteryGlyph(size, levelPercent, nowMs)
         3 -> numeric(size, levelPercent, nowMs)
+        STYLE_WATTS -> chargeWatts
+            ?.let { BatteryScreen.renderWattage(size, it) }
+            ?: numeric(size, levelPercent, nowMs)
         else -> fillGrid(size, levelPercent, nowMs)
     }
 

@@ -1,10 +1,15 @@
 package space.linuxct.glyphmatrixtoycompat.ui
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,12 +22,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,6 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import space.linuxct.glyphmatrixtoycompat.R
@@ -61,7 +71,7 @@ import kotlin.math.hypot
  */
 @Composable
 fun KeyTutorialDialog(onDismiss: () -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
+    MotionDialog(onDismiss) { dismiss ->
         Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surface) {
             Column(
                 Modifier
@@ -73,9 +83,63 @@ fun KeyTutorialDialog(onDismiss: () -> Unit) {
                 KeyTutorialContent()
                 Row(Modifier.fillMaxWidth()) {
                     Spacer(Modifier.weight(1f))
-                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.tut_close)) }
+                    TextButton(onClick = dismiss) { Text(stringResource(R.string.tut_close)) }
                 }
             }
+        }
+    }
+}
+
+/**
+ * The scale a dialog grows from / shrinks back to, per MD3's dialog motion —
+ * a magnitude, not a duration: the spring that travels it is the theme's.
+ */
+private const val DIALOG_ENTER_SCALE = 0.85f
+
+/**
+ * A hand-rolled [Dialog] that enters and leaves with MD3 motion instead of
+ * popping into place.
+ *
+ * The platform dialog WINDOW cannot be animated — it is added to and removed
+ * from the window manager, and its scrim fades on the system's own schedule —
+ * so the motion lives entirely on the content inside it: a
+ * [MutableTransitionState] that starts `false` and is flipped to `true` as it
+ * is constructed, which makes the very first composition an enter transition.
+ *
+ * The exit is the same transition run backwards, and it is why [content]
+ * receives its own `dismiss` rather than calling the caller's [onDismiss]: the
+ * window must not be torn down until the content has finished scaling out, so
+ * dismissal means "start the exit", and the real [onDismiss] fires when the
+ * transition idles at `false`. Back gestures and outside taps go through the
+ * same path.
+ *
+ * Both halves take their springs from the theme's expressive motion scheme, the
+ * same as every other animation in the app: scale is a SIZE → the (under-damped,
+ * so it lands with a small pop) spatial spring; alpha is an effect → the effects
+ * spring, which never bounces. Nothing here is a tween or a literal duration.
+ */
+@Composable
+private fun MotionDialog(onDismiss: () -> Unit, content: @Composable (dismiss: () -> Unit) -> Unit) {
+    val visible = remember { MutableTransitionState(false).apply { targetState = true } }
+    // Guarded by `targetState`: at the first composition currentState is false
+    // but the transition is already running towards true, so isIdle is false and
+    // this cannot dismiss the dialog on the frame it opens.
+    LaunchedEffect(visible.isIdle, visible.currentState) {
+        if (visible.isIdle && !visible.currentState) onDismiss()
+    }
+    val fade = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+    val scale = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+    Dialog(onDismissRequest = { visible.targetState = false }) {
+        AnimatedVisibility(
+            visibleState = visible,
+            // Outside the Surface, so it caps how tall these dialogs may grow
+            // without padding the short ones. See [DIALOG_VERTICAL_MARGIN].
+            modifier = Modifier.padding(vertical = DIALOG_VERTICAL_MARGIN),
+            enter = fadeIn(fade) + scaleIn(scale, initialScale = DIALOG_ENTER_SCALE),
+            exit = fadeOut(fade) + scaleOut(scale, targetScale = DIALOG_ENTER_SCALE),
+            label = "dialogMotion",
+        ) {
+            content { visible.targetState = false }
         }
     }
 }
@@ -94,7 +158,7 @@ fun TutorialInfoDialog(
     onAction: (() -> Unit)? = null,
     onDismiss: () -> Unit,
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    MotionDialog(onDismiss) { dismiss ->
         Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surface) {
             Column(
                 Modifier
@@ -144,10 +208,12 @@ fun TutorialInfoDialog(
                 Spacer(Modifier.height(6.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     if (actionLabel != null && onAction != null) {
+                        // Unchanged: the action leaves for system Settings and
+                        // deliberately does NOT close the dialog behind it.
                         TextButton(onClick = onAction) { Text(actionLabel) }
                     }
                     Spacer(Modifier.weight(1f))
-                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.tut_close)) }
+                    TextButton(onClick = dismiss) { Text(stringResource(R.string.tut_close)) }
                 }
             }
         }
@@ -164,12 +230,36 @@ private fun KeyTutorialContent(modifier: Modifier = Modifier) {
     val steps = if (menuMode) MENU_STEPS else CLASSIC_STEPS
 
     Column(modifier) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ModeChip(stringResource(R.string.onb_mode_regular), !menuMode, Modifier.weight(1f)) {
-                menuMode = false
-            }
-            ModeChip(stringResource(R.string.onb_mode_menu), menuMode, Modifier.weight(1f)) {
-                menuMode = true
+        // "Regular mode" / "Menu mode" is a pick-ONE-of-two, which is exactly
+        // what MD3 specifies segmented buttons for (2–5 mutually exclusive
+        // options). Hence [SingleChoiceSegmentedButtonRow] rather than a
+        // ButtonGroup of ToggleButtons: the single-choice row wraps its items in
+        // a `selectableGroup()` and each button reports `Role.RadioButton`,
+        // while a ToggleButton is a `Role.Checkbox` with no notion of its peers —
+        // right for "bold on/off", wrong for "one of these two".
+        //
+        // Everything that used to be hand-rolled here now comes from the
+        // library: the check mark wipes in on the theme's effects/fast-spatial
+        // springs and pushes the label aside as it grows, and the container and
+        // outline take their colours from SegmentedButtonDefaults (so this
+        // theme's monochrome scheme flows through untouched).
+        // A segmented button already animates its own selection; see [NoRipple].
+        NoRipple {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                SegmentedButton(
+                    selected = !menuMode,
+                    onClick = { menuMode = false },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                ) {
+                    Text(stringResource(R.string.onb_mode_regular))
+                }
+                SegmentedButton(
+                    selected = menuMode,
+                    onClick = { menuMode = true },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                ) {
+                    Text(stringResource(R.string.onb_mode_menu))
+                }
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -178,25 +268,55 @@ private fun KeyTutorialContent(modifier: Modifier = Modifier) {
         // pager on mode change so it starts back at the first step.
         key(menuMode) {
             val pagerState = rememberPagerState(pageCount = { steps.size })
-            HorizontalPager(state = pagerState) { page ->
+            HorizontalPager(
+                state = pagerState,
+                // Settle on MD3's expressive spatial spring, not foundation's
+                // hardcoded `spring(StiffnessMediumLow)` default — a released
+                // swipe here has to land like every other movement in the app,
+                // and the step dots below are driven off this pager.
+                flingBehavior = PagerDefaults.flingBehavior(
+                    state = pagerState,
+                    snapAnimationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+                ),
+            ) { page ->
                 TutorialPage(steps[page])
             }
             Spacer(Modifier.height(6.dp))
 
             val base = MaterialTheme.colorScheme.onSurface
+            // Same treatment as the onboarding page indicator, so the two read
+            // as one component: the selected dot stretches into a pill (a SIZE
+            // → spatial) while its fill fades (a COLOUR → effects). Fast on
+            // both counts — a step dot is a small contained element. These used
+            // to have no animation at all, which made swiping the tutorial feel
+            // unrelated to swiping onboarding.
+            val dotWidthSpec = MaterialTheme.motionScheme.fastSpatialSpec<Dp>()
+            val dotColorSpec = MaterialTheme.motionScheme.fastEffectsSpec<Color>()
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
             ) {
                 steps.forEachIndexed { i, _ ->
+                    val selected = i == pagerState.currentPage
+                    val dotWidth by animateDpAsState(
+                        targetValue = if (selected) 18.dp else 7.dp,
+                        animationSpec = dotWidthSpec,
+                        label = "stepDotWidth",
+                    )
+                    val dotColor by animateColorAsState(
+                        targetValue = if (selected) base else base.copy(alpha = 0.2f),
+                        animationSpec = dotColorSpec,
+                        label = "stepDotColor",
+                    )
                     Box(
                         Modifier
                             .padding(horizontal = 3.dp)
-                            .size(7.dp)
-                            .background(
-                                if (i == pagerState.currentPage) base else base.copy(alpha = 0.2f),
-                                CircleShape,
-                            ),
+                            .height(7.dp)
+                            // The under-damped spring undershoots below the
+                            // 7 dp resting width; a negative width is not a
+                            // legal constraint.
+                            .width(dotWidth.coerceAtLeast(0.dp))
+                            .background(dotColor, CircleShape),
                     )
                 }
             }
@@ -237,34 +357,6 @@ private fun TutorialPage(step: TutorialStep) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.heightIn(min = 88.dp),
         )
-    }
-}
-
-@Composable
-private fun ModeChip(text: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(14.dp)
-    Box(
-        modifier
-            .clip(shape)
-            .background(
-                if (selected) {
-                    MaterialTheme.colorScheme.secondaryContainer
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant
-                },
-            )
-            .then(
-                if (selected) {
-                    Modifier.border(BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary), shape)
-                } else {
-                    Modifier
-                },
-            )
-            .clickable(onClick = onClick)
-            .padding(vertical = 10.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text, style = MaterialTheme.typography.titleSmall)
     }
 }
 

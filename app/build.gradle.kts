@@ -22,8 +22,8 @@ android {
         applicationId = "space.linuxct.glyphmatrixtoycompat"
         minSdk = 33
         targetSdk = 37
-        versionCode = 9
-        versionName = "1.4.0"
+        versionCode = 10
+        versionName = "1.4.1"
     }
 
     signingConfigs {
@@ -83,7 +83,14 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.activity:activity-compose:1.9.3")
-    implementation("androidx.compose.material3:material3:1.4.0")
+    // 1.5.0-alpha23 is the first release exposing MotionScheme / MaterialTheme's
+    // motionScheme parameter as public API (both were internal in 1.4.0), which
+    // is what lets the app use MD3's real expressive springs instead of copying
+    // token values. It pulls Compose 1.12.0-alpha03 transitively.
+    implementation("androidx.compose.material3:material3:1.5.0-alpha23")
+    // AnimatedContent lives in the non-core animation artifact, which material3
+    // does NOT depend on (verified in the POMs of both 1.4.0 and 1.5.0-alpha23).
+    implementation("androidx.compose.animation:animation:1.12.0-alpha03")
     implementation("androidx.compose.material:material-icons-core:1.7.8")
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")

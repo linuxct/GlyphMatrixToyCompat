@@ -3,7 +3,7 @@ package space.linuxct.glyphmatrixtoycompat.core
 import android.content.ComponentName
 import android.content.Context
 import android.os.Handler
-import android.os.Looper
+import android.os.HandlerThread
 import com.nothing.ketchum.Common
 import com.nothing.ketchum.Glyph
 import com.nothing.ketchum.GlyphMatrixManager
@@ -16,13 +16,34 @@ import com.nothing.ketchum.GlyphMatrixManager
  * after a 3 s grace period (the system rebinds the AOD toy on transitions —
  * immediate teardown would thrash bind/register). register() is re-issued on
  * every onServiceConnected, frames are queued until registered, every SDK
- * call is marshalled to the main looper and wrapped for GlyphException.
+ * call is marshalled to the "glyph-io" looper and wrapped for GlyphException.
  * setGlyphMatrixTimeout is deliberately never called — the system's default
  * blanking policy stays in charge.
+ *
+ * Threading: every SDK entry point we use is a *synchronous* binder round-trip
+ * to com.nothing.thirdparty.GlyphService — the generated IGlyphService proxy
+ * transacts with flags=0, never FLAG_ONEWAY, and we do not control that AIDL.
+ * setMatrixColors alone runs 20-30x/s at the toys' tick rates, so doing it on
+ * the UI thread ate most of a 90 Hz (11.11 ms) frame budget and showed up as
+ * "Slow UI thread" / "High input latency" in gfxinfo. All manager access
+ * therefore runs on a private HandlerThread instead. The single-thread
+ * confinement that used to be provided by the main looper is unchanged — only
+ * the identity of the thread differs — so `manager`, `ready`, `refCount`,
+ * `pendingFrame`, `lastFrame`, `firstFrameLogged` and `teardown` remain
+ * touched from exactly one thread and need no further synchronisation.
  */
 class GlyphLink(private val app: Context) {
 
-    private val main = Handler(Looper.getMainLooper())
+    /**
+     * Started eagerly and never quit: GlyphLink is a Core singleton that lives
+     * for the whole process, so there is no lifecycle at which stopping this
+     * thread would be correct. One idle looper thread is the intended cost.
+     */
+    private val ioThread = HandlerThread("glyph-io").apply { start() }
+
+    /** Owns all mutable state below and every GlyphMatrixManager call. */
+    private val glyph = Handler(ioThread.looper)
+
     private var manager: GlyphMatrixManager? = null
     private var refCount = 0
     private var pendingFrame: IntArray? = null
@@ -38,8 +59,8 @@ class GlyphLink(private val app: Context) {
     }
 
     private fun scheduleRecovery() {
-        main.removeCallbacks(recovery)
-        main.postDelayed(recovery, RECONNECT_DELAY_MS)
+        glyph.removeCallbacks(recovery)
+        glyph.postDelayed(recovery, RECONNECT_DELAY_MS)
     }
 
     @Volatile
@@ -59,7 +80,7 @@ class GlyphLink(private val app: Context) {
         private var released = false
 
         fun release() {
-            main.post {
+            glyph.post {
                 if (released) return@post
                 released = true
                 doRelease(tag)
@@ -68,13 +89,13 @@ class GlyphLink(private val app: Context) {
     }
 
     fun acquire(tag: String): Lease {
-        main.post { doAcquire(tag) }
+        glyph.post { doAcquire(tag) }
         return Lease(tag)
     }
 
     /** Queues [frame] for the matrix; safe to call from any thread. Latest frame wins while disconnected. */
     fun pushFrame(frame: IntArray) {
-        main.post {
+        glyph.post {
             val mgr = manager
             if (ready && mgr != null) {
                 try {
@@ -102,7 +123,7 @@ class GlyphLink(private val app: Context) {
     private fun doAcquire(tag: String) {
         refCount++
         DebugLog.d(C, "acquire($tag) -> refCount=$refCount")
-        teardown?.let { main.removeCallbacks(it) }
+        teardown?.let { glyph.removeCallbacks(it) }
         teardown = null
         if (manager == null) connect()
     }
@@ -116,7 +137,7 @@ class GlyphLink(private val app: Context) {
             teardown = null
         }
         teardown = t
-        main.postDelayed(t, TEARDOWN_GRACE_MS)
+        glyph.postDelayed(t, TEARDOWN_GRACE_MS)
     }
 
     private fun connect() {
@@ -153,9 +174,21 @@ class GlyphLink(private val app: Context) {
         DebugLog.i(C, "disconnected")
     }
 
+    /**
+     * Delivered on the MAIN thread, not on whatever thread called init():
+     * GlyphMatrixManager.init() uses the 3-arg Context.bindService(), which
+     * ContextImpl dispatches through the main-thread handler, and the SDK's
+     * RemoteServiceConnection invokes this Callback inline from there. Both
+     * methods therefore hop to [glyph] before touching any state below — that
+     * hop is what keeps the confinement invariant true.
+     *
+     * The hop also safely publishes the SDK's own non-volatile mService field,
+     * which RemoteServiceConnection writes on the main thread just before
+     * calling us and our glyph thread reads inside register()/setMatrixFrame().
+     */
     private val callback = object : GlyphMatrixManager.Callback {
         override fun onServiceConnected(name: ComponentName?) {
-            main.post {
+            glyph.post {
                 val mgr = manager ?: return@post
                 val device = if (matrixLength == 25) Glyph.DEVICE_23112 else Glyph.DEVICE_25111p
                 val ok = try {
@@ -181,7 +214,7 @@ class GlyphLink(private val app: Context) {
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
-            main.post {
+            glyph.post {
                 DebugLog.w(C, "glyph service disconnected")
                 ready = false
                 if (refCount > 0 && manager != null) {

@@ -2,6 +2,7 @@ package space.linuxct.glyphmatrixtoycompat.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -263,6 +264,17 @@ fun GmtcTheme(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalNavPillColors provides if (dark) DarkNavPill else LightNavPill) {
         MaterialTheme(
             colorScheme = if (dark) DarkScheme else LightScheme,
+            // MD3's EXPRESSIVE motion scheme: under-damped spatial springs
+            // (0.8 default / 0.6 fast) that overshoot slightly and settle
+            // back, and stiff, never-bouncing effects springs for colour and
+            // alpha. Every stock M3 component (Switch, Slider, RadioButton,
+            // AlertDialog, the app bar's snap) reads this through
+            // MaterialTheme.motionScheme, so it lands app-wide for free.
+            //
+            // Deliberately plain MaterialTheme, NOT MaterialExpressiveTheme:
+            // that one also swaps component shape and COLOUR defaults, which
+            // would break this theme's strict monochrome palette. Motion only.
+            motionScheme = MotionScheme.expressive(),
             typography = typography,
             content = content,
         )

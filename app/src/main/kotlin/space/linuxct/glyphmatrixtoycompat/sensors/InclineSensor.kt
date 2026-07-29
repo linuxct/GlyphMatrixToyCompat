@@ -7,8 +7,8 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Handler
 import android.os.Looper
+import space.linuxct.glyphmatrixtoycompat.core.InclineMath
 import space.linuxct.glyphmatrixtoycompat.core.InclinePort
-import kotlin.math.atan2
 
 /**
  * Inclination source for the Level toy, from TYPE_GRAVITY (falling back to
@@ -95,8 +95,11 @@ class InclineSensor(app: Context) : InclinePort, SensorEventListener {
         val gx = gravity[0]
         val gy = gravity[1]
         val gz = gravity[2]
-        roll = Math.toDegrees(atan2(gx.toDouble(), gz.toDouble())).toFloat()
-        pitch = Math.toDegrees(atan2(gy.toDouble(), gz.toDouble())).toFloat()
+        // The conversion itself lives in core so it can be unit-tested off-device;
+        // this class only owns registration, smoothing and lifetime. See
+        // [InclineMath] for why it is not the textbook atan2(g, gz).
+        roll = InclineMath.rollDegrees(gx, gz)
+        pitch = InclineMath.pitchDegrees(gy, gz)
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit

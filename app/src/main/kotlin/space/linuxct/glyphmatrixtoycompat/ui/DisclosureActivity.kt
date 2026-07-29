@@ -36,6 +36,9 @@ class DisclosureActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Every activity the user can see makes the same request, so hopping
+        // between them never shows a mode switch mid-transition.
+        requestPeakRefreshRateWhileVisible()
         enableEdgeToEdge()
         setContent {
             GmtcTheme {

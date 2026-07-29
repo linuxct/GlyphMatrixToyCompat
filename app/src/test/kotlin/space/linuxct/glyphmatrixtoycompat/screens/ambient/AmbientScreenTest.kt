@@ -8,6 +8,7 @@ import space.linuxct.glyphmatrixtoycompat.GoldenAscii
 import space.linuxct.glyphmatrixtoycompat.TestHarness
 import space.linuxct.glyphmatrixtoycompat.core.ConnectionState
 import space.linuxct.glyphmatrixtoycompat.core.PrefKeys
+import space.linuxct.glyphmatrixtoycompat.screens.BatteryScreen
 import space.linuxct.glyphmatrixtoycompat.screens.VisualizerScreen
 
 class NightWindowTest {
@@ -108,6 +109,40 @@ class AmbientScreenTest {
         h.prefs.putInt(PrefKeys.AMBIENT_CHARGING_STYLE, 0)
         val atFull = screen.composite(h.context)
         assertFalse(atFull.contentEquals(ChargingRenderer.render(13, 0, 100, h.clock.now)))
+    }
+
+    @Test
+    fun `charge power is its own charging style`() {
+        val (screen, h) = harness()
+        h.battery.charging = true
+        h.battery.level = 65
+        h.battery.watts = 45f
+
+        // Another style with a reading available: the reading is ignored.
+        assertTrue(
+            screen.composite(h.context).contentEquals(ChargingRenderer.render(13, 0, 65, h.clock.now)),
+        )
+
+        // The charge-power style draws the SAME readout as the Battery toy, so
+        // the two cannot drift apart.
+        h.prefs.putInt(PrefKeys.AMBIENT_CHARGING_STYLE, ChargingRenderer.STYLE_WATTS)
+        val watts = screen.composite(h.context)
+        assertTrue(watts.contentEquals(BatteryScreen.renderWattage(13, 45f)))
+        GoldenAscii.check("battery_13_watts_45", watts, 13)
+
+        // Unreadable power falls back to the percentage, not to a blank matrix.
+        h.battery.watts = null
+        assertTrue(
+            screen.composite(h.context).contentEquals(ChargingRenderer.render(13, 3, 65, h.clock.now)),
+        )
+
+        // The Battery toy's own preference has no say here any more.
+        h.battery.watts = 45f
+        h.prefs.putBoolean(PrefKeys.BATTERY_SHOW_WATTS, true)
+        h.prefs.putInt(PrefKeys.AMBIENT_CHARGING_STYLE, 0)
+        assertTrue(
+            screen.composite(h.context).contentEquals(ChargingRenderer.render(13, 0, 65, h.clock.now)),
+        )
     }
 
     @Test

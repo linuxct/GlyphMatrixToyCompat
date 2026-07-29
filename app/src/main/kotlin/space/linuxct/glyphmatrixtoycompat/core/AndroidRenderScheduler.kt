@@ -7,7 +7,8 @@ import android.os.Looper
 /**
  * Production scheduler: a single background HandlerThread hosts the tickers
  * and all ScreenManager/screen work; GlyphLink hops the final SDK push to
- * the main looper.
+ * its own "glyph-io" looper. Neither is the main thread, so a blocking Glyph
+ * binder call can never stall a frame of the UI.
  */
 class AndroidRenderScheduler : RenderScheduler {
 

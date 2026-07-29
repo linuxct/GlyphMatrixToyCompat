@@ -185,10 +185,14 @@ class LevelScreenTest {
     @Test
     fun `tolerance is a few degrees around flat`() {
         assertTrue(LevelScreen.isLevel(0f, 0f))
-        assertTrue(LevelScreen.isLevel(2f, 2f)) // hypot 2.83 <= 3
-        assertTrue(!LevelScreen.isLevel(0f, 4f))
-        assertTrue(!LevelScreen.isLevel(-4f, 0f))
+        assertTrue(LevelScreen.isLevel(2f, 2f)) // hypot 2.83 <= 4
+        assertTrue(LevelScreen.isLevel(0f, 4f)) // exactly on the tolerance
+        assertTrue(!LevelScreen.isLevel(0f, 5f))
+        assertTrue(!LevelScreen.isLevel(-5f, 0f))
         assertTrue(!LevelScreen.isLevel(3f, 3f)) // hypot 4.24
+        // Still a level, not a "roughly flat" indicator: a clearly tilted desk
+        // must not read level, whatever the tolerance is tuned to.
+        assertTrue(!LevelScreen.isLevel(0f, 10f))
     }
 
     @Test

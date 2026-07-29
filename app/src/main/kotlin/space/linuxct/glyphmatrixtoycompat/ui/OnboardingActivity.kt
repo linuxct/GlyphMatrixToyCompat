@@ -14,6 +14,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDpAsState
@@ -21,10 +22,8 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +38,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -48,6 +48,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
@@ -66,8 +68,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import kotlinx.coroutines.launch
@@ -89,6 +93,9 @@ class OnboardingActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Core.init(this)
+        // Every activity the user can see makes the same request, so hopping
+        // between them never shows a mode switch mid-transition.
+        requestPeakRefreshRateWhileVisible()
         enableEdgeToEdge()
         setContent {
             GmtcTheme {
@@ -125,10 +132,27 @@ private fun OnboardingFlow(onFinished: () -> Unit) {
     }
     val pagerState = rememberPagerState(pageCount = { pages.size })
     val scope = rememberCoroutineScope()
+    // Back/Next drive the pager programmatically. Scrolling is POSITION, so it
+    // is spatial; animateScrollToPage's own default is a bare spring() (damped
+    // 1.0, no overshoot). Default speed rather than slow: `slow` is meant for
+    // large surfaces settling into place, and at stiffness 200 a tap on Next
+    // takes long enough to feel like the button did not register.
+    val pageSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-            HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { i ->
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.weight(1f),
+                // A SWIPE has to settle on the same spring a Next tap animates
+                // with. HorizontalPager's default snap is foundation's own
+                // hardcoded `spring(StiffnessMediumLow)` (damping 1.0), which
+                // is the one path MaterialTheme cannot reach by itself.
+                flingBehavior = PagerDefaults.flingBehavior(
+                    state = pagerState,
+                    snapAnimationSpec = pageSpec,
+                ),
+            ) { i ->
                 when (pages[i]) {
                     Page.KEY -> KeyPage(a11yOn)
                     Page.TOY -> ToyPage()
@@ -145,7 +169,12 @@ private fun OnboardingFlow(onFinished: () -> Unit) {
                 Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                     if (pagerState.currentPage > 0) {
                         TextButton(onClick = {
-                            scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
+                            scope.launch {
+                                pagerState.animateScrollToPage(
+                                    pagerState.currentPage - 1,
+                                    animationSpec = pageSpec,
+                                )
+                            }
                         }) {
                             Text(stringResource(R.string.onb_back))
                         }
@@ -155,21 +184,40 @@ private fun OnboardingFlow(onFinished: () -> Unit) {
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // Both halves of the dot are animated, and on the matching
+                    // MD3 spring: the width is a SIZE (spatial — fast, because
+                    // a page dot is about as small and contained as an element
+                    // gets, and fast spatial is damped 0.6 so the dot stretches
+                    // out with a little life), the fill is a COLOUR (effects —
+                    // never bouncing, and stiffer, so the tint has landed
+                    // before the stretch finishes). The width used to spring on
+                    // a Compose default while the colour cut between frames,
+                    // which read as the dot changing shape and colour at two
+                    // different moments.
+                    val dotWidthSpec = MaterialTheme.motionScheme.fastSpatialSpec<Dp>()
+                    val dotColorSpec = MaterialTheme.motionScheme.fastEffectsSpec<Color>()
+                    val onDot = MaterialTheme.colorScheme.primary
+                    val offDot = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
                     repeat(pages.size) { i ->
                         val selected = i == pagerState.currentPage
-                        val dotWidth by animateDpAsState(if (selected) 22.dp else 8.dp, label = "dot")
+                        val dotWidth by animateDpAsState(
+                            targetValue = if (selected) 22.dp else 8.dp,
+                            animationSpec = dotWidthSpec,
+                            label = "dotWidth",
+                        )
+                        val dotColor by animateColorAsState(
+                            targetValue = if (selected) onDot else offDot,
+                            animationSpec = dotColorSpec,
+                            label = "dotColor",
+                        )
                         Box(
                             Modifier
                                 .height(8.dp)
-                                .width(dotWidth)
-                                .background(
-                                    if (selected) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                                    },
-                                    CircleShape,
-                                ),
+                                // The under-damped width spring undershoots
+                                // below the 8 dp resting value on the way out;
+                                // a negative width is not a legal constraint.
+                                .width(dotWidth.coerceAtLeast(0.dp))
+                                .background(dotColor, CircleShape),
                         )
                     }
                 }
@@ -179,7 +227,12 @@ private fun OnboardingFlow(onFinished: () -> Unit) {
                         if (last) {
                             onFinished()
                         } else {
-                            scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+                            scope.launch {
+                                pagerState.animateScrollToPage(
+                                    pagerState.currentPage + 1,
+                                    animationSpec = pageSpec,
+                                )
+                            }
                         }
                     }) {
                         Text(stringResource(if (last) R.string.onb_done else R.string.onb_next))
@@ -437,67 +490,85 @@ private fun BodyText(text: String) {
     )
 }
 
+/**
+ * One permission row: name, why it is wanted, and its grant status — a real
+ * clickable [ListItem] (headline / supporting / trailing slots) instead of a
+ * `Column` with `Modifier.clickable`, so the press ripple, the shape morph
+ * under the finger and the row's colour transitions all come from the library
+ * on the theme's motion scheme.
+ */
 @Composable
 private fun PermRow(title: Int, why: Int, granted: Boolean, onClick: () -> Unit) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(16.dp, 12.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                stringResource(title),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f),
-            )
+    ListItem(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        supportingContent = {
+            Text(stringResource(why), style = MaterialTheme.typography.bodySmall)
+        },
+        trailingContent = {
             Text(
                 stringResource(if (granted) R.string.checklist_granted else R.string.checklist_tap_to_grant),
                 style = MaterialTheme.typography.labelMedium,
+                // A status, not a decoration: granted reads at full ink
+                // strength, pending stays muted. Monochrome, straight off the
+                // scheme — the difference is contrast, never hue.
                 color = if (granted) {
                     MaterialTheme.colorScheme.primary
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
             )
-        }
-        Spacer(Modifier.height(4.dp))
-        Text(
-            stringResource(why),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        },
+    ) {
+        Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
     }
 }
 
+/** The rounded-card shape the two mode choices have always had. */
+private val MODE_CARD_SHAPE = RoundedCornerShape(20.dp)
+
+/**
+ * One of the two key-mode choices.
+ *
+ * A real single-selection [ListItem] — the MD3 component for "one row out of a
+ * mutually exclusive set" — rather than the Card + hand-animated border + fill
+ * this used to be. Selection is now expressed through the component's own
+ * `selected` / `onClick` API, which is what makes the library animate it: the
+ * container crossfades on the theme's effects spring, the row morphs shape
+ * under a press on its fast spatial spring, and the [RadioButton]'s dot
+ * springs in on the same scheme. All of it reads
+ * [MaterialTheme.motionScheme]; none of it is spelled out here.
+ *
+ * Colours come from [selectedRowColors] — the same restrained tint every
+ * selected row in the app uses, rather than the default's loud
+ * `secondaryContainer` — so selection reads as one idea across the app.
+ *
+ * The [RadioButton] is passive (`onClick = null`) on purpose: the row carries
+ * the `Role.RadioButton` semantics and the ≥ 48 dp target for the whole
+ * choice, so a clickable dot would be a second, redundant focus stop.
+ *
+ * Only the resting SHAPE is pinned, to the 20 dp these cards have always used;
+ * the pressed/focused/hovered shapes stay the library's.
+ */
 @Composable
 private fun ModeCard(selected: Boolean, title: Int, desc: Int, onClick: () -> Unit) {
-    Card(
-        Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        border = if (selected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
-        colors = CardDefaults.cardColors(
-            containerColor = if (selected) {
-                MaterialTheme.colorScheme.secondaryContainer
-            } else {
-                MaterialTheme.colorScheme.surface
+    // Same treatment as the settings dialog's radio rows — see [NoRipple].
+    NoRipple {
+        ListItem(
+            selected = selected,
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth(),
+            leadingContent = { RadioButton(selected = selected, onClick = null) },
+            supportingContent = {
+                Text(stringResource(desc), style = MaterialTheme.typography.bodySmall)
             },
-        ),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().clickable(onClick = onClick).padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            shapes = ListItemDefaults.shapes(
+                shape = MODE_CARD_SHAPE,
+                selectedShape = MODE_CARD_SHAPE,
+            ),
+            colors = selectedRowColors(),
         ) {
-            RadioButton(selected = selected, onClick = onClick)
-            Column(Modifier.padding(start = 4.dp)) {
-                Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    stringResource(desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
         }
     }
 }

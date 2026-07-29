@@ -46,8 +46,18 @@ class LevelScreen : GlyphScreen {
          * Combined pitch/roll magnitude still counted as flat. Serves BOTH the
          * lit ring ([isLevel]) and the ball's dead zone, so the two can never
          * contradict each other.
+         *
+         * NOT the fix for "it never centres" — that was
+         * [space.linuxct.glyphmatrixtoycompat.core.InclineMath] reading 180 deg
+         * on each axis with the phone face down (the only way the matrix can be
+         * looked at), which pinned the ball at a saturated diagonal offset no
+         * dead zone could ever reach. With the derivation corrected this
+         * tolerance became reachable at all; it is 4 deg only so a slightly
+         * imperfect desk still reads level. Do not widen it further to "fix"
+         * centring problems — this is a level, and a wide dead zone makes it
+         * useless.
          */
-        const val TOLERANCE_DEG = 3f
+        const val TOLERANCE_DEG = 4f
 
         /**
          * [pitchDeg] / [rollDeg] follow [InclinePort]'s convention: positive
