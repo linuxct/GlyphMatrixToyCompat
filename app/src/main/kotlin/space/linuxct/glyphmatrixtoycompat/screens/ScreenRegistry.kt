@@ -27,5 +27,6 @@ object ScreenRegistry {
         CompassScreen(),
         LevelScreen(),
         VisualizerScreen(),
+        CustomScreen(),
     )
 }

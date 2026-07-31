@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Backup/restore rules for Auto Backup and device-to-device transfer.
+
+  WHY THIS FILE EXISTS: the manifest has allowBackup="true", but Auto Backup
+  covers CREDENTIAL-ENCRYPTED app storage only. Everything this app persists —
+  settings (util/AndroidPrefs) and now user designs (designs/DesignStore) — lives
+  in DEVICE-PROTECTED storage so the direct-boot-aware toy and key services can
+  read it before the first unlock. Without an explicit rule naming a `device_*`
+  domain, none of it is backed up, and somebody's hand-drawn animations would
+  simply not survive a phone upgrade.
+
+  NOTE ON SCOPE: declaring any <include> turns backup into an allowlist. That is
+  not a loss here — there is nothing in credential-encrypted storage to lose —
+  but it does mean anything added later must be listed here to be backed up.
+
+  Settings are deliberately NOT listed. They are DE too, so they would need their
+  own entry, but restoring a toy order and a screen selection onto different
+  hardware is a decision with its own edge cases; re-picking a few preferences
+  costs a minute, whereas a redrawn design is gone forever.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="device_file" path="designs" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="device_file" path="designs" />
+    </device-transfer>
+</data-extraction-rules>

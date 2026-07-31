@@ -134,13 +134,19 @@ class LevelScreen : GlyphScreen {
         private fun ringOuter(size: Int) = if (size >= 25) 5.4f else 3.2f
 
         /**
-         * Ratios (the frame is max-normalised, so only these matter):
-         * ball 100 %, lit target ring 100 %, the no-reading "?" 63 %,
-         * idle target ring 22 %, edge ticks 12 %.
+         * Ball 100 %, lit target ring 100 %, the no-reading "?" 100 %, idle
+         * target ring 22 %, edge ticks 12 %.
+         *
+         * Every state needs one element at 100 %, because brightness reaches the
+         * panel as a multiplication of the finished frame: whatever a state's
+         * brightest element is, that is as bright as the state can ever get.
+         * [NO_READING] is at full scale for that reason — in the state that draws
+         * it there is nothing else, so the "?" IS the content — and it is still
+         * far brighter than the [TARGET_IDLE] ring it must not mush into.
          */
         private const val BALL = 4095
         private const val TARGET_LEVEL = 4095
-        private const val NO_READING = 2600
+        private const val NO_READING = 4095
         private const val TARGET_IDLE = 900
         private const val EDGE = 500
 

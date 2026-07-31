@@ -84,9 +84,9 @@ import kotlin.math.sin
 
 /**
  * First-run paged setup: Essential Key listener → always-on Glyph Toy →
- * optional permissions → key mode (only if the listener was enabled) →
- * welcome. Every step is skippable with Next; MainActivity launches this
- * until ONBOARDING_DONE is set.
+ * optional permissions → key mode (only if the listener was enabled) → what to
+ * put on the matrix → welcome. Every step is skippable with Next; MainActivity
+ * launches this until ONBOARDING_DONE is set.
  */
 class OnboardingActivity : ComponentActivity() {
 
@@ -99,22 +99,33 @@ class OnboardingActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             GmtcTheme {
-                OnboardingFlow(onFinished = ::completeOnboarding)
+                OnboardingFlow(
+                    onFinished = { completeOnboarding() },
+                    onStartDrawing = { completeOnboarding(MainActivity.createTabIntent(this)) },
+                )
             }
         }
     }
 
-    private fun completeOnboarding() {
+    /**
+     * Ends onboarding and opens the app.
+     *
+     * [destination] is how the Create page's button skips the last step without
+     * skipping the flag: onboarding is DONE either way — leaving it unset would
+     * send the user straight back here from `MainActivity`'s own gate — and the
+     * only difference is which tab they land on.
+     */
+    private fun completeOnboarding(destination: Intent = Intent(this, MainActivity::class.java)) {
         Core.prefs.putBoolean(PrefKeys.ONBOARDING_DONE, true)
-        startActivity(Intent(this, MainActivity::class.java))
+        startActivity(destination)
         finish()
     }
 }
 
-private enum class Page { KEY, TOY, PERMS, MODE, DONE }
+private enum class Page { KEY, TOY, PERMS, MODE, CREATE, DONE }
 
 @Composable
-private fun OnboardingFlow(onFinished: () -> Unit) {
+private fun OnboardingFlow(onFinished: () -> Unit, onStartDrawing: () -> Unit) {
     val context = LocalContext.current
     var refreshTick by remember { mutableIntStateOf(0) }
     // Re-probe system state whenever the user returns from Settings.
@@ -124,11 +135,13 @@ private fun OnboardingFlow(onFinished: () -> Unit) {
     }
     val a11yOn = remember(refreshTick) { isEssentialKeyServiceEnabled(context) }
 
-    // The mode-choice page only exists once the listener is actually on.
+    // The mode-choice page only exists once the listener is actually on. The
+    // Create page is unconditional: drawing needs no permission and no service,
+    // so it is the one thing here that works whatever the user skipped.
     val pages = if (a11yOn) {
-        listOf(Page.KEY, Page.TOY, Page.PERMS, Page.MODE, Page.DONE)
+        listOf(Page.KEY, Page.TOY, Page.PERMS, Page.MODE, Page.CREATE, Page.DONE)
     } else {
-        listOf(Page.KEY, Page.TOY, Page.PERMS, Page.DONE)
+        listOf(Page.KEY, Page.TOY, Page.PERMS, Page.CREATE, Page.DONE)
     }
     val pagerState = rememberPagerState(pageCount = { pages.size })
     val scope = rememberCoroutineScope()
@@ -158,6 +171,7 @@ private fun OnboardingFlow(onFinished: () -> Unit) {
                     Page.TOY -> ToyPage()
                     Page.PERMS -> PermsPage(refreshTick, onRefresh = { refreshTick++ })
                     Page.MODE -> ModePage()
+                    Page.CREATE -> CreatePage(onStartDrawing)
                     Page.DONE -> DonePage(refreshTick)
                 }
             }
@@ -411,6 +425,46 @@ private fun ModePage() {
     }
     if (showTutorial) {
         KeyTutorialDialog(onDismiss = { showTutorial = false })
+    }
+}
+
+/**
+ * What to actually put on the matrix: the toys that ship with the app, and the
+ * designs the user can draw themselves.
+ *
+ * ## What it says, and what it deliberately does not
+ *
+ * Two facts and a signpost. There is a set of ready-made toys; there is a Create
+ * tab where you draw your own; and the Tutorials tab has the guides for anything
+ * here that is not obvious — including a guided demo of the editor.
+ *
+ * **No step-by-step of how drawing works.** That is precisely what the demo
+ * delivers when the user gets there, and it delivers it by acting the gestures
+ * out on the real editor; a paragraph here would be both a worse explanation and
+ * a spoiler for the better one. The same restraint the rest of this flow shows —
+ * every page says what a thing is FOR and hands over the button that opens it.
+ *
+ * ## The button
+ *
+ * For the person who wants to start now rather than read the last page. It ends
+ * onboarding properly (see `completeOnboarding`) and opens the app on the Create
+ * tab, where the one-off offer to watch the demo is waiting — so "start
+ * immediately" and "show me first" both land somewhere sensible.
+ */
+@Composable
+private fun CreatePage(onStartDrawing: () -> Unit) {
+    PageScaffold(ART_DRAW, stringResource(R.string.onb_create_title)) {
+        BodyText(stringResource(R.string.onb_create_body))
+        Spacer(Modifier.height(16.dp))
+        Button(onClick = onStartDrawing) {
+            Text(stringResource(R.string.onb_create_action))
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            stringResource(R.string.onb_create_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -708,6 +762,25 @@ private const val ART_TOGGLE = """
 .#...###.....#...
 ..#.........#....
 ...#########.....
+"""
+
+// A pencil on the diagonal — the one page in this flow that is about MAKING
+// something rather than about a setting. Two parallel strokes for the shaft so
+// it reads as a tool and not as a bar, tapering into a tip at the bottom left.
+private const val ART_DRAW = """
+.........###.
+........#####
+.......###.##
+......###.##.
+.....###.##..
+....###.##...
+...###.##....
+..###.##.....
+.###.##......
+.#####.......
+.####........
+.##..........
+.#...........
 """
 
 private const val ART_SMILE = """

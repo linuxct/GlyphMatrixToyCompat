@@ -8,6 +8,7 @@ import space.linuxct.glyphmatrixtoycompat.FakeAzimuth
 import space.linuxct.glyphmatrixtoycompat.FakeBattery
 import space.linuxct.glyphmatrixtoycompat.FakeClock
 import space.linuxct.glyphmatrixtoycompat.FakeConnectivity
+import space.linuxct.glyphmatrixtoycompat.FakeDesignPort
 import space.linuxct.glyphmatrixtoycompat.FakeIncline
 import space.linuxct.glyphmatrixtoycompat.FakeLight
 import space.linuxct.glyphmatrixtoycompat.FakeLocation
@@ -59,7 +60,7 @@ class KeyActionRouterTest {
     private val ports = Ports(
         clock, FakeRandom(), FakeBattery(), FakeSpeed(), FakeSpectrum(),
         FakeAzimuth(), FakeShake(), FakeTilt(), FakeIncline(), FakeLight(), FakeConnectivity(),
-        FakeLocation(), FakeTimer(),
+        FakeLocation(), FakeTimer(), FakeDesignPort(),
     )
     private val output = mutableListOf<IntArray>()
 

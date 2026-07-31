@@ -32,6 +32,7 @@
     <application
         android:name=".App"
         android:allowBackup="true"
+        android:dataExtractionRules="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -52,6 +53,14 @@
 
         <activity
             android:name=".ui.OnboardingActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.design.DesignEditorActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.design.DesignDemoActivity"
             android:exported="false" />
 
         <service
@@ -101,6 +110,21 @@
             android:name=".toy.TimerAlarmReceiver"
             android:directBootAware="true"
             android:exported="false" />
+
+        <!-- Hands a single design file to whatever the user shares it with.
+             exported="false" + grantUriPermissions="true" is the whole security
+             model: no app can address this provider on its own, and one URI at a
+             time is granted for as long as the ACTION_SEND intent lives. The
+             paths file exposes only cache/shared/, never the design store. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <!-- Defer WorkManager to on-demand init (App is a Configuration.Provider):
              its automatic startup initializer would touch credential-encrypted

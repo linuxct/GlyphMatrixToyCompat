@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What the app's FileProvider is allowed to hand out.
+
+  Exactly ONE directory, and it is a scratch directory: cache/shared/, where
+  `ui/DesignTransfer` writes the temporary copy of a design that ACTION_SEND
+  attaches. Nothing the app actually owns is exposed — designs themselves live in
+  device-protected storage (see `designs/DesignStore`) and are deliberately NOT
+  reachable through this provider, so a mistake in a share URI cannot become a
+  way to read the whole design directory.
+
+  The path must stay in step with SHARE_DIR in `ui/DesignTransfer.kt`; the
+  provider resolves a file against these roots and refuses anything outside them,
+  which is what makes a `content://` URI safe to grant to another app.
+-->
+<paths>
+    <cache-path name="shared_designs" path="shared/" />
+</paths>

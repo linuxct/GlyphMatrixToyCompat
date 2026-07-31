@@ -6,7 +6,7 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import space.linuxct.glyphmatrixtoycompat.Core
-import space.linuxct.glyphmatrixtoycompat.core.BrightnessCeiling
+import space.linuxct.glyphmatrixtoycompat.core.BrightnessScale
 import space.linuxct.glyphmatrixtoycompat.core.PrefKeys
 import space.linuxct.glyphmatrixtoycompat.screens.TimerScreen
 
@@ -36,11 +36,25 @@ class TimerAlarmReceiver : BroadcastReceiver() {
         Core.ports.timer.chime()
 
         // Render the done frame only when no live session would overwrite it
-        // within a tick anyway (e.g. process was dead and is cold-starting).
-        if (!Core.screenManager.sessionLive) {
+        // within a tick anyway (e.g. process was dead and is cold-starting) —
+        // and never while the design editor is previewing.
+        //
+        // The preview check is NOT redundant with the session one, and it is not
+        // belt-and-braces either. This is the app's ONE push path that does not
+        // go through ScreenManager: it takes its own GlyphLink lease and calls
+        // BrightnessScale + pushFrame directly, so ScreenManager's live-preview
+        // gate cannot see it, let alone stop it. A timer expiring mid-stroke
+        // would paint the done frame over the drawing on the panel. Reading the
+        // volatile flag here is the only place that can be prevented.
+        //
+        // (A timer that fires in the microseconds between the flag being set and
+        // this read can still slip through; the editor's next push — at most
+        // ~33 ms later — takes the panel straight back, which is the honest
+        // limit of a check made from another thread.)
+        if (!Core.screenManager.sessionLive && !Core.screenManager.livePreviewActive) {
             val pending = goAsync()
             val lease = Core.glyphLink.acquire("timer-alarm")
-            val frame = BrightnessCeiling.apply(
+            val frame = BrightnessScale.scale(
                 TimerScreen.renderDone(Core.glyphLink.size),
                 Core.prefs.getFloat(PrefKeys.BRIGHTNESS, PrefKeys.BRIGHTNESS_DEF),
             )

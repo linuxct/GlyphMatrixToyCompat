@@ -384,9 +384,9 @@ class TimerScreen : GlyphScreen {
          * on the menu selector's cadence. No falling grains — nothing is
          * falling. The idle rim is drawn under the sand so that pausing in the
          * first few percent still blinks something visible instead of black
-         * against black. The off subframes go to black rather than dim, since
-         * BrightnessCeiling max-normalizes every frame and would push a
-         * uniformly dimmed one straight back up.
+         * against black. The off subframes go to black rather than dim: a blink
+         * has to be unambiguous, and black is the only value that cannot be
+         * mistaken for the vessel's own dim rim.
          */
         fun renderPaused(size: Int, fraction: Float, phase: Int): IntArray {
             val canvas = MatrixCanvas(size)
@@ -402,9 +402,9 @@ class TimerScreen : GlyphScreen {
 
         /**
          * Completion flash. Phase 0 is the solid full frame, so the first frame
-         * of the pulse is exactly [renderDone]. Blinks to black rather than to
-         * a dimmer grey because BrightnessCeiling max-normalizes each frame —
-         * a uniformly dimmed frame would be pushed back up to full white.
+         * of the pulse is exactly [renderDone]. Blinks to black rather than to a
+         * dimmer grey so the flash reads at every brightness setting: at a low
+         * one, full-white and dim-grey are only a few levels apart.
          */
         fun renderDonePulse(size: Int, phase: Int): IntArray {
             val canvas = MatrixCanvas(size)

@@ -1,10 +1,12 @@
 package space.linuxct.glyphmatrixtoycompat.core
 
+import space.linuxct.glyphmatrixtoycompat.core.design.Design
+
 /**
  * Data-source ports consumed by screens. Screens depend ONLY on these
  * interfaces (never on android.*), which keeps every renderer runnable and
- * golden-testable on the JVM. Android implementations live in util/, sensors/
- * and audio/.
+ * golden-testable on the JVM. Android implementations live in util/, sensors/,
+ * audio/ and designs/.
  */
 
 interface ClockPort {
@@ -126,6 +128,23 @@ interface TimerSignalPort {
     fun chime()
 }
 
+/**
+ * The user design the Custom screen plays.
+ *
+ * A design is frame data in a file, and [Prefs] can only hold scalars — so
+ * unlike every other setting a screen reads, this one cannot travel through
+ * prefs. It travels as a port for the same reason the sensors do: screens must
+ * not import android.*, and reading a design means touching the filesystem.
+ *
+ * [selected] performs file I/O and is therefore called from `onActivate` (the
+ * scheduler thread), never from a ticker and never from `glyph-io`. Null means
+ * "nothing to draw" — no design chosen, or the chosen one is gone — which the
+ * screen answers with its placeholder rather than a dark matrix.
+ */
+interface DesignPort {
+    fun selected(): Design?
+}
+
 class Ports(
     val clock: ClockPort,
     val random: RandomPort,
@@ -140,4 +159,5 @@ class Ports(
     val connectivity: ConnectivityPort,
     val location: LocationPort,
     val timer: TimerSignalPort,
+    val design: DesignPort,
 )

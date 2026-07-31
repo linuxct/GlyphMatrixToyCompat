@@ -52,6 +52,30 @@ class BatteryScreen : GlyphScreen {
         /** Brightness of the "W" unit glyph: 63 % of the digits' 4095. */
         private const val UNIT = 2600
 
+        /**
+         * Gauge levels, all expressed against the edge marker, which owns 4095.
+         *
+         *   [EDGE] 4095 = 100 %  the row marking the level — the thing you read
+         *   [WAVE] 3300 =  81 %  the charge sweep rising through the fill
+         *   [FILL] 2000 =  49 %  the body of the gauge
+         *   bolt   800..4000 = 20..98 %  the pulse, see [renderFrame]
+         *
+         * The marker owning the peak is what fixes the pulsating fill: brightness
+         * is applied by multiplying the frame, so while the frame's brightest cell
+         * was the *bolt* (2900 edge / 3600 wave / a pulse swinging to 4000, back
+         * when the frame was max-normalised instead) the gauge's apparent
+         * brightness breathed in time with the bolt. With the marker pinned at
+         * full scale the peak never moves and only the bolt pulses.
+         *
+         * [FILL] keeps the ratio it always had against the marker (49 %, was
+         * 1400/2900). [WAVE] cannot: it used to be 1.24x the marker, which a
+         * marker at full scale forbids, so it now sits just below it — still the
+         * brightest thing moving inside the fill, which is its whole job.
+         */
+        private const val EDGE = 4095
+        private const val WAVE = 3300
+        private const val FILL = 2000
+
         private val BOLT = listOf(
             "..#",
             ".#.",
@@ -114,12 +138,12 @@ class BatteryScreen : GlyphScreen {
             for (y in size - fillRows until size) {
                 val rowFromBottom = size - 1 - y
                 val wave = charging && rowFromBottom == (nowMs / 150 % size).toInt()
-                val v = if (wave) 3600 else 1400
+                val v = if (wave) WAVE else FILL
                 for (x in 0 until size) canvas.light(x, y, v)
             }
             if (fillRows in 1..size) {
                 val y = (size - fillRows).coerceAtLeast(0)
-                for (x in 0 until size) canvas.light(x, y, 2900)
+                for (x in 0 until size) canvas.light(x, y, EDGE)
             }
             if (charging) {
                 val pulse = (2400 + 1600 * sin(nowMs / 200.0)).roundToInt().coerceIn(800, 4095)

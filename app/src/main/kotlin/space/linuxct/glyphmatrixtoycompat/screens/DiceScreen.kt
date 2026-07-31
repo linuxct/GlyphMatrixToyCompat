@@ -5,6 +5,7 @@ import space.linuxct.glyphmatrixtoycompat.core.GlyphScreen
 import space.linuxct.glyphmatrixtoycompat.core.PrefKeys
 import space.linuxct.glyphmatrixtoycompat.core.ScreenContext
 import space.linuxct.glyphmatrixtoycompat.matrix.Font3x5
+import space.linuxct.glyphmatrixtoycompat.matrix.MAX_BRIGHTNESS
 import space.linuxct.glyphmatrixtoycompat.matrix.MatrixCanvas
 
 /**
@@ -59,9 +60,14 @@ class DiceScreen : GlyphScreen {
         val canvas = MatrixCanvas(c.size)
         val cells = pipCenters(c.size)
         val count = 3 + c.ports.random.nextInt(4)
-        repeat(count) {
+        repeat(count) { i ->
             val p = cells[c.ports.random.nextInt(cells.size)]
-            drawPip(canvas, c.size, p, 1500 + c.ports.random.nextInt(2596))
+            val v = TUMBLE_MIN + c.ports.random.nextInt(MAX_BRIGHTNESS - TUMBLE_MIN + 1)
+            // One pip per frame is always full brightness. Brightness is applied
+            // by multiplying the frame, so with every pip randomised the frame's
+            // peak — and with it the tumble's apparent brightness — flickered
+            // frame to frame instead of pip to pip.
+            drawPip(canvas, c.size, p, if (i == 0) MAX_BRIGHTNESS else v)
         }
         c.pushFrame(canvas.copyOut())
     }
@@ -73,6 +79,9 @@ class DiceScreen : GlyphScreen {
 
     companion object {
         const val ROLL_MS = 800L
+
+        /** Dimmest a tumbling pip gets: 37 % of the full-brightness one. */
+        private const val TUMBLE_MIN = 1500
 
         /** 3x3 grid of pip centers (13: 3/6/9, 25: 6/12/18). */
         private fun pipCenters(size: Int): List<Pair<Int, Int>> {

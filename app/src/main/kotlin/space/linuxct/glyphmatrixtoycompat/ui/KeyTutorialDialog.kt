@@ -1,5 +1,7 @@
 package space.linuxct.glyphmatrixtoycompat.ui
 
+import android.annotation.SuppressLint
+import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.MutableTransitionState
@@ -48,18 +50,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.window.Dialog
 import space.linuxct.glyphmatrixtoycompat.R
-import kotlin.math.hypot
+import space.linuxct.glyphmatrixtoycompat.ui.design.Camera
+import space.linuxct.glyphmatrixtoycompat.ui.design.DeviceBack
+import space.linuxct.glyphmatrixtoycompat.ui.design.drawDeviceBack
+import space.linuxct.glyphmatrixtoycompat.ui.design.drawMatrix
 
 /**
  * Essential Key tutorial pop-up: a Nothing-settings-style illustration of the
@@ -119,7 +126,7 @@ private const val DIALOG_ENTER_SCALE = 0.85f
  * spring, which never bounces. Nothing here is a tween or a literal duration.
  */
 @Composable
-private fun MotionDialog(onDismiss: () -> Unit, content: @Composable (dismiss: () -> Unit) -> Unit) {
+internal fun MotionDialog(onDismiss: () -> Unit, content: @Composable (dismiss: () -> Unit) -> Unit) {
     val visible = remember { MutableTransitionState(false).apply { targetState = true } }
     // Guarded by `targetState`: at the first composition currentState is false
     // but the transition is already running towards true, so isIdle is false and
@@ -142,6 +149,109 @@ private fun MotionDialog(onDismiss: () -> Unit, content: @Composable (dismiss: (
             content { visible.targetState = false }
         }
     }
+}
+
+/**
+ * How wide a dialog card is — **in both of the places this app draws one**.
+ *
+ * ## The drift this exists to stop
+ *
+ * Design settings is shown two ways. In the app it is a [MotionDialog], i.e. a
+ * platform `Dialog` window; in the guided tour it is the same card composed
+ * *in place*, because a real dialog is its own window and would sit above the
+ * tour's spotlight (see `DesignSettingsCard`). Those two contexts measure a
+ * wrap-content card completely differently:
+ *
+ * - **In a window.** `usePlatformDefaultWidth` leaves the dialog window
+ *   `WRAP_CONTENT`, and `ViewRootImpl.measureHierarchy` measures a wrap-content
+ *   window at `AT_MOST(config_prefDialogWidth)` before it will consider the full
+ *   display width — 320 dp on a phone, 580 dp at sw600dp. That cap is why every
+ *   dialog in this app, ours and material3's `AlertDialog` alike, comes out the
+ *   same width.
+ * - **In the tour.** There is no window and no cap: the card is measured against
+ *   the screen, and a `Text` takes every dp it is offered. On the 411 dp window
+ *   this app runs on, the tour's copy measured **363 dp** (411 minus the sheet's
+ *   2 x 24 dp) against the real dialog's **320** — visibly wider, which is
+ *   exactly what was reported.
+ *
+ * So the card asks for a width instead of accepting one, and both contexts ask
+ * *here*. Nothing is copied into the tour: [dialogCardWidth] is applied inside
+ * the shared card composable itself, so a caller cannot forget it and the two
+ * cannot disagree.
+ *
+ * ## What it resolves to
+ *
+ * The platform's own preferred dialog width, clamped into material3's
+ * [DIALOG_MIN_WIDTH]..[DIALOG_MAX_WIDTH] and never wider than the window can
+ * hold. Taking it from the platform rather than writing 320 dp down keeps the
+ * windowed case a no-op — the card asks for precisely the width the window was
+ * going to give it — on tablets and foldables as well as on this phone.
+ *
+ * `config_prefDialogWidth` is a framework resource with no public id, hence the
+ * lookup by name and the fallback: if it ever disappears, [FALLBACK_DIALOG_WIDTH]
+ * is what it has been on every phone-sized device since it was introduced, and
+ * the two contexts still agree with each other, which is the property that
+ * matters.
+ */
+@Composable
+internal fun dialogCardWidth(): Dp {
+    val context = LocalContext.current
+    // The WINDOW, and deliberately the same window in both contexts: Compose
+    // derives this from the ACTIVITY (`calculateWindowSize` unwraps to it), so a
+    // card composed inside a dialog window reads the task's width here rather
+    // than the dialog's own — which is what stops this from being circular.
+    val available = LocalWindowInfo.current.containerDpSize.width
+    val preferred = remember(context) { platformDialogWidth(context) }
+    return dialogCardWidth(preferred, available)
+}
+
+/**
+ * The clamp itself, pure so it can be tested: the platform's [preferred] width,
+ * held inside MD3's own bounds and inside the window.
+ *
+ * The order matters at both ends. The MD3 clamp comes first because it is about
+ * the dialog (a 700 dp one is a slab, a 200 dp one is a column of hyphenated
+ * words); the window clamp comes last because it is about physics — on a window
+ * narrower than [DIALOG_MIN_WIDTH] the minimum has to give way, and a card wider
+ * than the window it is centred in would be cut off at both edges.
+ *
+ * An [available] width that is [Dp.Unspecified] or zero means the window has not
+ * measured itself yet, which is a state exactly one composition long. It is
+ * answered with the unclamped width rather than with a guess, because that is
+ * the value the following frame will settle on anyway.
+ */
+internal fun dialogCardWidth(preferred: Dp, available: Dp): Dp {
+    val bounded = preferred.coerceIn(DIALOG_MIN_WIDTH, DIALOG_MAX_WIDTH)
+    if (!available.isSpecified || available <= 0.dp) return bounded
+    return bounded.coerceAtMost((available - DIALOG_HORIZONTAL_MARGIN * 2).coerceAtLeast(0.dp))
+}
+
+/** MD3's own dialog width bounds — the pair `AlertDialog` applies internally. */
+internal val DIALOG_MIN_WIDTH = 280.dp
+internal val DIALOG_MAX_WIDTH = 560.dp
+
+/**
+ * The least breathing room a dialog keeps at each side of the window, matching
+ * [DIALOG_VERTICAL_MARGIN]'s job on the other axis. It only ever binds on a
+ * window too narrow for the platform's preferred width.
+ */
+private val DIALOG_HORIZONTAL_MARGIN = 24.dp
+
+/** What [platformDialogWidth] falls back to: the AOSP value for a phone. */
+private val FALLBACK_DIALOG_WIDTH = 320.dp
+
+/**
+ * `config_prefDialogWidth`, the width the window manager measures a wrap-content
+ * dialog window at. Not public API — read by name, and defaulted if absent.
+ */
+@SuppressLint("DiscouragedApi")
+private fun platformDialogWidth(context: Context): Dp {
+    val resources = context.resources
+    val id = resources.getIdentifier("config_prefDialogWidth", "dimen", "android")
+    if (id == 0) return FALLBACK_DIALOG_WIDTH
+    val px = runCatching { resources.getDimension(id) }.getOrNull() ?: return FALLBACK_DIALOG_WIDTH
+    if (px <= 0f) return FALLBACK_DIALOG_WIDTH
+    return (px / resources.displayMetrics.density).dp
 }
 
 /**
@@ -324,6 +434,138 @@ private fun KeyTutorialContent(modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * How tall the phone illustration is — **and the number that decides whether the
+ * drawing reads as a phone at all.**
+ *
+ * The tutorial's camera is width-bound on a dialog (see [tutorialCamera]), so the
+ * body's *width* is [TUTORIAL_BODY_WIDTH] of the canvas whatever this says. What
+ * this sets is the body's visible *height*: how much phone the reader sees below
+ * the plate.
+ *
+ * At **205 dp**, the 280 dp canvas a phone-width dialog gives makes the body 174 dp
+ * wide over 195 dp of visible height — **1.12 body widths** of phone, which is the
+ * plate, the Essential Key, and a short strip of body under it. That is the whole
+ * job: the illustration exists to show where the matrix and the key are.
+ *
+ * **A note against repeating a mistake.** A previous revision raised this to 270 dp
+ * on the reasoning that the drawing's *visible aspect* (0.89 wide-to-tall) was what
+ * four rejected revisions had in common, and that no zoom could fix it in a 205 dp
+ * frame. Both halves were wrong. The accepted drawing has that same 0.89, so it was
+ * never the defect; the defect was [DeviceBack]'s island width, modelled at `0.63`
+ * of the body instead of the real `0.91`. That KDoc even recorded the disproof and
+ * misread it — it observed that the original drawing's island was `0.89` of the
+ * body's width and called it "oversized" against "the real device's `0.63`", when
+ * `0.89` was very nearly the correct figure and `0.63` was the invention. Once the
+ * island was corrected, 205 dp read as a phone immediately, and 270 dp read as a
+ * slab with blank body under the key.
+ *
+ * It is deliberately not taller. At this height the dialog's content comes to
+ * roughly 510 dp — 36 padding + 28 title + 14 + 40 switcher + 8 + (205 + 126 of
+ * page) + 6 + 7 dots + 40 button — against a window height less the 2 x
+ * [DIALOG_VERTICAL_MARGIN] the surface is capped at, so on any phone-shaped window
+ * the mode switcher above the illustration and the caption below it are both on
+ * screen at once. The `verticalScroll` that makes a taller illustration affordable
+ * at all is then what it was for: large font scales and short windows, not ordinary
+ * use.
+ *
+ * The floor is [TUTORIAL_SPAN_Y] body widths of drawing — 180 dp at this canvas —
+ * below which the camera would stop being width-bound and the phone would simply
+ * stop growing. The height and the aspect it produces are both pinned by
+ * `GlyphCanvasTest`; the aspect is the assertion that matters, and is the one
+ * nobody was making while this was being rejected.
+ *
+ * `205` shows 1.12 body widths of phone on a phone-sized dialog: the plate, the key
+ * and a short strip of body below it, and nothing more. A revision that raised this
+ * to `270` was rejected on sight — the extra 65 dp bought no content, only blank
+ * body under the key, and the phone read as a slab. The number to change when the
+ * drawing needs more room is the camera's, not this one.
+ */
+internal val ILLUSTRATION_HEIGHT = 205.dp
+
+/**
+ * **The tutorial's camera**: the whole phone, filling the illustration area and
+ * cropped by it.
+ *
+ * The other of the app's two views of `DeviceBack` — see `GlyphCanvas`'s KDoc for
+ * why the framing is a per-caller parameter and the drawing is not. This one is
+ * zoomed *out*: the reader has to recognise a phone lying face down and find the
+ * key on its right edge, so the subject is the device, not the panel.
+ *
+ * - **[TUTORIAL_BODY_WIDTH]** — the whole scale of the drawing, and the number this
+ *   has been got wrong at three times: **the body is 0.62 of the canvas's width**,
+ *   with the remaining 0.38 the gutters the Essential Key's ripple expands into —
+ *   it is a canvas annotation rather than a part of the phone and needs somewhere
+ *   to be. At `0.83` — five sixths, which is where a previous phase put it — the
+ *   body was a third wider without being any taller, and the phone read as a squat
+ *   block instead of a device. **[TUTORIAL_SPAN_X]** is its reciprocal, because a
+ *   camera is expressed in how much of the *device* fits across the frame.
+ * - **[TUTORIAL_SPAN_Y]** — how many body widths must fit down it, from the top of
+ *   the body to just past the key: [TUTORIAL_TOP_MARGIN] plus the key's lower edge,
+ *   plus clearance. It only binds on a dialog wide enough that the phone would
+ *   otherwise outgrow the illustration's height, i.e. a tablet's. It is derived
+ *   from [DeviceBack], not guessed: when the plate's true width put its bottom edge
+ *   0.16 body widths further down, the key it sits above went with it, and a span
+ *   fixed at `0.95` cropped the key off a 540 dp dialog.
+ * - **[TUTORIAL_FOCUS_X]** — the point of the device at the centre of the frame,
+ *   horizontally. `0.53` rather than `0.5` puts a little more of the gutter on the
+ *   right, which is the side the key's annotations live on.
+ * - the focus's **y** is derived so that the body's top edge always lands
+ *   [TUTORIAL_TOP_MARGIN] below the top of the canvas, whatever the zoom came out
+ *   at — 5 % of the illustration's height, at the dialog width a phone gives. The
+ *   phone therefore starts at the top and runs off the bottom at every dialog size,
+ *   which is what makes it read as a device continuing past the frame rather than
+ *   as a card floating in one.
+ *
+ * Those four numbers and [ILLUSTRATION_HEIGHT] between them fix the one thing a
+ * reader actually judges — **the visible body is 0.62 of the canvas wide and 0.67
+ * as wide as it is tall** — and both are asserted, because this illustration has
+ * been rejected four times for getting exactly that wrong. The aspect is
+ * [ILLUSTRATION_HEIGHT]'s to set, not this function's: no zoom can produce it, and
+ * four attempts to find one failed. See its KDoc.
+ */
+internal fun tutorialCamera(canvas: Size): Camera {
+    val zoom = minOf(canvas.width / TUTORIAL_SPAN_X, canvas.height / TUTORIAL_SPAN_Y)
+    if (zoom <= 0f) return Camera(0f, Offset.Zero)
+    return Camera(
+        zoom = zoom,
+        focus = Offset(TUTORIAL_FOCUS_X, canvas.height / (2f * zoom) - TUTORIAL_TOP_MARGIN),
+    )
+}
+
+/**
+ * **The body takes 0.62 of the canvas's width.** See [tutorialCamera]; pinned by
+ * `GlyphCanvasTest.theTutorialDrawsTheBodyAtSixTenthsOfTheCanvasWidth`.
+ */
+internal const val TUTORIAL_BODY_WIDTH = 0.62f
+
+/**
+ * Where the press markers sit, **in device coordinates**: on the body, `0.09` of a
+ * body width in from its right edge, level with the Essential Key.
+ *
+ * They used to hang 18 dp *past* that edge, out in the gutter, and that is the
+ * "small dot floating in the white space beside the key" the last screenshot was
+ * rejected for. A mark outside the device has nothing to belong to and reads as a
+ * rendering fault rather than as an annotation — and the accurate, smaller island
+ * made it worse, because in a gutter that is now mostly empty a stray dot is the
+ * only thing in it. On the body, beside the key it is counting, it reads as what
+ * it is.
+ *
+ * `0.91` rather than anything closer to the edge because the key's nub straddles
+ * `1.0` — it is [DeviceBack.KEY_WIDTH] wide with 45 % of that inside the body — so
+ * a marker further right would touch it. Expressed as a device point and mapped
+ * through the camera, like every other annotation here, so it cannot drift out from
+ * under the phone when a framing changes; the gutter offset it replaces could not
+ * say the same. Pinned by `GlyphCanvasTest`.
+ */
+internal const val TUTORIAL_MARKER_X = 0.91f
+
+private const val TUTORIAL_SPAN_X = 1f / TUTORIAL_BODY_WIDTH
+private const val TUTORIAL_FOCUS_X = 0.53f
+private const val TUTORIAL_TOP_MARGIN = 0.059f
+private const val TUTORIAL_SPAN_Y =
+    TUTORIAL_TOP_MARGIN + DeviceBack.KEY_TOP + DeviceBack.KEY_HEIGHT + 0.034f
+
 /** One swipeable step: its looping animation plus title and description. */
 @Composable
 private fun TutorialPage(step: TutorialStep) {
@@ -343,7 +585,7 @@ private fun TutorialPage(step: TutorialStep) {
         Canvas(
             Modifier
                 .fillMaxWidth()
-                .height(205.dp)
+                .height(ILLUSTRATION_HEIGHT)
                 .clipToBounds(),
         ) {
             drawTutorialPhone(base, step, timeMs)
@@ -362,7 +604,12 @@ private fun TutorialPage(step: TutorialStep) {
 
 // ---------- step timelines ----------
 
-private class MatrixFrame(val pattern: List<String>, val on: Boolean)
+/**
+ * One tutorial frame: the matrix contents, and whether the panel is lit at all
+ * (the menu-mode blink turns everything down to the unlit level without changing
+ * the pattern, so the two are separate).
+ */
+private class MatrixFrame(val cells: IntArray, val on: Boolean)
 
 private class TutorialStep(
     val titleRes: Int,
@@ -433,101 +680,29 @@ private val MENU_STEPS = listOf(
 
 // ---------- the illustration ----------
 
-/**
- * Side of a square LED as a fraction of the cell pitch: 80 %, leaving a 20 %
- * gap between neighbours, so the grid reads as a dot-matrix panel.
- */
-private const val PIXEL_FRACTION = 0.80f
-
-/** 13x13 grid extent as a fraction of the Glyph Matrix disc diameter. */
-private const val GRID_EXTENT = 0.84f
+/** The Glyph Matrix this tutorial illustrates: the Phone (4a) Pro's 13x13. */
+private const val TUTORIAL_MATRIX_SIZE = 13
 
 private fun DrawScope.drawTutorialPhone(base: Color, step: TutorialStep, t: Long) {
-    val body = base.copy(alpha = 0.26f)
-    val island = base.copy(alpha = 0.13f)
-    val lens = base.copy(alpha = 0.34f)
-    val lensInner = base.copy(alpha = 0.5f)
+    val camera = tutorialCamera(size)
+    // The phone, key included: the key is a feature of the device and lives in
+    // `DeviceBack` with the rest of it, so all this page contributes is whether it
+    // is being pressed at this instant. Everything below is annotation drawn
+    // *over* the device — a countdown ring, a ripple, press markers — and is
+    // positioned by mapping device points through the camera rather than by
+    // resolving any geometry of its own.
+    val pressed = step.presses.any { t in it..(it + PRESS_MS) }
+    val disc = drawDeviceBack(base, camera, keyPressed = pressed)
+    val mc = disc.center
+    val mr = disc.radius
 
-    // Phone back, face down, cropped at the bottom like the system settings
-    // illustrations. Camera island at the top, Glyph Matrix on its right.
-    val bodyW = minOf(size.height * 0.98f, size.width * 0.62f)
-    val bodyLeft = (size.width - bodyW) / 2f
-    val bodyTop = size.height * 0.05f
-    drawRoundRect(
-        body,
-        topLeft = Offset(bodyLeft, bodyTop),
-        // Extend well past the canvas bottom (clipToBounds crops it) so the
-        // bottom rounded corners never show: the crop reads as a zoomed-in
-        // view of a taller device, with straight sides running off-frame.
-        size = Size(bodyW, size.height * 1.5f),
-        cornerRadius = CornerRadius(bodyW * 0.17f),
-    )
-
-    val m = bodyW * 0.055f
-    val iL = bodyLeft + m
-    val iT = bodyTop + m
-    val iW = bodyW - 2 * m
-    val iH = bodyW * 0.58f
-    drawRoundRect(
-        island,
-        topLeft = Offset(iL, iT),
-        size = Size(iW, iH),
-        cornerRadius = CornerRadius(bodyW * 0.13f),
-    )
-
-    // Lenses: one large ringed circle, a lens pill below it, two small dots.
-    val bigC = Offset(iL + iW * 0.24f, iT + iH * 0.32f)
-    drawCircle(lens, radius = iH * 0.20f, center = bigC)
-    drawCircle(lensInner, radius = iH * 0.115f, center = bigC)
-    drawRoundRect(
-        lens,
-        topLeft = Offset(iL + iW * 0.10f, iT + iH * 0.60f),
-        size = Size(iW * 0.36f, iH * 0.30f),
-        cornerRadius = CornerRadius(iH * 0.15f),
-    )
-    drawCircle(lens, radius = iH * 0.045f, center = Offset(iL + iW * 0.47f, iT + iH * 0.16f))
-    drawCircle(lens, radius = iH * 0.045f, center = Offset(iL + iW * 0.47f, iT + iH * 0.34f))
-
-    // Glyph Matrix: black circle with a live 13x13 dot grid.
-    val mc = Offset(iL + iW * 0.74f, iT + iH * 0.45f)
-    val mr = iH * 0.335f
-    drawCircle(Color(0xFF0E0E0E), radius = mr, center = mc)
     val frame = step.matrix(t)
-    // Grid extent as a fraction of the disc diameter. Cell centres sit at
-    // g0 + i * cell, so the outermost row/column is 6 cells (0.775 * mr) out;
-    // with a half-pixel of 0.4 * cell its far corner reaches 0.85 * mr, which
-    // keeps every lit LED clear of the rim. At the old 0.94 the corner pips
-    // landed at 1.01 * mr and visibly spilled out of the black disc.
-    val cell = mr * 2f * GRID_EXTENT / 13f
-    val g0x = mc.x - cell * 6f
-    val g0y = mc.y - cell * 6f
-    // One square pixel size for lit and unlit alike — a hardware LED covers
-    // the same area either way, only its brightness changes.
-    val px = cell * PIXEL_FRACTION
-    val pxSize = Size(px, px)
-    val pxCorner = CornerRadius(px * 0.16f)
-    for (r in 0 until 13) {
-        val rowPattern = frame.pattern[r]
-        for (c in 0 until 13) {
-            val center = Offset(g0x + c * cell, g0y + r * cell)
-            // Circular mask in pixel space. 0.90 culls the four diagonal
-            // corner cells (6.71 cells is the furthest kept, 0.94 * mr once
-            // the square's half-diagonal is added) so no pixel touches the rim.
-            if (hypot(center.x - mc.x, center.y - mc.y) > mr * 0.90f) continue
-            // Per-cell brightness so shaded patterns (the compass) render
-            // like the real dimmed LEDs; '#' stays the full-white used
-            // elsewhere.
-            val level = when (rowPattern[c]) {
-                '#' -> 1f
-                '+' -> 0.55f
-                ':' -> 0.25f
-                else -> 0f
-            }
-            val topLeft = Offset(center.x - px / 2f, center.y - px / 2f)
-            val alpha = if (frame.on && level > 0f) level else 0.10f
-            drawRoundRect(Color.White.copy(alpha = alpha), topLeft, pxSize, pxCorner)
-        }
-    }
+    // The blink's "off" phase is an ALL-DARK panel, not a hidden pattern: the
+    // real matrix drops every LED to nothing and the illustration draws each
+    // unlit cell at its resting alpha. Handing [drawMatrix] a blank frame is
+    // therefore the same picture the old `frame.on` branch drew, one code path
+    // fewer.
+    drawMatrix(mc, mr, TUTORIAL_MATRIX_SIZE, if (frame.on) frame.cells else BLANK_MATRIX)
 
     // Auto-set countdown: a depleting ring around the matrix.
     step.countdown?.let { range ->
@@ -549,20 +724,16 @@ private fun DrawScope.drawTutorialPhone(base: Color, step: TutorialStep, t: Long
         }
     }
 
-    // Essential Key: a nub on the right edge, just below the island's
-    // bottom-right corner (where it sits on the real phone, face down).
-    val keyW = bodyW * 0.038f
-    val keyH = bodyW * 0.15f
-    val keyTop = iT + iH + iH * 0.08f
-    val pressed = step.presses.any { t in it..(it + PRESS_MS) }
-    val keyLeft = bodyLeft + bodyW - keyW * 0.45f - (if (pressed) 3.dp.toPx() else 0f)
-    drawRoundRect(
-        if (pressed) base.copy(alpha = 0.85f) else base.copy(alpha = 0.45f),
-        topLeft = Offset(keyLeft, keyTop),
-        size = Size(keyW, keyH),
-        cornerRadius = CornerRadius(keyW / 2f),
+    // Where the Essential Key ended up on screen: the middle of the nub itself,
+    // mapped like everything else here rather than the body's edge plus a nudge.
+    // The ripple is centred on it and the press markers sit level with it.
+    val keyCenter = camera.map(
+        Offset(
+            DeviceBack.KEY_LEFT + DeviceBack.KEY_WIDTH / 2f,
+            DeviceBack.KEY_TOP + DeviceBack.KEY_HEIGHT / 2f,
+        ),
+        size,
     )
-    val keyCenter = Offset(bodyLeft + bodyW + 2.dp.toPx(), keyTop + keyH / 2f)
 
     // Expanding ripple per press.
     step.presses.forEach { p ->
@@ -579,9 +750,11 @@ private fun DrawScope.drawTutorialPhone(base: Color, step: TutorialStep, t: Long
     }
 
     // Press counter: one small dot per press of the current gesture, lit as
-    // each press lands. Presses > 600 ms apart are separate gestures (bursts);
-    // the dots reset for each burst, so repeated gestures read as "x2, twice"
-    // rather than one long chain.
+    // each press lands, stacked ON the body beside the key — see
+    // [TUTORIAL_MARKER_X], which is where the stray dot in the gutter came from.
+    // Presses > 600 ms apart are separate gestures (bursts); the dots reset for
+    // each burst, so repeated gestures read as "x2, twice" rather than one long
+    // chain.
     val bursts = mutableListOf<MutableList<Long>>()
     step.presses.forEach { p ->
         if (bursts.isEmpty() || p - bursts.last().last() > 600) {
@@ -591,7 +764,7 @@ private fun DrawScope.drawTutorialPhone(base: Color, step: TutorialStep, t: Long
         }
     }
     val burst = bursts.lastOrNull { t >= it.first() - 400 } ?: bursts.firstOrNull()
-    val markerX = bodyLeft + bodyW + 18.dp.toPx()
+    val markerX = camera.map(Offset(TUTORIAL_MARKER_X, 0f), size).x
     burst?.forEachIndexed { i, p ->
         val lit = t >= p + 90 && t <= step.durationMs - 250
         drawCircle(
@@ -619,8 +792,42 @@ private fun DrawScope.drawTutorialPhone(base: Color, step: TutorialStep, t: Long
 // fidelity for legibility. See [DICE_2] for the placement and why it is what
 // it is.
 //
-// Each row MUST be exactly 13 characters: the draw loop indexes
-// pattern[r][c] for r,c in 0..12 with no bounds guard.
+// Each row MUST be exactly 13 characters: [charsetFrame] indexes rows[r][c] for
+// r,c in 0..12 with no bounds guard.
+
+/** An unlit panel — see the blink handling in [drawTutorialPhone]. */
+private val BLANK_MATRIX = IntArray(TUTORIAL_MATRIX_SIZE * TUTORIAL_MATRIX_SIZE)
+
+/**
+ * These patterns' four shading levels, as the 0..4095 brightnesses
+ * [drawMatrix] speaks — resolved ONCE per pattern, at class-init, so the
+ * animation loop allocates nothing per frame.
+ *
+ * The illustration used to compute an alpha per character directly (1 / 0.55 /
+ * 0.25 / off) and these are those alphas expressed as panel levels, which is
+ * *nearly* but not exactly a lossless conversion: `drawMatrix` divides by 4095,
+ * so `2252` is alpha 0.549939 rather than 0.55 and `1024` is 0.250061 rather
+ * than 0.25. It makes no difference to a single rendered pixel. Compose packs an
+ * sRGB colour as 8-bit channels — `(alpha * 255 + 0.5).toInt()` — and both pairs
+ * land on the same byte (140 and 64), so every LED in this dialog draws the
+ * exact colour it drew before. `#` is 4095, i.e. alpha 1.0 exactly.
+ */
+private fun charsetFrame(rows: List<String>): IntArray {
+    val size = rows.size
+    val out = IntArray(size * size)
+    for (r in 0 until size) {
+        val row = rows[r]
+        for (c in 0 until size) {
+            out[r * size + c] = when (row[c]) {
+                '#' -> 4095
+                '+' -> 2252
+                ':' -> 1024
+                else -> 0
+            }
+        }
+    }
+    return out
+}
 
 /**
  * Dice toy showing a 2.
@@ -630,77 +837,85 @@ private fun DrawScope.drawTutorialPhone(base: Color, step: TutorialStep, t: Long
  * on both axes — margins 2|2 — and reads as centred on the disc.
  *
  * Not 3-wide pips at 1..3 / 5..7 / 9..11, which would be both symmetric and
- * evenly spaced: with `GRID_EXTENT` 0.84 the cell pitch is 0.1292 * mr and the
- * 0.90 * mr cull keeps cells only out to 6.96 cells, while cell (1,1) sits at
- * sqrt(50) = 7.07 cells, so the outer pips would render visibly notched. The
- * 2x2 placement's furthest cell (2,2) is at sqrt(32) = 5.66 cells = 0.731 * mr,
- * comfortably inside.
+ * evenly spaced: the panel is a disc and only has LEDs out to 6.5 cells from the
+ * centre (`PanelMask` — the grid's inscribed circle, counted off a photograph of
+ * the real panel), while cell (1,1) sits at sqrt(50) = 7.07 cells, so the outer
+ * pips would render visibly notched. The 2x2 placement's furthest cell (2,2) is
+ * at sqrt(32) = 5.66 cells, comfortably inside.
  */
-private val DICE_2 = listOf(
-    ".............",
-    ".............",
-    "..##.........",
-    "..##.........",
-    ".............",
-    ".............",
-    ".............",
-    ".............",
-    ".............",
-    ".........##..",
-    ".........##..",
-    ".............",
-    ".............",
+private val DICE_2 = charsetFrame(
+    listOf(
+        ".............",
+        ".............",
+        "..##.........",
+        "..##.........",
+        ".............",
+        ".............",
+        ".............",
+        ".............",
+        ".............",
+        ".........##..",
+        ".........##..",
+        ".............",
+        ".............",
+    ),
 )
 
 /** Dice toy showing a 3; pip placement per [DICE_2]. */
-private val DICE_3 = listOf(
-    ".............",
-    ".............",
-    "..##.........",
-    "..##.........",
-    ".............",
-    ".....##......",
-    ".....##......",
-    ".............",
-    ".............",
-    ".........##..",
-    ".........##..",
-    ".............",
-    ".............",
+private val DICE_3 = charsetFrame(
+    listOf(
+        ".............",
+        ".............",
+        "..##.........",
+        "..##.........",
+        ".............",
+        ".....##......",
+        ".....##......",
+        ".............",
+        ".............",
+        ".........##..",
+        ".........##..",
+        ".............",
+        ".............",
+    ),
 )
 
 /** Dice toy showing a 5; pip placement per [DICE_2]. */
-private val DICE_5 = listOf(
-    ".............",
-    ".............",
-    "..##.....##..",
-    "..##.....##..",
-    ".............",
-    ".....##......",
-    ".....##......",
-    ".............",
-    ".............",
-    "..##.....##..",
-    "..##.....##..",
-    ".............",
-    ".............",
+private val DICE_5 = charsetFrame(
+    listOf(
+        ".............",
+        ".............",
+        "..##.....##..",
+        "..##.....##..",
+        ".............",
+        ".....##......",
+        ".....##......",
+        ".............",
+        ".............",
+        "..##.....##..",
+        "..##.....##..",
+        ".............",
+        ".............",
+    ),
 )
 
 /** Dice toy showing a 6; pip placement per [DICE_2]. */
-private val DICE_6 = listOf(
-    ".............",
-    ".............",
-    "..##.....##..",
-    "..##.....##..",
-    ".............",
-    "..##.....##..",
-    "..##.....##..",
-    ".............",
-    ".............",
-    "..##.....##..",
-    "..##.....##..",
-    ".............",
-    ".............",
+private val DICE_6 = charsetFrame(
+    listOf(
+        ".............",
+        ".............",
+        "..##.....##..",
+        "..##.....##..",
+        ".............",
+        "..##.....##..",
+        "..##.....##..",
+        ".............",
+        ".............",
+        "..##.....##..",
+        "..##.....##..",
+        ".............",
+        ".............",
+    ),
 )
 
 private val ROLL = listOf(DICE_3, DICE_6, DICE_2, DICE_6, DICE_3)
@@ -710,40 +925,44 @@ private val ROLL = listOf(DICE_3, DICE_6, DICE_2, DICE_6, DICE_3)
  * output (the compass_13_north golden): '#' needle, ':' tail, cardinal ring
  * with '+' W/E/S markers and ':' intercardinal dots.
  */
-private val COMPASS = listOf(
-    "......#......",
-    "......#......",
-    "..:...#...:..",
-    "......#......",
-    "......#......",
-    "......#......",
-    "+.....+.....+",
-    "......:......",
-    "......:......",
-    "......:......",
-    "..:.......:..",
-    ".............",
-    "......+......",
+private val COMPASS = charsetFrame(
+    listOf(
+        "......#......",
+        "......#......",
+        "..:...#...:..",
+        "......#......",
+        "......#......",
+        "......#......",
+        "+.....+.....+",
+        "......:......",
+        "......:......",
+        "......:......",
+        "..:.......:..",
+        ".............",
+        "......+......",
+    ),
 )
 
 /**
  * The Pixel Clock toy on its plain-digits theme reading 12:34, stacked "12"
  * over "34" — the clock_13_1234_t0 golden.
  */
-private val CLOCK = listOf(
-    ".............",
-    "....#..###...",
-    "...##....#...",
-    "....#..###...",
-    "....#..#.....",
-    "...###.###...",
-    ".............",
-    "...###.#.#...",
-    ".....#.#.#...",
-    "....##.###...",
-    ".....#...#...",
-    "...###...#...",
-    ".............",
+private val CLOCK = charsetFrame(
+    listOf(
+        ".............",
+        "....#..###...",
+        "...##....#...",
+        "....#..###...",
+        "....#..#.....",
+        "...###.###...",
+        ".............",
+        "...###.#.#...",
+        ".....#.#.#...",
+        "....##.###...",
+        ".....#...#...",
+        "...###...#...",
+        ".............",
+    ),
 )
 
 /**
@@ -753,18 +972,20 @@ private val CLOCK = listOf(
  * [CLOCK] and the "cycle between toys" animations would read as no change at
  * all.
  */
-private val AMBIENT = listOf(
-    ".............",
-    ".............",
-    "..........+..",
-    "..#......+...",
-    "...##...+....",
-    ".....#.+.....",
-    "......#......",
-    ".............",
-    ".............",
-    ".............",
-    ".............",
-    ".............",
-    ".............",
+private val AMBIENT = charsetFrame(
+    listOf(
+        ".............",
+        ".............",
+        "..........+..",
+        "..#......+...",
+        "...##...+....",
+        ".....#.+.....",
+        "......#......",
+        ".............",
+        ".............",
+        ".............",
+        ".............",
+        ".............",
+        ".............",
+    ),
 )

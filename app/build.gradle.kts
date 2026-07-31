@@ -4,6 +4,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 // Release signing is driven by a repo-root keystore.properties (written by the Release workflow
@@ -22,8 +23,8 @@ android {
         applicationId = "space.linuxct.glyphmatrixtoycompat"
         minSdk = 33
         targetSdk = 37
-        versionCode = 10
-        versionName = "1.4.1"
+        versionCode = 11
+        versionName = "2.0.0"
     }
 
     signingConfigs {
@@ -95,6 +96,13 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
+    // The only non-AndroidX/Compose runtime dependency in the project, and it earns
+    // its place: the design format is a published interchange format, so hand-rolled
+    // org.json parsing (as update/UpdateChecker does for a three-field API response)
+    // would mean hand-rolling validation for every field of an attacker-controlled
+    // file. 1.9.x is the line built against Kotlin 2.2; the serialization compiler
+    // plugin above must stay pinned to the Kotlin version, this runtime need not.
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     testImplementation("junit:junit:4.13.2")
 }
 

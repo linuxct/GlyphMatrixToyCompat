@@ -248,8 +248,10 @@ class DinoScreen : GlyphScreen {
         }
 
         /**
-         * Brightness ratios inside a frame (frames are max-normalised, so only
-         * these matter): character/score 100 %, obstacles 100 %, lit ground dash
+         * Brightness ratios inside a frame, against the 4095 the character and
+         * obstacles own — brightness multiplies the finished frame, so these
+         * ratios are what survives to the panel at any setting:
+         * character/score 100 %, obstacles 100 %, lit ground dash
          * 44 %, ground gap 12 %, idle ground 22 %, idle track dots 12 %.
          */
         private const val CHAR = 4095

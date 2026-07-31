@@ -6,6 +6,8 @@ import space.linuxct.glyphmatrixtoycompat.core.Cancelable
 import space.linuxct.glyphmatrixtoycompat.core.ClockPort
 import space.linuxct.glyphmatrixtoycompat.core.ConnectionState
 import space.linuxct.glyphmatrixtoycompat.core.ConnectivityPort
+import space.linuxct.glyphmatrixtoycompat.core.DesignPort
+import space.linuxct.glyphmatrixtoycompat.core.GlyphScreen
 import space.linuxct.glyphmatrixtoycompat.core.InclinePort
 import space.linuxct.glyphmatrixtoycompat.core.LightPort
 import space.linuxct.glyphmatrixtoycompat.core.LocationPort
@@ -14,11 +16,13 @@ import space.linuxct.glyphmatrixtoycompat.core.Prefs
 import space.linuxct.glyphmatrixtoycompat.core.RandomPort
 import space.linuxct.glyphmatrixtoycompat.core.RenderScheduler
 import space.linuxct.glyphmatrixtoycompat.core.ScreenContext
+import space.linuxct.glyphmatrixtoycompat.core.ScreenManager
 import space.linuxct.glyphmatrixtoycompat.core.ShakePort
 import space.linuxct.glyphmatrixtoycompat.core.SpectrumPort
 import space.linuxct.glyphmatrixtoycompat.core.SpeedPort
 import space.linuxct.glyphmatrixtoycompat.core.TimerSignalPort
 import space.linuxct.glyphmatrixtoycompat.core.TiltPort
+import space.linuxct.glyphmatrixtoycompat.core.design.Design
 
 class FakePrefs : Prefs {
     val map = mutableMapOf<String, Any>()
@@ -151,6 +155,15 @@ class FakeLocation(var value: Pair<Double, Double>? = 0.0 to 0.0) : LocationPort
     override fun latLon() = value
 }
 
+/**
+ * The design the Custom screen will find. Settable so a test can move between
+ * "nothing selected" (the placeholder) and any design it builds, without a
+ * filesystem — [DesignStore] is Android and CustomScreen never sees it anyway.
+ */
+class FakeDesignPort(var design: Design? = null) : DesignPort {
+    override fun selected(): Design? = design
+}
+
 class FakeTimer : TimerSignalPort {
     var scheduledAt: Long? = null
     var cancelCount = 0
@@ -249,10 +262,11 @@ class TestHarness(
     val connectivity = FakeConnectivity()
     val location = FakeLocation()
     val timer = FakeTimer()
+    val design = FakeDesignPort()
 
     val ports = Ports(
         clock, random, battery, speed, spectrum, azimuth, shake, tilt, incline, light,
-        connectivity, location, timer,
+        connectivity, location, timer, design,
     )
 
     val frames = mutableListOf<IntArray>()
@@ -260,4 +274,20 @@ class TestHarness(
     val context = ScreenContext(size, prefs, ports, scheduler) { frames += it.copyOf() }
 
     fun lastFrame(): IntArray = frames.last()
+
+    /** Frames that came out of [manager], i.e. the production output path. */
+    val output = mutableListOf<IntArray>()
+
+    /**
+     * A real [ScreenManager] over [screens] pushing into [output].
+     *
+     * Use this — not [context] — for anything about what the DEVICE receives.
+     * [context] is the screen's own sink and deliberately captures the art
+     * exactly as drawn, which is what makes the ASCII goldens readable; every
+     * step between a screen and the hardware (brightness scaling, the identical-
+     * frame dedup, the menu blink) lives in the manager's sink instead, and is
+     * invisible to a golden.
+     */
+    fun manager(screens: List<GlyphScreen>) =
+        ScreenManager(screens, prefs, ports, scheduler, size) { output += it.copyOf() }
 }

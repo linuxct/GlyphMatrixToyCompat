@@ -6,6 +6,9 @@ import org.junit.Test
 import space.linuxct.glyphmatrixtoycompat.GoldenAscii
 import space.linuxct.glyphmatrixtoycompat.TestHarness
 import space.linuxct.glyphmatrixtoycompat.core.PrefKeys
+import space.linuxct.glyphmatrixtoycompat.matrix.Font3x5
+import space.linuxct.glyphmatrixtoycompat.matrix.MAX_BRIGHTNESS
+import space.linuxct.glyphmatrixtoycompat.matrix.MatrixCanvas
 
 class ClockScreenTest {
 
@@ -226,8 +229,19 @@ class LevelScreenTest {
         for (size in intArrayOf(13, 25)) {
             val none = LevelScreen.renderFrame(size, null, null)
             GoldenAscii.assertFrameValid(none, size)
-            // Nothing at full brightness: no ball, and the target stays idle.
-            assertTrue(none.none { it == 4095 })
+            // The "?" is the only thing at full brightness: no ball anywhere, and
+            // the target ring stays at its idle level. (The mark itself IS full
+            // brightness — it is the whole content of this state, and brightness
+            // now scales the frame rather than stretching it to its own peak.)
+            val mark = MatrixCanvas(size)
+            Font3x5.drawStringCentered(mark, "?", size / 2 - 2, MAX_BRIGHTNESS)
+            for (i in none.indices) {
+                assertEquals(
+                    "cell $i on $size",
+                    mark.buf[i] == MAX_BRIGHTNESS,
+                    none[i] == MAX_BRIGHTNESS,
+                )
+            }
             assertTrue(none.any { it > 0 })
             // A half-delivered reading is treated the same way.
             assertTrue(none.contentEquals(LevelScreen.renderFrame(size, 0f, null)))

@@ -71,6 +71,15 @@
     <string name="onb_mode_menu">Menu mode</string>
     <string name="onb_mode_menu_desc">Double-press opens a blinking toy selector on the matrix; single presses then cycle through the toys, and the highlighted one is chosen after a short pause. Outside the menu, a single press still fires the toy’s action.</string>
 
+    <!-- Onboarding · what to put on the matrix. Says that ready-made toys exist,
+         that you can draw your own, and where the guides live — and deliberately
+         does NOT explain how the editor works: that is the guided demo's job, and
+         a summary here would spoil it. -->
+    <string name="onb_create_title">Ready-made toys, or your own</string>
+    <string name="onb_create_body">The app arrives with a set of toys ready to run — clock, compass, dice, music visualizer and a dozen more — and the Toys tab is where you pick between them and reorder the cycle.\n\nThe Create tab is the other half: your own designs, drawn cell by cell, still or animated, and played on the matrix like any other toy. You can share them as files, too.\n\nAnything in this app that is not obvious has a short guide in the Tutorials tab — including a demo of the editor that acts out every gesture on the real thing, rather than describing it.</string>
+    <string name="onb_create_action">Take me to Create</string>
+    <string name="onb_create_hint">Or carry on — Create is one tap away in the navigation bar whenever you want it.</string>
+
     <string name="onb_done_title">Welcome to Glyph Matrix Toy Compat (GMTC)</string>
     <string name="onb_done_body">Your Glyph Matrix is officially over-qualified. Everything you just set up — and plenty you haven’t seen yet — lives in the main screen: reorder toys, tweak their settings, or revisit any of these steps.\n\nNow go press that key.</string>
     <string name="onb_recap_key">Essential Key listener</string>
@@ -116,18 +125,57 @@
          of the selected tab). The tutorial tab has no entry here: its caption
          and its page title are the same word, so it reuses tut_section. -->
     <string name="nav_toys">Toys</string>
+    <string name="nav_create">Create</string>
     <string name="nav_settings">Settings</string>
 
     <!-- Settings tab section headers -->
     <string name="section_initial_setup">Initial setup</string>
     <string name="section_app_settings">App settings</string>
+    <!-- Spoken description of a collapsible section header's chevron. The header
+         text is read out beside it, so these say only what the tap will do. -->
+    <string name="section_expand">Expand</string>
+    <string name="section_collapse">Collapse</string>
 
     <!-- Tutorials / Essential Key tutorial -->
     <string name="tut_section">Tutorials</string>
-    <string name="tut_hint">Short guides for using and configuring the Essential Key — tap a topic.</string>
+    <string name="tut_hint">Short guides for the parts of this app that are least obvious — tap a topic.</string>
     <string name="tut_button_subtitle">Animated walkthrough of every press, in both key modes</string>
     <string name="tut_title">Essential Key tutorial</string>
     <string name="tut_close">Close</string>
+
+    <!-- Guide: the Create tab. Not a dialog of numbered steps like the two below
+         it — a guided demo that plays the real editor (DesignDemoActivity), since
+         what it has to teach is a set of gestures. The row in the Tutorials list
+         keeps the same title + one-line subtitle as its neighbours. -->
+    <string name="tut_create_title">Create your own design</string>
+    <string name="tut_create_subtitle">A guided demo of the editor, with every gesture acted out</string>
+
+    <!-- The demo's own furniture -->
+    <string name="demo_step_of">Step %1$d of %2$d</string>
+    <string name="demo_next">Next</string>
+    <string name="demo_back">Back</string>
+    <string name="demo_skip">Skip</string>
+    <string name="demo_done">Done</string>
+
+    <!-- The demo's captions. One or two sentences each: this teaches the gestures,
+         and the README carries the detail. -->
+    <string name="demo_cap_fab">Every design starts with the + beside the navigation bar. It is there on the Create tab and nowhere else.</string>
+    <string name="demo_cap_name">Designs are named up front, with a suggestion already filled in that you can type over.</string>
+    <string name="demo_cap_kind">Static is a single still picture; dynamic adds a timeline of frames. It cannot be changed afterwards — this demo picks dynamic.</string>
+    <string name="demo_cap_device">Each Glyph Matrix size is a separate drawing, so pick which phone this one is for. It starts on the phone you are holding, and the other size can be added later.</string>
+    <string name="demo_cap_palette">Three shades — off, grey and white. Pick one before you draw; “off” is the eraser.</string>
+    <string name="demo_cap_paint">The black disc is the Glyph Matrix, drawn where it sits on the back of the phone. Drag across it and every cell your finger crosses is painted. Pinch with two fingers to zoom in — up to four times — and to move around while you are in close.</string>
+    <string name="demo_cap_undo">Undo steps back a whole stroke, not one pixel, and redo puts it back. Beside them: clear the frame, and fill it with the shade you are holding.</string>
+    <string name="demo_cap_duplicate">Duplicate copies the frame you are on. Copy, nudge a few pixels, repeat — that is how an animation gets drawn.</string>
+    <string name="demo_cap_add">The + on the right adds a blank frame straight after the one you are on.</string>
+    <string name="demo_cap_reorder">Frames are moved by pressing and holding one — nothing on the timeline says so, so it is worth remembering. Hold a frame until it lifts, drag it along the strip and let go where you want it. A plain tap only selects.</string>
+    <string name="demo_cap_duration">Every frame has its own length, anywhere from 20 ms to a minute. The total run time is written under the strip.</string>
+    <string name="demo_cap_settings">Repeat, what the Essential Key does, and artwork for the other phone size all live behind Design settings — the easiest three things in the editor to miss.</string>
+    <string name="demo_cap_key_mode">Play once rests on the first frame and plays the design through on a press of the Essential Key; play / pause runs it and lets a press stop and start it. Only play / pause has a repeat setting — which is why it just came and went.</string>
+    <string name="demo_cap_loop">This is repeat: on, the animation loops until you pause it; off, it plays through once and holds on the last frame. The whole shaded row is the switch — icon or sentence, either works — and it says which state you are in twice over: the icon fills in and squares off when repeat is on, and the sentence spells it out.</string>
+    <string name="demo_cap_add_variant">Each Glyph Matrix size is a separate drawing, and this adds a blank canvas for the other one. Nothing is ever scaled between them.</string>
+    <string name="demo_cap_show">This puts the design on the real Glyph Matrix in one tap. The editor saves as you go, so leaving is always safe.</string>
+    <string name="demo_cap_done">That is the whole editor. Nothing in this demo was saved or sent to the matrix — the Create tab is where the real one starts.</string>
 
     <!-- Guide: hand the Essential Key over -->
     <string name="tut_handover_title">Hand over the Essential Key</string>
@@ -189,6 +237,7 @@
     <string name="screen_compass">Compass</string>
     <string name="screen_level">Level</string>
     <string name="screen_visualizer">Music Visualizer</string>
+    <string name="screen_custom">Custom Design</string>
 
     <!-- Per-screen settings -->
     <string name="pref_use12h">12-hour time</string>
@@ -203,4 +252,138 @@
     <string name="pref_ambient_charging_style">Charging style</string>
     <string name="pref_visualizer_theme">Visualizer theme</string>
     <string name="pref_visualizer_tuning">Response speed (1 = calmest, 6 = snappiest)</string>
+    <string name="pref_custom_design">Design to play</string>
+    <string name="pref_custom_none">No designs yet. Designs you create appear here.</string>
+    <string name="pref_custom_unnamed">Untitled design</string>
+
+    <!-- Creator name (stamped into the `author` field of designs made here) -->
+    <string name="pref_creator_name">Creator name</string>
+    <string name="pref_creator_name_summary">Credited as the author on designs you make from now on. Designs you have already made keep the name they were saved with.</string>
+    <string name="pref_creator_name_hint">Leave empty for no credit</string>
+
+    <!-- Create tab -->
+    <string name="create_title">Your designs</string>
+    <string name="create_hint">Designs you draw here play on the Glyph Matrix. Use “Show on Glyph Matrix” in a design\'s ⋮ menu to put one there.</string>
+    <string name="create_new">New design</string>
+    <string name="create_empty_title">Nothing drawn yet</string>
+    <string name="create_empty_body">Your designs live here — a single still image, or an animation that plays on the Glyph Matrix. Start one with the + button beside the navigation bar.</string>
+    <string name="create_empty_action">Start your first design</string>
+    <string name="create_name_label">Name</string>
+    <string name="create_kind_static">Static</string>
+    <string name="create_kind_dynamic">Dynamic</string>
+    <string name="create_kind_hint_static">One still frame.</string>
+    <string name="create_kind_hint_dynamic">Several frames, played in order with their own timings.</string>
+    <!-- New-design dialog · which panel(s) to start a drawing for. The two device
+         names are the product names from device_bellsprout / device_arbok, never
+         the format's codenames — see ui/DeviceNames.kt. -->
+    <string name="create_target_label">Draw for</string>
+    <string name="create_target_both">Both sizes</string>
+    <string name="create_target_hint_one">Each size is a separate drawing. You can add the other one later in Design settings.</string>
+    <string name="create_target_hint_both">Each size is a separate drawing — nothing is scaled between them.</string>
+    <string name="create_create">Create</string>
+    <string name="create_cancel">Cancel</string>
+    <string name="create_more">More options for this design</string>
+    <string name="create_duplicate">Duplicate</string>
+    <string name="create_delete">Delete</string>
+    <string name="create_copy_suffix">%1$s copy</string>
+    <string name="create_delete_title">Delete “%1$s”?</string>
+    <string name="create_delete_body">This design and every frame in it are removed from this phone. It cannot be undone.</string>
+    <string name="create_save_failed">That design could not be saved.</string>
+    <string name="create_by">by %1$s</string>
+    <string name="create_no_art">no artwork yet</string>
+    <string name="create_variant_empty">%1$s (empty)</string>
+    <plurals name="create_frame_count">
+        <item quantity="one">%1$d frame</item>
+        <item quantity="other">%1$d frames</item>
+    </plurals>
+
+    <!-- Create tab · import / export / share.
+         The reasons an import can fail are NOT here: they come from
+         core/design/DesignCodec, which owns the specific sentence for each way a
+         file can be wrong ("This design was made with a newer version of the
+         app.") and is unit-tested against them. -->
+    <string name="create_export">Export to a file</string>
+    <string name="create_share">Share</string>
+    <string name="create_share_chooser">Share design</string>
+    <string name="create_import">Import a design</string>
+    <string name="create_exported">Exported “%1$s”.</string>
+    <string name="create_export_failed">That design could not be exported.</string>
+    <string name="create_shared_failed">That design could not be shared.</string>
+    <string name="create_imported">Imported “%1$s”.</string>
+    <string name="create_import_failed_title">Cannot import this file</string>
+    <string name="create_import_save_failed">That design is valid, but it could not be saved to this phone.</string>
+    <string name="create_import_dismiss">OK</string>
+
+    <!-- Create tab · putting a design on the matrix.
+         The one action that turns a finished drawing into something visible, so
+         every outcome gets a sentence: what happened, or what is stopping it and
+         what to do about it. See ui/CreateTab.kt's ShowOnMatrix. -->
+    <!-- Create tab · the one-off offer to watch the guided demo, put up the first
+         time the user lands on this tab and never again (PrefKeys.CREATE_TOUR_PROMPTED,
+         written when it is SHOWN). The second pair is what a "not now" gets. -->
+    <string name="create_tour_title">Watch the editor demo?</string>
+    <string name="create_tour_body">Drawing here is mostly gestures, and they are easier shown than written down. There is a guided demo that acts every one of them out on the real editor — a minute or two, and nothing it does is saved or sent to the matrix.</string>
+    <string name="create_tour_watch">Watch it</string>
+    <string name="create_tour_skip">Not now</string>
+    <string name="create_tour_later_title">No problem</string>
+    <string name="create_tour_later_body">It is waiting in the Tutorials tab whenever you want it.</string>
+    <string name="create_tour_later_dismiss">OK</string>
+
+    <string name="create_show">Show on Glyph Matrix</string>
+    <string name="create_shown">Now showing on the Glyph Matrix.</string>
+    <string name="create_shown_on_close">Now showing on the Glyph Matrix — it starts playing when you leave the editor.</string>
+    <string name="create_shown_needs_capture">Set as your Glyph Matrix toy. Turn on “Capture Essential Key” in Settings to see it.</string>
+    <string name="create_show_no_art">This design has no artwork for this phone\'s Glyph Matrix yet.</string>
+    <string name="create_show_no_art_for">Nothing to show yet — draw the %1$s artwork first.</string>
+
+    <!-- Design editor -->
+    <string name="editor_close">Save and close</string>
+    <string name="editor_save">Save now</string>
+    <string name="editor_undo">Undo</string>
+    <string name="editor_redo">Redo</string>
+    <string name="editor_clear">Clear the frame</string>
+    <string name="editor_fill">Fill the frame</string>
+    <string name="editor_canvas">Glyph Matrix. Drag across it to paint, or pinch with two fingers to zoom in and move around.</string>
+    <string name="editor_zoom_reset">Reset the zoom</string>
+    <string name="editor_brush_off">Off</string>
+    <string name="editor_brush_level">%1$d%% brightness</string>
+    <string name="editor_variant_hint">Each Glyph Matrix size is its own drawing — nothing is scaled between them.</string>
+    <!-- The way back from "this phone only" at creation: names the size the design
+         does NOT have yet, by product name. Adding it is not undoable from here —
+         see DesignSettings for why there is no matching "remove". -->
+    <string name="editor_add_variant">Add %1$s artwork</string>
+    <string name="editor_open_failed">That design could not be opened.</string>
+    <string name="editor_saved">Saved.</string>
+    <string name="editor_onion_on">Onion skin on — hide the previous frame</string>
+    <string name="editor_onion_off">Onion skin off — show the previous frame</string>
+    <string name="editor_settings">Design settings</string>
+
+    <!-- Timeline -->
+    <string name="editor_frame_thumb">Frame %1$d</string>
+    <string name="editor_frame_add">Add a frame after this one</string>
+    <string name="editor_frame_duplicate">Duplicate this frame</string>
+    <string name="editor_frame_delete">Delete this frame</string>
+    <string name="editor_duration_shorter">Show this frame for less time</string>
+    <string name="editor_duration_longer">Show this frame for longer</string>
+    <string name="editor_timeline_status">Frame %1$d of %2$d · %3$s in total.</string>
+    <string name="editor_timeline_single">One frame so far. Add or duplicate a frame to start animating — a design always keeps at least one.</string>
+    <string name="editor_loop">Repeat</string>
+    <string name="editor_loop_on">Repeats until you pause it.</string>
+    <string name="editor_loop_off">Plays once, then holds the last frame.</string>
+    <!-- The two key modes sit in a two-segment button that has to fit a dialog's
+         width at every font scale, so the labels are as short as they can be and
+         the "Essential Key" context is carried by the heading above them rather
+         than by a "Key:" prefix on each. See DesignTimeline.PlaybackRow. -->
+    <string name="editor_key_label">What the Essential Key does</string>
+    <string name="editor_key_once">Play once</string>
+    <string name="editor_key_toggle">Play / pause</string>
+
+    <!-- Device names.
+         The design format identifies a panel by its Pokémon codename
+         (`bellsprout` / `arbok`) and always will — it is the key in the JSON and
+         what an exporter writes. Those codenames are NOT product names and must
+         never reach the UI: everywhere a user reads which device a variant is
+         for, they read Nothing's own name for it. See ui/DeviceNames.kt. -->
+    <string name="device_bellsprout" translatable="false">Nothing Phone (4a) Pro</string>
+    <string name="device_arbok" translatable="false">Nothing Phone (3)</string>
 </resources>

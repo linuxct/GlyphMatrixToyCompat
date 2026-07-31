@@ -45,9 +45,17 @@ object PrefKeys {
     const val MENU_MODE_ENABLED_DEF = false
 
     const val SCREEN_ORDER = "screen_order"
+
+    /**
+     * Appending an id here needs no [PrefsMigration] bump: a store written by an
+     * older build simply does not mention the new screen, and
+     * `ScreenManager.enabledScreens()` appends every roster screen missing from
+     * the stored CSV to the end of the order. A migration would only be needed to
+     * rename or remove an id, which is a different operation entirely.
+     */
     const val SCREEN_ORDER_DEF =
         "ambient,clock,eyes,speed,battery,solar,moon,dice,coin,dino,bottle,rps,counter,breathing," +
-            "timer,compass,level,visualizer"
+            "timer,compass,level,visualizer,custom"
 
     /** Per-screen enable flag: screen_enabled_<id>, default true. */
     fun screenEnabled(id: String) = "screen_enabled_$id"
@@ -119,6 +127,32 @@ object PrefKeys {
     const val TIMER_CHIMED_FOR = "timerChimedFor"
     const val TIMER_CHIMED_FOR_DEF = 0L
 
+    /**
+     * Id of the user design the Custom toy plays, or "" for none chosen yet.
+     *
+     * Only the id is persisted — the art itself lives in a file (see
+     * `designs/DesignStore`) and reaches the screen through
+     * [space.linuxct.glyphmatrixtoycompat.core.DesignPort]. An id that no longer
+     * names a stored design is not an error state: both the port and the
+     * settings dialog fall back to the first available design, so deleting the
+     * selected one leaves the toy showing art rather than a placeholder.
+     */
+    const val CUSTOM_DESIGN_ID = "customDesignId"
+    const val CUSTOM_DESIGN_ID_DEF = ""
+
+    /**
+     * The name stamped into `author` on designs this phone creates, or "" if the
+     * user has never set one.
+     *
+     * Empty is a perfectly good value and is the default on purpose: attribution
+     * is opt-in, and a design with no author is still a valid, shareable file.
+     * It is only ever read when a design is CREATED — `author` is immutable once
+     * set (see `ui/CreateTab.kt`), so changing this later renames nothing that
+     * already exists, which is the whole point of the field.
+     */
+    const val CREATOR_NAME = "creatorName"
+    const val CREATOR_NAME_DEF = ""
+
     const val AMBIENT_BACKGROUND = "ambientBackground"
     const val AMBIENT_BACKGROUND_DEF = 0
 
@@ -167,4 +201,16 @@ object PrefKeys {
     /** First-run onboarding completed; MainActivity redirects there until set. */
     const val ONBOARDING_DONE = "onboardingDone"
     const val ONBOARDING_DONE_DEF = false
+
+    /**
+     * Whether the "would you like to watch the tutorial?" offer has ever been put
+     * up on the Create tab. **Prompted, not answered** — it is written the moment
+     * the dialog goes on screen, so a process death with it open cannot bring it
+     * back, and a "no" and a swipe away are the same thing as far as this key is
+     * concerned. There is deliberately no way to reset it from the UI: the tour
+     * itself is a row in the Tutorials tab, which is what the follow-up message
+     * points at.
+     */
+    const val CREATE_TOUR_PROMPTED = "createTourPrompted"
+    const val CREATE_TOUR_PROMPTED_DEF = false
 }

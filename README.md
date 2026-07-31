@@ -18,9 +18,10 @@ official toy framework only supports a single always-on (AOD) toy there, and the
 hardware way to interact with a toy or to switch between toys.
 
 GMTC turns the **Essential Key** into that missing control. It ships a full catalogue of
-Glyph Toys ("screens" internally) rendered through the official Glyph Matrix SDK, and lets
-you drive all of them from the key — on the lock screen, on the Always-On Display, and
-while the phone is unlocked:
+Glyph Toys ("screens" internally) rendered through the official Glyph Matrix SDK — plus a
+pixel editor for [drawing your own](#create--your-own-designs) — and lets you drive all of
+them from the key: on the lock screen, on the Always-On Display, and while the phone is
+unlocked:
 
 | Essential Key | Action |
 |---|---|
@@ -83,15 +84,119 @@ Glyph Button feeds the same action pipeline), but the 4a Pro is the primary targ
 | Compass | – | Sensor-fused compass needle with cardinal ring. |
 | Level | – | Spirit level: a bubble that centres inside a target ring when the device lies flat and rolls toward the low edge as it tilts. The ring lights up within a few degrees of level. |
 | Music Visualizer | – | FFT spectrum with log-spaced bands, three themes, adjustable response speed, and an always-on noise floor while audio plays. |
+| Custom Design | ✅ | Plays a design **you** drew — see [Create](#create--your-own-designs). Its cog picks which one; a press plays, pauses or replays it depending on the design's key mode. |
 
 Every toy can be toggled, reordered and configured from the app.
+
+Brightness is **multiplicative for every toy**: the Glyph brightness setting scales each
+frame rather than normalising it, so a 50 % grey stays a fixed fraction of white at every
+level instead of being rescaled up to full white. Grey is a shade you can actually draw with.
+
+## Create — your own designs
+
+Every toy above is one this app draws. The **Create** tab hands that over: a pixel editor for
+the Glyph Matrix, and the `Custom Design` toy that plays whichever design you point it at.
+
+Start one with the **+** button beside the navigation pill and it opens in a full-screen
+editor — the same face-down phone illustration the tutorials use, zoomed on the matrix. Pick
+a shade (off, 50 % grey, white) and **drag across the disc to paint**; pinch to zoom in on
+the small cells, undo/redo a stroke at a time, clear or fill the frame. A **live preview**
+mirrors what you are drawing onto the real matrix as you draw it, with hard precedence over
+the selected toy and over the charging and music-reactive overlays. Nothing is saved by hand:
+every completed gesture schedules a write, and every way out of the editor flushes it first.
+
+**Static or dynamic is chosen when the design is created, and cannot be changed afterwards.**
+A static design is a single still frame. A dynamic one gets a timeline along the bottom —
+add, duplicate, delete and drag frames into a new order, each with its own duration — plus
+onion skin, the previous frame ghosted underneath the one you are drawing.
+
+### Putting a design on the matrix
+
+One tap, from either end. The **phone icon in the editor's top bar** — right where you have
+just finished drawing — and **Show on Glyph Matrix** at the top of a design's ⋮ menu both do
+the whole job: point the `Custom Design` toy at that design, make it the toy on the matrix,
+and say so. No hunting through the toy list for a cog.
+
+It is honest about what it cannot do. A design with no artwork for *this* phone's panel is
+declined with the size you still need to draw, rather than selected into a placeholder
+question mark; and if key capture is off, it says the design is set and what to switch on to
+see it. From the editor the confirmation says it starts playing when you leave, because the
+live preview owns the matrix until then.
+
+The `Custom Design` toy's cog in the Toys tab still lists every design as a radio group, for
+switching between them without opening one.
+
+### What the Essential Key does
+
+A dynamic design carries a **key mode**, which is what a single press does while that design
+is the toy on the matrix:
+
+| Key mode | At rest | A press |
+|---|---|---|
+| **Play once** | Holds frame 1 | Plays the animation through once and returns to frame 1 — the return is drawn, not just internal. A press mid-run starts it over rather than being ignored. |
+| **Play / pause** | Starts playing on its own | Pauses where it is; the next press carries on from there (or restarts, if it was sitting on the last frame). |
+
+**Repeat** belongs to play / pause: on, the animation loops until you pause it; off, it runs
+to the end and holds the last frame, so the design ends on the image you ended it on. Play
+once always returns to frame 1, so repeat does not apply to it — and the control is only
+*shown* for play / pause, because a toggle that persists and changes nothing is worse than an
+absent one. Switching key mode does not clear the setting, so switching back restores it.
+
+Play / pause starts by itself deliberately — a design that sat motionless on the always-on
+display, where nobody is pressing anything, would look broken.
+
+### Two sizes in one file
+
+The Phone (4a) Pro's matrix is 13×13 and the Phone (3)'s is 25×25, so **a design can carry a
+separate drawing for each**. Nothing is scaled between the two: a 13×13 drawing blown up to
+25×25 is a blocky approximation of somebody's art, not a translation of it, so a second size
+starts as a blank canvas and stays yours to draw. Editing one never touches the other.
+
+**Which sizes a design is for is chosen when you create it** — this phone, the other one, or
+both — and it defaults to the phone in your hand, so owning one device means not answering
+the question. The editor shows the size switcher only for a design that actually has more
+than one drawing, and gives the row back to the canvas otherwise. It is not a trapdoor:
+**Add Nothing Phone (3) artwork** (naming whichever size is missing) lives in the editor's
+**Design settings**, and the switcher appears as soon as you use it. There is no matching
+"remove" — adding a size creates an empty canvas, while removing one would delete frames
+somebody drew.
+
+A design with only one size filled in is a normal thing to have: it plays on that phone and
+shows a placeholder on the other, and an imported design that carries both gets the switcher
+with nothing special done to it — the sizes present in the file are the only thing anything
+reads.
+
+Both drawings live in the same file, keyed by the device's Pokémon codename (`bellsprout` for
+the Phone (4a) Pro, `arbok` for the Phone (3)) rather than by pixel count, so a design you
+post works on either phone and a codename this build has never heard of is ignored instead of
+breaking the file.
+
+### Sharing designs
+
+A design is a single JSON file, and the export format **is** the storage format — the bytes
+in the app's own storage are the bytes you post. From a design's ⋮ menu:
+
+- **Export to a file** — the system file picker, saved wherever you like.
+- **Share** — the standard share sheet, straight into a chat, a mail or an issue.
+
+and from the top of the Create tab, **Import a design** picks a `.json` file and adds it as a
+new design. Imported files are treated as hostile input: size-capped before parsing, checked
+field by field, and refused with a specific sentence rather than a crash or a silent no-op.
+An import always becomes a *new* design — the id is reassigned unconditionally — so a file
+can never overwrite artwork you already had, and the original author's name is never
+overwritten with yours when you touch a design up.
+
+The format is documented in full — every field, every validation limit and the exact message
+each violation produces, a worked example, and a "write your own exporter" section — in
+**[`docs/glyph-design-format.md`](docs/glyph-design-format.md)**.
 
 ## First run — onboarding
 
 On first launch the app opens a paged onboarding flow instead of the main screen. Each page
 is headed by an animated replica of the Glyph Matrix itself — a circular disc of 489 LEDs
 (a 25×25 grid under a circular mask) whose dots light up in pseudo-random order and shimmer
-gently, drawing pixel art for the page (a key, the glyph ring, a padlock, a toggle, a smiley).
+gently, drawing pixel art for the page (a key, the glyph ring, a padlock, a toggle, a pencil,
+a smiley).
 
 The pages, in order — every step is skippable with **Next** and everything can be revisited
 later from the main screen:
@@ -110,7 +215,12 @@ later from the main screen:
    Regular mode and Menu mode (two selectable cards explaining the behaviour difference),
    with a **"How do they work?"** button that opens the same animated Essential Key tutorial
    as the main screen.
-5. **Welcome** — a status recap of everything you set up, then into the app.
+5. **Ready-made toys, or your own** — what to actually put on the matrix: the set of toys
+   that ships with the app, the Create tab where you draw your own (still or animated), and
+   the Tutorials tab where the guides for both live. It deliberately does *not* explain how
+   the editor works — that is the guided demo's job — and it carries a **Take me to Create**
+   button that ends onboarding and opens the app straight on that tab.
+6. **Welcome** — a status recap of everything you set up, then into the app.
 
 The flow re-probes system state every time you return from Settings, so the status lines
 (and the conditional mode page) update live. Completing it sets a preference; MainActivity
@@ -118,23 +228,37 @@ redirects to onboarding until that happens.
 
 ## The app (interface)
 
-A Jetpack Compose app styled to look native to Nothing OS, organized into three tabs behind
-a floating pill navigation bar:
+A Jetpack Compose app styled to look native to Nothing OS, organized into four swipeable
+tabs behind a floating pill navigation bar:
 
 - **Glyph Toys** — every toy as a card. **Drag the handle to reorder** the cycle (takes
   effect on the next key press); the **Play** button *sets* that toy as the currently active
   one; the toy currently on the matrix is highlighted with a dot; a switch enables/disables
   each toy; a gear opens per-toy settings.
+- **Create** — your own designs as cards (name, author, static/dynamic, frame count, which
+  sizes are drawn, last edited), with show on matrix / duplicate / delete / export / share
+  behind each ⋮ and an import action at the top. The **first time you land on this tab** it
+  offers the guided demo below — once, ever, whichever way you answer. See
+  [Create](#create--your-own-designs).
 - **Settings** — the **Initial setup** checklist (accessibility service, always-on toy
   selection — verified via the system's actual toy binding — notifications, microphone,
   location, exact alarms; each row deep-links to the right place) followed by **App
-  settings**: key capture master toggle, Menu mode, 12-hour clock, Glyph brightness, and
-  the update checker (see below).
+  settings**: key capture master toggle, Menu mode, 12-hour clock, Glyph brightness, your
+  creator name (stamped on designs you make), and the update checker (see below).
 - **Tutorials** — short guides for the trickier parts:
   - **Essential Key tutorial** — an animated, fully Compose-drawn walkthrough (no image
     assets): a phone lying face-down with its camera island, Glyph Matrix and Essential Key,
     looping small timelines of what single, double and triple presses do — in both Regular
     and Menu mode, with the real blink cadence and the 5 s auto-set countdown.
+  - **Create your own design** — a **guided demo**, not a page of text: it opens the real
+    Create tab and the real editor over a throwaway in-memory design and plays each gesture
+    itself — the `+` beside the nav pill, the new-design questions, a stroke being painted,
+    undo, duplicate-and-nudge, adding a frame, holding one to drag it somewhere else,
+    per-frame duration, and then **Design settings opened for real** so the two easily-missed
+    controls in there get demonstrated rather than described: the key mode, and **repeat**
+    (switched off and back on, with the sentence beside it changing) — with a spotlight and a
+    one-line caption on whatever is moving. You step through it with Next / Back and can skip
+    at any point. Nothing it does is saved, and it never touches the Glyph Matrix.
   - **Hand over the Essential Key** — the system-settings steps to stop Nothing OS acting
     on the key (see Setup below).
   - **Restricted settings** — the sideload unlock steps, with a button straight into App info.
@@ -148,8 +272,10 @@ Other UI notes:
   bundled but loaded at runtime from the device's `/system/fonts`, so the title matches the
   system Settings headline exactly (and nothing proprietary lands in the repo).
 - **Floating pill navigation** — an MD3-style capsule with an icon and a caption per tab
-  (Toys / Settings / Tutorial), its own theme colours so it stays a mid-grey pill in dark
-  mode instead of a glaring near-white slab.
+  (Toys / Create / Settings / Tutorial), its own theme colours so it stays a mid-grey pill in
+  dark mode instead of a glaring near-white slab. On the Create tab a circular **+** button
+  fades in beside the pill — a sibling of it, not a top-bar action — and the pill slides over
+  to make room.
 - **Quick Settings tile** — a "Capture Essential Key" toggle to turn key capture on/off from
   the notification shade (works on the lock screen too).
 
@@ -277,6 +403,9 @@ keep those apps enabled.
 app/src/main/kotlin/space/linuxct/glyphmatrixtoycompat/
 ├── core/      GlyphLink (SDK binding + self-healing), ScreenManager, SessionArbiter,
 │              scheduler, prefs (device-protected storage), ports
+│   └ design/  The glyph.design format: model, codec + validation, cell encoding
+│              (pure Kotlin, JVM-tested — see docs/glyph-design-format.md)
+├── designs/   Design file store (device-protected, atomic writes) + its port impl
 ├── matrix/    Pure-Kotlin drawing primitives + 3×5 dot font
 ├── screens/   All toys (+ ambient/ compositor with its backgrounds)
 ├── key/       Essential Key accessibility service, click counting, action routing,
@@ -286,6 +415,7 @@ app/src/main/kotlin/space/linuxct/glyphmatrixtoycompat/
 ├── sensors/   Shake / tilt / incline / compass / light
 ├── update/    GitHub Releases update checker + daily WorkManager job
 └── ui/        Compose UI: tabbed main screen, first-run onboarding (animated glyph-disc
-               pages), animated Essential Key tutorial, setup guides,
+               pages), animated Essential Key tutorial, setup guides, design list +
+               import/export, design/ (the pixel editor, canvas and timeline),
                theme/ (Nothing-styled monochrome, runtime NType82)
 ```

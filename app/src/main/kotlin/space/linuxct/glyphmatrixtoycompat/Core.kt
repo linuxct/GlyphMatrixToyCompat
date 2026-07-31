@@ -14,7 +14,10 @@ import space.linuxct.glyphmatrixtoycompat.core.Prefs
 import space.linuxct.glyphmatrixtoycompat.core.PrefsMigration
 import space.linuxct.glyphmatrixtoycompat.core.ScreenManager
 import space.linuxct.glyphmatrixtoycompat.core.SessionArbiter
+import space.linuxct.glyphmatrixtoycompat.designs.AndroidDesignPort
+import space.linuxct.glyphmatrixtoycompat.designs.DesignStore
 import space.linuxct.glyphmatrixtoycompat.key.KeyActionRouter
+import space.linuxct.glyphmatrixtoycompat.screens.CustomScreen
 import space.linuxct.glyphmatrixtoycompat.screens.ScreenRegistry
 import space.linuxct.glyphmatrixtoycompat.sensors.CompassSensor
 import space.linuxct.glyphmatrixtoycompat.sensors.InclineSensor
@@ -44,6 +47,15 @@ object Core {
 
     lateinit var prefs: Prefs
         private set
+
+    /**
+     * Single owner of the design directory. Shared by [ports]' design port and
+     * the settings UI on purpose: the store caches its listing, and two
+     * instances would be two caches that disagree the moment one of them writes.
+     */
+    lateinit var designStore: DesignStore
+        private set
+
     lateinit var glyphLink: GlyphLink
         private set
     lateinit var scheduler: AndroidRenderScheduler
@@ -85,6 +97,10 @@ object Core {
         // Must precede every prefs reader below (ScreenManager and the arbiter
         // read the screen order and current screen as they are built).
         if (PrefsMigration.run(prefs)) DebugLog.i("Core", "prefs migrated to v${PrefKeys.PREFS_VERSION_CURRENT}")
+        // Device-protected, like prefs — CustomScreen reads a design during
+        // onActivate, and arbiter.revive() at the end of this method can trigger
+        // that before the first unlock after a reboot.
+        designStore = DesignStore(app)
         glyphLink = GlyphLink(app)
         scheduler = AndroidRenderScheduler()
         shake = ShakeDetector(app)
@@ -104,6 +120,7 @@ object Core {
             connectivity = AndroidConnectivityPort(app),
             location = AndroidLocationPort(app),
             timer = AndroidTimerSignal(app),
+            design = AndroidDesignPort(prefs, designStore),
         )
 
         screenManager = ScreenManager(
@@ -146,6 +163,18 @@ object Core {
                 // Turning auto-brightness off (including implicitly, by dragging
                 // the brightness slider) must stop the polling right away.
                 PrefKeys.AUTO_BRIGHTNESS -> autoBrightness.onEnabledChanged()
+                // Choosing a different design has to reach a `custom` screen that
+                // is already on the matrix — it read its design in onActivate and
+                // will not read it again on its own. Handled at the pref rather
+                // than at the toy's settings dialog because that dialog is only
+                // one of the writers; see ScreenManager.onSelectedDesignChanged.
+                //
+                // Marshalled like the shake handler above: this listener fires on
+                // whichever thread did the write, and every ScreenManager method
+                // is scheduler-thread only.
+                PrefKeys.CUSTOM_DESIGN_ID -> scheduler.run {
+                    screenManager.onSelectedDesignChanged(CustomScreen.ID)
+                }
             }
         }
 

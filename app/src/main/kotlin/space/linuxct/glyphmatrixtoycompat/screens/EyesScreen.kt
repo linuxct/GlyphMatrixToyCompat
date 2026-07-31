@@ -69,16 +69,17 @@ class EyesScreen : GlyphScreen {
 
     companion object {
         /**
-         * Two levels only — there is no sclera fill any more. ScreenManager
-         * max-normalises every frame, so only the *ratio* matters: the frame's
-         * peak always ends up at the user's brightness setting.
+         * Two levels only — there is no sclera fill any more.
          *
          *   PUPIL 4095 = 100 %  drawn with set(), so it stays crisp
          *   RIM   2600 =  63 %  the 1-cell outline and the blink lids
          *
          * The two land in different golden ASCII buckets ('#' / '+') so the
-         * hierarchy is reviewable. A fully closed frame is all RIM, which
-         * normalisation then lifts back to 100 % on the device.
+         * hierarchy is reviewable. Brightness is applied by multiplying the
+         * finished frame, so these are absolute levels and a fully closed frame —
+         * all RIM, with the pupil covered — is genuinely 63 % as bright as an
+         * open eye. That is the right way round for a blink; lids that outshone
+         * the pupil would not be.
          */
         const val PUPIL = 4095
         const val RIM = 2600

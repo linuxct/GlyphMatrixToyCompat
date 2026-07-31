@@ -91,7 +91,17 @@ private class ConnectionBackground : AmbientBackground {
             ConnectionState.WIFI -> {
                 val cx = s / 2f
                 val cy = s * 3f / 4f
-                canvas.discSoft(cx, cy, 0.8f, 4095)
+                // The emitter's centre falls between cells at both sizes, and at
+                // the old 0.8 radius discSoft's anti-aliasing never fully covered
+                // one: its brightest cell came out at 74 %, which capped the whole
+                // glyph (brightness multiplies the finished frame). 1.1 is the
+                // smallest radius that saturates the two nearest cells.
+                //
+                // This DOES grow the dot — a couple of cells pick up a dim edge
+                // that were dark before, which the goldens show. That is the cost
+                // of the fix: the alternative is a permanently 26 %-dim glyph, or
+                // a hard-set cell that loses the soft edge entirely.
+                canvas.discSoft(cx, cy, 1.1f, 4095)
                 canvas.arcRing(cx, cy, 2.4f, 3.2f, 315f, 90f, 2600)
                 canvas.arcRing(cx, cy, 4.4f, 5.2f, 315f, 90f, 1500)
                 if (s >= 25) canvas.arcRing(cx, cy, 6.4f, 7.2f, 315f, 90f, 900)

@@ -155,12 +155,20 @@ private val DarkScheme = darkColorScheme(
 )
 
 /**
- * Colours for the floating navigation pill.
+ * Colours for the floating navigation pill **and everything that sits beside
+ * it** — today that is the Create tab's `+` FAB, which is a sibling of the pill
+ * rather than a top-bar action.
  *
  * Deliberately NOT the M3 `inverse*` pair: those are also the tutorial's
  * numbered-step bubbles, which must stay a light bubble with dark digits in
  * both modes — while an `inverseSurface` pill in dark mode is a near-white
  * slab across the bottom of a black page.
+ *
+ * The FAB pair lives here, next to the pill's own colours, for one reason: the
+ * two are seen together, always, and a FAB that borrows a colour-scheme role
+ * would drift out of tune with the pill the moment either is retuned. Keeping
+ * every pill-adjacent colour in one small class makes "does the FAB still read
+ * as a separate object?" a question you can answer by looking at four lines.
  */
 @Immutable
 data class NavPillColors(
@@ -168,6 +176,22 @@ data class NavPillColors(
     val content: Color,
     val selectedContainer: Color,
     val selectedContent: Color,
+    /**
+     * The `+` FAB's fill: a distinct MID-grey in both schemes.
+     *
+     * It cannot be [container]. The pill is near-black in *both* themes (#2E2E33
+     * light, #26292E dark — roughly L\* 19 and L\* 17), so a FAB in the pill's
+     * own colour would read as a bulge on the capsule rather than a second
+     * object, in either mode. Both values below sit ~15-20 L\* above their pill,
+     * which is enough separation to see a gap between the two shapes without
+     * turning the button into a bright disc on a black page.
+     *
+     * Greys only. This theme is strictly monochrome; a tinted FAB would be the
+     * only hue in the app.
+     */
+    val fabContainer: Color,
+    /** Ink on [fabContainer]; ≥ 6:1 against it in both schemes. */
+    val fabContent: Color,
 )
 
 /** Light mode: dark pill, light icons, light selected chip with a dark icon. */
@@ -176,6 +200,11 @@ private val LightNavPill = NavPillColors(
     content = Color(0xFFF2F2FA).copy(alpha = 0.75f),
     selectedContainer = Color(0xFFF2F2FA),
     selectedContent = Color(0xFF2E2E33),
+    // The light scheme's own `secondary` grey (#5A5A62), reused rather than
+    // invented: L* ~39 against the pill's ~19, and it is already the tone this
+    // palette uses for "present but not ink".
+    fabContainer = Color(0xFF5A5A62),
+    fabContent = Color(0xFFF2F2FA),
 )
 
 /**
@@ -188,6 +217,12 @@ private val DarkNavPill = NavPillColors(
     content = DarkInkDim,
     selectedContainer = Color(0xFFDDDEE4),
     selectedContent = DarkCard,
+    // One step below the scheme's `outline` (#5A5D63), in the same sampled
+    // cool-neutral family: L* ~34 against the pill's ~17. Deliberately NOT as
+    // light as the SELECTED chip (#DDDEE4) — the selected chip is the loudest
+    // thing in the nav area and must stay so; the FAB is the second loudest.
+    fabContainer = Color(0xFF4E5157),
+    fabContent = DarkInk,
 )
 
 private val LocalNavPillColors = staticCompositionLocalOf { LightNavPill }

@@ -2,6 +2,7 @@ package space.linuxct.glyphmatrixtoycompat.ui
 
 import android.Manifest
 import android.app.AlarmManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -14,6 +15,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
@@ -21,10 +23,12 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
@@ -33,12 +37,14 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -56,18 +62,28 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BrightnessAuto
+import androidx.compose.material.icons.filled.BrightnessMedium
+import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconToggleButton
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -75,8 +91,10 @@ import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemColors
 import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
@@ -90,11 +108,13 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -102,8 +122,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -119,9 +143,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.lerp
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import space.linuxct.glyphmatrixtoycompat.Core
@@ -129,6 +155,10 @@ import space.linuxct.glyphmatrixtoycompat.R
 import space.linuxct.glyphmatrixtoycompat.core.DebugLog
 import space.linuxct.glyphmatrixtoycompat.core.PrefKeys
 import space.linuxct.glyphmatrixtoycompat.core.SessionArbiter
+import space.linuxct.glyphmatrixtoycompat.core.design.DesignCodec
+import space.linuxct.glyphmatrixtoycompat.ui.design.DemoTarget
+import space.linuxct.glyphmatrixtoycompat.ui.design.DesignDemoActivity
+import space.linuxct.glyphmatrixtoycompat.ui.design.demoTarget
 import space.linuxct.glyphmatrixtoycompat.ui.theme.GmtcTheme
 import space.linuxct.glyphmatrixtoycompat.ui.theme.NavPillColors
 import space.linuxct.glyphmatrixtoycompat.ui.theme.navPill
@@ -172,15 +202,33 @@ class MainActivity : ComponentActivity() {
         // background release check alive.
         UpdateCheckWorker.schedule(this)
         enableEdgeToEdge()
+        // Which page to open on. Coerced rather than trusted: this arrives in an
+        // Intent, and a page index out of range would crash the pager.
+        val startTab = intent?.getIntExtra(EXTRA_TAB, 0)?.coerceIn(Tab.entries.indices) ?: 0
         setContent {
             GmtcTheme {
-                MainScreen()
+                MainScreen(startTab)
             }
         }
     }
 
     companion object {
         const val EXTRA_RESTART_ONBOARDING = "restart_onboarding"
+
+        /** Which tab to land on, as a [Tab] ordinal. Absent means the first. */
+        private const val EXTRA_TAB = "tab"
+
+        /**
+         * The way in for somebody who wants to start drawing immediately —
+         * onboarding's "take me to Create" button and nothing else so far.
+         *
+         * The tab travels as an ordinal because that is what the pager wants, and
+         * it is produced HERE from [Tab] rather than by the caller: the enum is
+         * this file's private business (see [CREATE_TAB_INDEX]), and a caller
+         * passing a number would be a second place that knows the tab order.
+         */
+        fun createTabIntent(context: Context): Intent =
+            Intent(context, MainActivity::class.java).putExtra(EXTRA_TAB, Tab.CREATE.ordinal)
     }
 }
 
@@ -203,10 +251,11 @@ private val DISPLAY_NAMES = mapOf(
     "compass" to R.string.screen_compass,
     "level" to R.string.screen_level,
     "visualizer" to R.string.screen_visualizer,
+    "custom" to R.string.screen_custom,
 )
 
 private val CONFIGURABLE =
-    setOf("ambient", "clock", "dice", "coin", "battery", "breathing", "timer", "visualizer")
+    setOf("ambient", "clock", "dice", "coin", "battery", "breathing", "timer", "visualizer", "custom")
 
 private fun loadOrder(): List<String> {
     val stored = Core.prefs.getString(PrefKeys.SCREEN_ORDER, PrefKeys.SCREEN_ORDER_DEF)
@@ -223,7 +272,7 @@ private fun loadOrder(): List<String> {
  * the navigation-bar inset — so it can never be too small to prevent overlap,
  * only too mean or too generous to look right.
  */
-private val NAV_PILL_CLEARANCE = 40.dp
+internal val NAV_PILL_CLEARANCE = 40.dp
 
 /**
  * Gap between the pill's bottom edge and the top of the navigation-bar inset.
@@ -313,26 +362,62 @@ private class NavOverlayPadding(
 }
 
 /**
- * The three pages. [caption] is the short label beside the nav-pill icon;
- * [title] is the (longer) page title in the app bar — they stay separate
+ * The pages, in nav order. [caption] is the short label beside the nav-pill
+ * icon; [title] is the (longer) page title in the app bar — they stay separate
  * because e.g. "Toys" heads the "Glyph Toys" page. Where the two are the same
  * word, one string serves both.
+ *
+ * **The ordinal IS the pager page index**, so the declaration order here is the
+ * on-screen order and inserting an entry moves everything after it. Nothing
+ * persists the selected tab (`rememberPagerState` is `rememberSaveable`-backed
+ * and dies with the process), so reordering needs no migration — but two
+ * exhaustive `when (Tab.entries[page])` branches in [MainScreen] will stop
+ * compiling until the new page is given a body and an "is it at the top?" rule,
+ * which is exactly the reminder you want.
+ *
+ * ## Why this order
+ *
+ * **Toys, Create, Settings, Tutorials** — the two pages about *content* sit
+ * together at the front, and the two about the *app* sit together behind them.
+ * Create arrived last and was originally appended after Settings, which put the
+ * app's configuration between a user's toys and a user's designs; the two halves
+ * of "what is on my matrix" were then two swipes apart with a settings page in
+ * the middle of them. They are now neighbours, and one swipe from Toys reaches
+ * the design that feeds the `Custom` toy.
+ *
+ * Nothing else in this file may encode the order. Comments elsewhere that
+ * describe which page neighbours which have gone stale twice now; if a rule
+ * needs to know where a page sits, it asks this enum.
  */
 private enum class Tab(val icon: ImageVector, val caption: Int, val title: Int) {
     TOYS(Icons.Default.Casino, R.string.nav_toys, R.string.screens_title),
+    CREATE(Icons.Default.Brush, R.string.nav_create, R.string.create_title),
     SETTINGS(Icons.Default.Settings, R.string.nav_settings, R.string.settings),
     TUTORIAL(Icons.Default.School, R.string.tut_section, R.string.tut_section),
 }
 
+/**
+ * Which chip the Create tab is, for the one caller outside this file that has to
+ * draw the pill without a pager behind it: the guided demo, which shows the real
+ * [FloatingNavBar] so it can point at the real `+`.
+ *
+ * Exported as a number rather than by making [Tab] internal, because the enum is
+ * this file's private business — the ordinal IS the page index and nothing
+ * outside `MainScreen` should be in a position to reason about that.
+ */
+internal val CREATE_TAB_INDEX: Int = Tab.CREATE.ordinal
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MainScreen() {
+private fun MainScreen(startTab: Int = 0) {
     // The pager IS the selection: there is no separate `tab` index any more, so
     // there is nothing that can disagree with the scroll position mid-drag.
     // rememberPagerState is itself rememberSaveable-backed (a listSaver over
     // page + offset + count), so the selected tab still survives rotation and
-    // process death exactly as the old rememberSaveable Int did.
-    val pagerState = rememberPagerState(pageCount = { Tab.entries.size })
+    // process death exactly as the old rememberSaveable Int did — and
+    // [startTab] therefore applies to the FIRST composition only, which is what
+    // "open on this tab" means: a rotation must not throw the user back to it.
+    val pagerState = rememberPagerState(initialPage = startTab, pageCount = { Tab.entries.size })
     val scope = rememberCoroutineScope()
     // Tapping a nav chip scrolls the pager instead of assigning an index —
     // scrolling is POSITION, hence spatial. The chip then follows the pager for
@@ -354,9 +439,26 @@ private fun MainScreen() {
     // page scrolls out of range and the tab would silently jump back to the
     // top. Both factories are rememberSaveable-backed, so hoisting them here
     // also carries each tab's scroll position through a rotation.
+    // Declared in [Tab] order, so a reader can check at a glance that every page
+    // has one.
     val toysListState = rememberLazyListState()
+    val createListState = rememberLazyListState()
     val settingsScrollState = rememberScrollState()
     val tutorialScrollState = rememberScrollState()
+
+    // The Create tab's DATA, hoisted for the same reason as the scroll states
+    // above and for one more: it is backed by file I/O. A tab-local remember
+    // would re-read the designs directory off the disk every time the page
+    // scrolled back into the pager's window, and would blank the list to its
+    // loading state while it did. Hoisted, the directory is read once per
+    // process and re-read only when this UI itself changes it.
+    //
+    // It is also the bridge between the two halves of this feature that do not
+    // share a subtree: the `+` FAB lives in [FloatingNavBar] (a sibling of the
+    // Scaffold), while the dialog it opens and the list it appends to live in
+    // [CreateTab] (inside the pager). The FAB sets a flag on this object; the
+    // tab body renders the dialog.
+    val createState = remember { CreateState() }
 
     // The header's settle after a partial scroll. Spelled out rather than left
     // to the parameter default (which now resolves to the very same expressive
@@ -371,7 +473,7 @@ private fun MainScreen() {
         snapAnimationSpec = headerSpec,
     )
 
-    // One collapsing app bar is SHARED by all three pages, so its collapse is
+    // One collapsing app bar is SHARED by every page, so its collapse is
     // whatever the last-scrolled tab left behind: land on a tab that is sitting
     // at its top with a collapsed header and the page has a stub of a title
     // over a gap it cannot scroll away. Fix it where it happens — when the
@@ -384,9 +486,20 @@ private fun MainScreen() {
                 Tab.TOYS ->
                     toysListState.firstVisibleItemIndex == 0 &&
                         toysListState.firstVisibleItemScrollOffset == 0
+                Tab.CREATE ->
+                    createListState.firstVisibleItemIndex == 0 &&
+                        createListState.firstVisibleItemScrollOffset == 0
                 Tab.SETTINGS -> settingsScrollState.value == 0
                 Tab.TUTORIAL -> tutorialScrollState.value == 0
             }
+            // Arriving on Create is what arms its one-off tutorial offer — see
+            // [CreateState.visited] for why the tab cannot work this out for
+            // itself, and [CreateTourOffer] for what is done with it. Set from
+            // the SAME settled-page collector as the header rule above rather
+            // than from a second one: both questions are "which page did the
+            // pager stop on", and one flow answering both keeps that a single
+            // snapshot read.
+            if (Tab.entries[page] == Tab.CREATE) createState.visited = true
             if (atTop && scrollBehavior.state.heightOffset != 0f) {
                 animate(
                     initialValue = scrollBehavior.state.heightOffset,
@@ -434,7 +547,7 @@ private fun MainScreen() {
                         // the surface that moves on the shared axis, it is the frame
                         // that surface slides underneath. Sliding its title too
                         // would claim it belongs to the page (it does not — it is
-                        // one bar serving three), and it would have to slide inside
+                        // one bar serving every page), and it would have to slide inside
                         // a fixed, clipped slot whose own text is already animating
                         // between the expanded and collapsed type scales. Fading
                         // content in place is how a persistent container swaps what
@@ -466,7 +579,7 @@ private fun MainScreen() {
             val pagePadding = remember(innerPadding) {
                 NavOverlayPadding(innerPadding) { pillHeight + NAV_PILL_MARGIN }
             }
-            // MD3 SHARED AXIS (X): the three tabs are swipe-navigable, so they have
+            // MD3 SHARED AXIS (X): the tabs are swipe-navigable, so they have
             // a real spatial relationship — left of / right of each other — and the
             // transition has to be a literal horizontal slide that says so. This is
             // NOT a fade-through: that pattern is for peers with no spatial
@@ -516,7 +629,8 @@ private fun MainScreen() {
                 // beyondViewportPageCount is applied SYMMETRICALLY by PagerMeasure
                 // (currentFirstPage - n before, currentLastPage + n after), so at 1
                 // every tab adjacent to the visible one is always composed, laid out
-                // and scroll-stable, in both directions. Three light pages: cheap.
+                // and scroll-stable, in both directions. A handful of light
+                // pages: cheap.
                 beyondViewportPageCount = 1,
                 // NO stretch overscroll on the pager. Compose implements stretch
                 // by rendering the whole scrollable into an OFFSCREEN layer sized
@@ -537,6 +651,7 @@ private fun MainScreen() {
             ) { page ->
                 when (Tab.entries[page]) {
                     Tab.TOYS -> ToysTab(pagePadding, toysListState)
+                    Tab.CREATE -> CreateTab(pagePadding, createListState, createState)
                     Tab.SETTINGS -> SettingsTab(pagePadding, settingsScrollState)
                     Tab.TUTORIAL -> TutorialTab(pagePadding, tutorialScrollState)
                 }
@@ -557,6 +672,14 @@ private fun MainScreen() {
             // during composition — every call site is a layout or draw lambda
             // inside [NavChip]. See that function's KDoc.
             position = { pagerState.currentPage + pagerState.currentPageOffsetFraction },
+            // The `+` FAB belongs to ONE page, so its visibility is read off the
+            // same DISCRETE targetPage as the chip tint — deliberately not off
+            // `currentPageOffsetFraction`. The FAB changes the nav row's WIDTH,
+            // and a width that tracked the drag offset would re-measure the pill
+            // on every frame of every swipe in the app, which is precisely the
+            // defect [NavOverlayPadding] documents. Discrete in, animated out.
+            fabVisible = pagerState.targetPage == Tab.CREATE.ordinal,
+            onFabClick = { createState.newDesignRequested = true },
             onSelect = { i ->
                 scope.launch { pagerState.animateScrollToPage(i, animationSpec = pageSpec) }
             },
@@ -571,7 +694,7 @@ private fun MainScreen() {
 
 /**
  * MD3-style floating pill navigation: a raised, centred capsule of one [NavChip]
- * per tab.
+ * per tab, plus the Create tab's `+` [NavFab] as a SIBLING of the capsule.
  *
  * Colours come from the theme's [NavPillColors] rather than the M3 `inverse*`
  * roles — those stay reserved for the tutorial's numbered-step bubbles, and
@@ -582,11 +705,37 @@ private fun MainScreen() {
  * — see [NavOverlayPadding]. [onPillHeight] reports the capsule's height back so
  * the pages can still be padded clear of it; it fires on measure, so it must
  * only ever be handed a setter that is cheap and idempotent.
+ *
+ * ## The FAB is beside the pill, not on the app bar
+ *
+ * `[pill] [gap] [FAB]`, laid out as a Row and centred AS A GROUP. That is the
+ * relationship in the reference: one round button riding alongside the capsule,
+ * vertically centred with it. Because the group is what is centred, the pill
+ * re-centres on its own the moment the FAB is gone — there is no reserved slot
+ * leaving the capsule permanently off-axis on the other three tabs.
+ *
+ * ## Width budget
+ *
+ * At the largest accessibility font scale the pill's chips grow taller (the
+ * label's line height passes the 24 dp icon), and the ONE expanded label grows
+ * wider. Worst case is the longest caption, "Tutorials", selected:
+ *
+ *     4 chips x 48 dp        192 dp   (a chip is a 48 dp circle at rest)
+ *     + expanded label       ~117 dp  (9 chars at ~24 sp) + 8 dp lead-in
+ *     + chip gaps / padding    28 dp  (3 x 4 dp between + 2 x 6 dp inside)
+ *     + FAB slot               64 dp  (NAV_FAB_GAP + 56 dp)
+ *     = ~409 dp against ~448 dp of usable width
+ *
+ * It fits, with ~20 dp of margin each side. The safety valve if it ever stops
+ * fitting already exists and needs no code: only the SELECTED chip shows its
+ * label, so the pill is at its widest for exactly one chip at a time.
  */
 @Composable
-private fun FloatingNavBar(
+internal fun FloatingNavBar(
     selected: Int,
     position: () -> Float,
+    fabVisible: Boolean,
+    onFabClick: () -> Unit,
     onSelect: (Int) -> Unit,
     onPillHeight: (Dp) -> Unit,
     modifier: Modifier = Modifier,
@@ -597,63 +746,212 @@ private fun FloatingNavBar(
         modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = NAV_PILL_MARGIN),
         contentAlignment = Alignment.Center,
     ) {
-        Surface(
-            // Measured INSIDE the navigationBarsPadding above, so this is the
-            // capsule alone — the one thing the Scaffold's own inset no longer
-            // accounts for. Putting it on the outer Box instead would fold the
-            // navigation-bar inset in and double-count it against the Scaffold's.
-            // Only the height is taken: the width changes every drag frame and is
-            // exactly what must not escape into composition.
-            modifier = Modifier.onSizeChanged {
-                onPillHeight(with(density) { it.height.toDp() })
-            },
-            // Percent radius, not a fixed dp: the pill's height follows the
-            // user's font scale, and this keeps it a true capsule at any of
-            // them (see [NAV_PILL_GAP] for why that matters).
-            //
-            // The pill wraps its content, so it now re-measures on every frame
-            // of a drag as the chips' widths change. It stays CENTRED because
-            // the Box above centres it, and it can never degenerate out of a
-            // capsule: three chips are at least 3 × 48 dp wide against a 60 dp
-            // height, so `percent = 50` always resolves on the height.
-            shape = NAV_CHIP_SHAPE,
-            color = pill.container,
-            // Pinned, and it must be: [NavPillColors.container] is a raw literal
-            // rather than a colour-scheme role, so `contentColorFor` cannot
-            // resolve it and Surface falls through to `LocalContentColor`. That
-            // used to be `onBackground`, inherited from the Surface Scaffold
-            // wraps everything in; out here as a sibling it would be
-            // LocalContentColor's own default, Color.Black. Nothing in the pill
-            // draws with it — [NavChip] tints its icon and label explicitly —
-            // and it is what a ripple with no configured colour would resolve
-            // to. The chips no longer draw one (see [NoRipple] on the Row
-            // below), so nothing depends on this today — but it is a one-word
-            // change away from mattering again, and Color.Black on a near-black
-            // pill is a silent failure, so the value stays stated rather than
-            // inherited.
-            contentColor = MaterialTheme.colorScheme.onBackground,
-            shadowElevation = 8.dp,
-        ) {
-            // No ripple on the chips: the container fill and the label growing
-            // out of the icon already track the gesture continuously, which is
-            // far more feedback than a tap ripple carries. See [NoRipple].
-            NoRipple {
-                Row(
-                    // Uniform, all four sides — see [NAV_PILL_GAP] before changing.
-                    Modifier.padding(NAV_PILL_GAP),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Tab.entries.forEachIndexed { i, t ->
-                        NavChip(
-                            tab = t,
-                            index = i,
-                            selected = i == selected,
-                            position = position,
-                        ) { onSelect(i) }
+        // `[pill] [gap] [FAB]`, centred AS A GROUP by the Box above. See this
+        // function's KDoc.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(
+                // Measured INSIDE the navigationBarsPadding above, so this is the
+                // capsule alone — the one thing the Scaffold's own inset no longer
+                // accounts for. Putting it on the outer Box instead would fold the
+                // navigation-bar inset in and double-count it against the Scaffold's.
+                // Only the height is taken: the width changes every drag frame and is
+                // exactly what must not escape into composition.
+                modifier = Modifier.onSizeChanged {
+                    onPillHeight(with(density) { it.height.toDp() })
+                },
+                // Percent radius, not a fixed dp: the pill's height follows the
+                // user's font scale, and this keeps it a true capsule at any of
+                // them (see [NAV_PILL_GAP] for why that matters).
+                //
+                // The pill wraps its content, so it now re-measures on every frame
+                // of a drag as the chips' widths change. It stays CENTRED because
+                // the Box above centres it, and it can never degenerate out of a
+                // capsule: four chips are at least 4 × 48 dp wide against a 60 dp
+                // height, so `percent = 50` always resolves on the height.
+                shape = NAV_CHIP_SHAPE,
+                color = pill.container,
+                // Pinned, and it must be: [NavPillColors.container] is a raw literal
+                // rather than a colour-scheme role, so `contentColorFor` cannot
+                // resolve it and Surface falls through to `LocalContentColor`. That
+                // used to be `onBackground`, inherited from the Surface Scaffold
+                // wraps everything in; out here as a sibling it would be
+                // LocalContentColor's own default, Color.Black. Nothing in the pill
+                // draws with it — [NavChip] tints its icon and label explicitly —
+                // and it is what a ripple with no configured colour would resolve
+                // to. The chips no longer draw one (see [NoRipple] on the Row
+                // below), so nothing depends on this today — but it is a one-word
+                // change away from mattering again, and Color.Black on a near-black
+                // pill is a silent failure, so the value stays stated rather than
+                // inherited.
+                contentColor = MaterialTheme.colorScheme.onBackground,
+                shadowElevation = 8.dp,
+            ) {
+                // No ripple on the chips: the container fill and the label growing
+                // out of the icon already track the gesture continuously, which is
+                // far more feedback than a tap ripple carries. See [NoRipple].
+                NoRipple {
+                    Row(
+                        // Uniform, all four sides — see [NAV_PILL_GAP] before changing.
+                        Modifier.padding(NAV_PILL_GAP),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Tab.entries.forEachIndexed { i, t ->
+                            NavChip(
+                                tab = t,
+                                index = i,
+                                selected = i == selected,
+                                position = position,
+                            ) { onSelect(i) }
+                        }
                     }
                 }
             }
+
+            // Carries its own leading gap, so the pill is followed by exactly
+            // nothing when the FAB is away.
+            NavFab(visible = fabVisible, onClick = onFabClick)
+        }
+    }
+}
+
+/**
+ * Gap between the pill's right edge and the FAB.
+ *
+ * Small on purpose: the two read as one control group riding together, not as a
+ * button that happens to be nearby. Owned by [NavFab] rather than by the Row's
+ * arrangement, because it has to vanish along with the button — an
+ * `Arrangement.spacedBy` would leave 10 dp of nothing hanging off the pill on
+ * every other tab, pushing the capsule permanently off centre.
+ */
+private val NAV_FAB_GAP = 10.dp
+
+/** MD3's standard FAB diameter; named because the width budget is stated in it. */
+private val NAV_FAB_SIZE = 56.dp
+
+/**
+ * The Create tab's `+`, riding beside the nav pill.
+ *
+ * ## Why it animates the way it does
+ *
+ * Three things have to happen together when the pager settles on (or leaves)
+ * the Create tab, and **none of them may cut**:
+ *
+ * 1. the button fades in,
+ * 2. the button scales up,
+ * 3. the pill *slides* left to make room, because the two are centred as a group.
+ *
+ * (3) is the awkward one. `AnimatedVisibility` with a `fadeIn + scaleIn` enter
+ * gives the child its FULL size from the first frame, so the Row would jump to
+ * its final width instantly and the pill would teleport into its new position
+ * while the button faded in on top of the result. `Modifier.animateContentSize`
+ * on the Row would fix that and introduce a far worse bug: the pill's own width
+ * changes on EVERY FRAME of every swipe (see [NavChip] — the selected chip's
+ * label grows continuously), so an animated content size would spend the entire
+ * app lagging behind the label instead of tracking it.
+ *
+ * So the reveal is done the same way [NavChip] reveals its label: the button is
+ * measured at its true width and *reported* at a fraction of it, from a
+ * `layout { }` block. The Row's width therefore grows continuously from
+ * pill-only to pill + gap + button, the Box centres whatever it is handed, and
+ * the pill slides across for free. The fraction is an [Animatable] driven by a
+ * `LaunchedEffect` keyed on the DISCRETE [visible] flag — it animates for a few
+ * hundred milliseconds per tab change and is idle at every other moment, which
+ * is the difference between this and the per-frame layout the KDoc above warns
+ * about.
+ *
+ * Phase discipline is the same rule as [NavChip]: `reveal` and `fade` are read
+ * ONLY from the `layout` and `graphicsLayer` lambdas, never from the composable
+ * body, so the animation costs a relayout and a redraw and not a recomposition.
+ *
+ * ## Presence
+ *
+ * [present] keeps the button composed for exactly as long as it is on screen,
+ * including its exit. Leaving it composed permanently at zero width would leave
+ * a full 56 dp of invisible, ripple-ing touch target parked next to the pill on
+ * the other three tabs; removing it the instant [visible] goes false would cut
+ * the exit. Flipping it once at each end of the transition costs two
+ * recompositions per tab change.
+ *
+ * The ripple stays. This app strips ripples from TOGGLES ([NoRipple]), whose own
+ * state animation already acknowledges the touch; a FAB is a plain button with
+ * no state of its own, so the ripple is its only feedback.
+ */
+@Composable
+private fun NavFab(visible: Boolean, onClick: () -> Unit) {
+    val pill = MaterialTheme.navPill
+    // Width and scale are GEOMETRY → the spatial spring (under-damped, so the
+    // button lands with a small pop). Alpha is an effect → the effects spring,
+    // which never bounces; a bouncing alpha would flicker the button as it
+    // settles. Same split as everything else in this file.
+    val revealSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+    val fadeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+    val reveal = remember { Animatable(0f) }
+    val fade = remember { Animatable(0f) }
+    var present by remember { mutableStateOf(false) }
+    LaunchedEffect(visible) {
+        if (visible) present = true
+        val target = if (visible) 1f else 0f
+        // Both springs run concurrently and the flag is cleared only once BOTH
+        // have finished. A cancellation (the user swiping straight back) throws
+        // out of the coroutineScope, so the clear is skipped and the relaunched
+        // effect takes over from wherever the values got to — the Animatables
+        // are never snapped.
+        coroutineScope {
+            launch { fade.animateTo(target, fadeSpec) }
+            launch { reveal.animateTo(target, revealSpec) }
+        }
+        if (!visible) present = false
+    }
+    if (!present) return
+
+    Box(
+        Modifier
+            // LAYOUT phase. Measures gap + button at their true width and
+            // reports a fraction of it, which is what slides the pill.
+            .layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints)
+                val width = (placeable.width * reveal.value)
+                    .roundToInt()
+                    .coerceIn(0, placeable.width)
+                layout(width, placeable.height) { placeable.place(0, 0) }
+            }
+            // Inside the measured content, so the gap shrinks away with the
+            // button instead of surviving it. See [NAV_FAB_GAP].
+            .padding(start = NAV_FAB_GAP),
+    ) {
+        FloatingActionButton(
+            onClick = onClick,
+            modifier = Modifier
+                .size(NAV_FAB_SIZE)
+                // Inert unless a guided tour is hosting this pill; see
+                // [demoTarget]. Placed before the graphicsLayer so the reported
+                // bounds are the button's laid-out slot rather than a rectangle
+                // that shrinks with the reveal animation.
+                .demoTarget(DemoTarget.FAB)
+                // DRAW phase — the layer block re-runs without recomposing.
+                .graphicsLayer {
+                    // coerceAtLeast, not coerceIn: the spatial spring is
+                    // under-damped, so it undershoots below 0 on the way out
+                    // (a negative scale is a MIRRORED draw, not an absent one)
+                    // and overshoots past 1 on the way in, which is the pop we
+                    // want and must not clip away.
+                    val s = reveal.value.coerceAtLeast(0f)
+                    scaleX = s
+                    scaleY = s
+                    alpha = fade.value.coerceIn(0f, 1f)
+                },
+            shape = CircleShape,
+            // A distinct mid-grey, NOT the pill's near-black — see
+            // [NavPillColors.fabContainer].
+            containerColor = pill.fabContainer,
+            contentColor = pill.fabContent,
+            // Matched to the pill's own 8 dp so the two sit at the same height
+            // above the page. Shadow, not tonal: tonal elevation is a deliberate
+            // visual no-op in this theme.
+            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp),
+        ) {
+            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.create_new))
         }
     }
 }
@@ -784,6 +1082,25 @@ private fun NavChip(
 
 // ---------- Glyph Toys tab ----------
 
+/**
+ * Makes [id] the toy on the matrix: persist it and switch the live session to it
+ * immediately. The Toys tab's pref-change listener then moves the highlight. If
+ * capture is off (no session), it still persists and shows the next time a
+ * session runs.
+ *
+ * `internal` and top-level rather than local to [ToysTab] because it is now
+ * *the* way anything in the UI puts a toy on the matrix — the Create tab's
+ * "show this design on the Glyph Matrix" goes through it too (see
+ * `showDesignOnMatrix`). A second copy of these two lines would be a second
+ * place for the `revive()` that wakes a dormant session to be forgotten. Same
+ * promotion the Create tab already made of [SectionCard] and [HintText].
+ */
+internal fun selectToy(id: String) {
+    DebugLog.i("Ui", "set active toy '$id'")
+    Core.arbiter.revive()
+    Core.scheduler.run { Core.screenManager.selectScreen(id) }
+}
+
 @Composable
 private fun ToysTab(innerPadding: PaddingValues, listState: LazyListState) {
     var dialogId by remember { mutableStateOf<String?>(null) }
@@ -817,16 +1134,6 @@ private fun ToysTab(innerPadding: PaddingValues, listState: LazyListState) {
     LifecycleResumeEffect(Unit) {
         currentToy = Core.prefs.getString(PrefKeys.CURRENT_SCREEN, PrefKeys.CURRENT_SCREEN_DEF)
         onPauseOrDispose { }
-    }
-
-    // Play sets the toy as the currently active one: persist it and switch
-    // the live session to it immediately. The pref-change listener above then
-    // moves the highlight. If capture is off (no session), it still persists
-    // and shows the next time a session runs.
-    fun selectToy(id: String) {
-        DebugLog.i("Ui", "set active toy '$id'")
-        Core.arbiter.revive()
-        Core.scheduler.run { Core.screenManager.selectScreen(id) }
     }
 
     val order = remember { mutableStateListOf<String>().apply { addAll(loadOrder()) } }
@@ -897,8 +1204,10 @@ private fun SettingsTab(innerPadding: PaddingValues, scrollState: ScrollState) {
     ) { refreshTick++ }
     // Re-probe system state whenever the user returns from system Settings.
     //
-    // This can now fire while the page is composed but not visible — it is the
-    // pager's middle page, so it is in the live window from either neighbour.
+    // This can now fire while the page is composed but not visible — this is an
+    // INTERIOR page (see [Tab]: Toys, Create, Settings, Tutorials), so it is
+    // inside the pager's live window from either of its neighbours, and it would
+    // stay that way at any position other than an end.
     // That is the right trade rather than a leak: the probes are a handful of
     // synchronous permission/service checks, and running them before the page
     // is on screen means the checklist is already correct the instant it is
@@ -912,220 +1221,368 @@ private fun SettingsTab(innerPadding: PaddingValues, scrollState: ScrollState) {
     Column(Modifier.fillMaxSize().verticalScroll(scrollState)) {
         Spacer(Modifier.height(innerPadding.calculateTopPadding()))
 
-        SectionHeader(stringResource(R.string.section_initial_setup))
-        SectionCard {
-            val a11yEnabled = remember(refreshTick) { isEssentialKeyServiceEnabled(context) }
-            // Read through stringResource rather than context.getString: values
-            // pulled off LocalContext do not follow a configuration change, and
-            // Compose lints it as an error.
-            val a11yOnText = stringResource(R.string.checklist_accessibility_on)
-            val a11yOffText = stringResource(R.string.checklist_accessibility_off)
-            val a11ySubtitle = remember(refreshTick, a11yOnText, a11yOffText) {
-                if (a11yEnabled) {
-                    val beat = Core.prefs.getLong(PrefKeys.SERVICE_HEARTBEAT, PrefKeys.SERVICE_HEARTBEAT_DEF)
-                    val suffix = if (beat > 0) {
-                        val mins = (System.currentTimeMillis() - beat) / 60_000
-                        " (last activity ${if (mins < 1) "just now" else "$mins min ago"})"
-                    } else {
-                        ""
-                    }
-                    a11yOnText + suffix
-                } else {
-                    a11yOffText
-                }
-            }
-            ChecklistRow(
-                title = stringResource(R.string.checklist_accessibility),
-                subtitle = a11ySubtitle,
-                good = a11yEnabled,
-            ) {
-                context.startActivity(
-                    if (a11yEnabled) {
-                        Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                    } else {
-                        Intent(context, DisclosureActivity::class.java)
-                    },
-                )
-            }
-            HorizontalDivider()
-            // No system setting or SDK call exposes the selected always-on
-            // toy, and the system binds the chosen toy LAZILY — often never,
-            // because the accessibility-driven session does the day-to-day
-            // rendering. So this is a latch: the system only ever binds or
-            // messages the toy it has selected, and once that has happened
-            // the selection is proven. (Deselection is equally invisible, so
-            // the mark cannot clear itself — the row still opens the picker.)
-            val toyOk = remember(refreshTick) {
-                Core.arbiter.owner == SessionArbiter.Owner.TOY ||
-                    Core.prefs.getLong(PrefKeys.TOY_LAST_BOUND, PrefKeys.TOY_LAST_BOUND_DEF) > 0L
-            }
-            ChecklistRow(
-                title = stringResource(R.string.checklist_toy),
-                subtitle = stringResource(if (toyOk) R.string.checklist_toy_on else R.string.checklist_toy_hint),
-                good = if (toyOk) true else null,
-            ) {
-                if (!openGlyphToySettings(context)) {
-                    Toast.makeText(context, R.string.glyph_settings_unavailable, Toast.LENGTH_SHORT).show()
-                }
-            }
-            HorizontalDivider()
-            PermissionRow(
-                stringResource(R.string.checklist_notifications),
-                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                refreshTick,
-            ) { permissionLauncher.launch(it) }
-            HorizontalDivider()
-            PermissionRow(
-                stringResource(R.string.checklist_mic),
-                arrayOf(Manifest.permission.RECORD_AUDIO),
-                refreshTick,
-            ) { permissionLauncher.launch(it) }
-            HorizontalDivider()
-            PermissionRow(
-                stringResource(R.string.checklist_location),
-                arrayOf(
-                    Manifest.permission.ACCESS_COARSE_LOCATION,
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                ),
-                refreshTick,
-            ) { permissionLauncher.launch(it) }
-            HorizontalDivider()
-            val alarmsOk = remember(refreshTick) {
-                context.getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() == true
-            }
-            ChecklistRow(
-                title = stringResource(R.string.checklist_exact_alarm),
-                subtitle = stringResource(
-                    if (alarmsOk) R.string.checklist_granted else R.string.checklist_tap_to_grant,
-                ),
-                good = alarmsOk,
-            ) {
-                context.startActivity(
-                    Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}")),
-                )
-            }
-        }
-        HintText(stringResource(R.string.checklist_hint_guides))
-
-        SectionHeader(stringResource(R.string.section_app_settings))
-        SectionCard {
-            var master by remember(refreshTick) {
-                mutableStateOf(Core.prefs.getBoolean(PrefKeys.MASTER_TOGGLE, PrefKeys.MASTER_TOGGLE_DEF))
-            }
-            SwitchRow(
-                title = stringResource(R.string.master_toggle),
-                subtitle = stringResource(R.string.master_toggle_summary),
-                checked = master,
-            ) {
-                master = it
-                Core.prefs.putBoolean(PrefKeys.MASTER_TOGGLE, it)
-            }
-            HorizontalDivider()
-            var menuMode by remember(refreshTick) {
-                mutableStateOf(Core.prefs.getBoolean(PrefKeys.MENU_MODE_ENABLED, PrefKeys.MENU_MODE_ENABLED_DEF))
-            }
-            SwitchRow(
-                title = stringResource(R.string.pref_menu_mode),
-                subtitle = stringResource(R.string.pref_menu_mode_summary),
-                checked = menuMode,
-            ) {
-                menuMode = it
-                Core.prefs.putBoolean(PrefKeys.MENU_MODE_ENABLED, it)
-            }
-            HorizontalDivider()
-            var use12h by remember(refreshTick) {
-                mutableStateOf(Core.prefs.getBoolean(PrefKeys.USE_12H, false))
-            }
-            SwitchRow(title = stringResource(R.string.pref_use12h), subtitle = null, checked = use12h) {
-                use12h = it
-                Core.prefs.putBoolean(PrefKeys.USE_12H, it)
-            }
-            HorizontalDivider()
-            Column(Modifier.padding(16.dp, 12.dp)) {
-                Text(stringResource(R.string.brightness), style = MaterialTheme.typography.titleMedium)
-                var brightness by remember {
-                    mutableFloatStateOf(Core.prefs.getFloat(PrefKeys.BRIGHTNESS, PrefKeys.BRIGHTNESS_DEF))
-                }
-                var auto by remember {
-                    mutableStateOf(Core.prefs.getBoolean(PrefKeys.AUTO_BRIGHTNESS, PrefKeys.AUTO_BRIGHTNESS_DEF))
-                }
-                // Auto-brightness writes BRIGHTNESS from the render thread, so the
-                // slider must follow the pref (not just local state) to show what
-                // auto is doing. Pref-change listeners fire on the main thread.
-                DisposableEffect(Unit) {
-                    val listener: (String) -> Unit = { key ->
-                        when (key) {
-                            PrefKeys.BRIGHTNESS ->
-                                brightness = Core.prefs.getFloat(PrefKeys.BRIGHTNESS, PrefKeys.BRIGHTNESS_DEF)
-                            PrefKeys.AUTO_BRIGHTNESS ->
-                                auto = Core.prefs.getBoolean(PrefKeys.AUTO_BRIGHTNESS, PrefKeys.AUTO_BRIGHTNESS_DEF)
+        // Initial setup is a CLOSED section by default, and App settings is not
+        // a section that closes at all. That asymmetry is the point: the
+        // checklist is a first-run job that is finished and stays finished, so
+        // once it is all check marks it is six rows of noise above the settings
+        // people actually come back for. App settings is what they came for, so
+        // it is never a click away.
+        //
+        // rememberSaveable, not remember: rotating the phone must not throw away
+        // a section the user has just opened. It deliberately does NOT persist
+        // across launches — reopening the app is exactly when "is my setup still
+        // fine?" is worth re-asking, so it starts closed every time.
+        var setupExpanded by rememberSaveable { mutableStateOf(false) }
+        CollapsibleSectionHeader(
+            text = stringResource(R.string.section_initial_setup),
+            expanded = setupExpanded,
+            onToggle = { setupExpanded = !setupExpanded },
+        )
+        AnimatedVisibility(
+            visible = setupExpanded,
+            // The group's height is a SIZE and its opacity is not, so the two
+            // ride the specs this app gives each: an under-damped spatial spring
+            // for the expansion, a never-bouncing effects spring for the fade.
+            enter = expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) +
+                fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
+            exit = shrinkVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) +
+                fadeOut(MaterialTheme.motionScheme.defaultEffectsSpec()),
+            label = "initialSetupSection",
+        ) {
+            // The hint belongs to the group, so it collapses with it.
+            Column {
+                SectionCard {
+                    item {
+                        val a11yEnabled = remember(refreshTick) { isEssentialKeyServiceEnabled(context) }
+                        // Read through stringResource rather than
+                        // context.getString: values pulled off LocalContext do
+                        // not follow a configuration change, and Compose lints
+                        // it as an error.
+                        val a11yOnText = stringResource(R.string.checklist_accessibility_on)
+                        val a11yOffText = stringResource(R.string.checklist_accessibility_off)
+                        val a11ySubtitle = remember(refreshTick, a11yOnText, a11yOffText) {
+                            if (a11yEnabled) {
+                                val beat = Core.prefs.getLong(PrefKeys.SERVICE_HEARTBEAT, PrefKeys.SERVICE_HEARTBEAT_DEF)
+                                val suffix = if (beat > 0) {
+                                    val mins = (System.currentTimeMillis() - beat) / 60_000
+                                    " (last activity ${if (mins < 1) "just now" else "$mins min ago"})"
+                                } else {
+                                    ""
+                                }
+                                a11yOnText + suffix
+                            } else {
+                                a11yOffText
+                            }
                         }
-                    }
-                    Core.prefs.addChangeListener(listener)
-                    onDispose { Core.prefs.removeChangeListener(listener) }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // MD3's shape-morphing icon toggle: a full circle when auto
-                    // is off, squaring off to a 12 dp-cornered rounded square
-                    // when it is on, and pinching to 8 dp under the finger — the
-                    // library's own `toggleableShapes`, animated by it on the
-                    // theme's effects spring (never-bouncing, deliberately, so a
-                    // toggle cannot wobble).
-                    //
-                    // This REPLACES a hand-rolled 1 dp outline that used to fade
-                    // in when the button was off. The shape morph is the spec's
-                    // affordance for "this is a toggle and it is on", it is
-                    // animated by the component rather than by a local
-                    // `animateColorAsState`, and it costs no layout: the button
-                    // stays exactly 40 dp either way.
-                    NoRipple {
-                        FilledIconToggleButton(
-                            checked = auto,
-                            onCheckedChange = { on ->
-                                auto = on
-                                Core.prefs.putBoolean(PrefKeys.AUTO_BRIGHTNESS, on)
-                            },
-                            shapes = IconButtonDefaults.toggleableShapes(),
-                            modifier = Modifier.size(40.dp),
+                        ChecklistRow(
+                            title = stringResource(R.string.checklist_accessibility),
+                            subtitle = a11ySubtitle,
+                            good = a11yEnabled,
                         ) {
-                            Icon(
-                                Icons.Default.BrightnessAuto,
-                                contentDescription = stringResource(
-                                    if (auto) R.string.auto_brightness_on else R.string.auto_brightness_off,
-                                ),
-                                modifier = Modifier.size(20.dp),
+                            context.startActivity(
+                                if (a11yEnabled) {
+                                    Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                } else {
+                                    Intent(context, DisclosureActivity::class.java)
+                                },
                             )
                         }
                     }
-                    Spacer(Modifier.width(12.dp))
-                    Slider(
-                        value = brightness,
-                        onValueChange = {
-                            // Fiddling with the slider means "I'll do it myself":
-                            // drop out of auto first, so the controller has stopped
-                            // polling before the manual value lands.
-                            if (auto) {
-                                auto = false
-                                Core.prefs.putBoolean(PrefKeys.AUTO_BRIGHTNESS, false)
+                    item {
+                        // No system setting or SDK call exposes the selected
+                        // always-on toy, and the system binds the chosen toy
+                        // LAZILY — often never, because the accessibility-driven
+                        // session does the day-to-day rendering. So this is a
+                        // latch: the system only ever binds or messages the toy
+                        // it has selected, and once that has happened the
+                        // selection is proven. (Deselection is equally
+                        // invisible, so the mark cannot clear itself — the row
+                        // still opens the picker.)
+                        val toyOk = remember(refreshTick) {
+                            Core.arbiter.owner == SessionArbiter.Owner.TOY ||
+                                Core.prefs.getLong(PrefKeys.TOY_LAST_BOUND, PrefKeys.TOY_LAST_BOUND_DEF) > 0L
+                        }
+                        ChecklistRow(
+                            title = stringResource(R.string.checklist_toy),
+                            subtitle = stringResource(
+                                if (toyOk) R.string.checklist_toy_on else R.string.checklist_toy_hint,
+                            ),
+                            good = if (toyOk) true else null,
+                        ) {
+                            if (!openGlyphToySettings(context)) {
+                                Toast.makeText(context, R.string.glyph_settings_unavailable, Toast.LENGTH_SHORT)
+                                    .show()
                             }
-                            brightness = it.coerceIn(0.05f, 1f)
-                            Core.prefs.putFloat(PrefKeys.BRIGHTNESS, brightness)
-                        },
-                        valueRange = 0.05f..1f,
-                        modifier = Modifier.weight(1f),
-                    )
+                        }
+                    }
+                    item {
+                        PermissionRow(
+                            stringResource(R.string.checklist_notifications),
+                            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                            refreshTick,
+                        ) { permissionLauncher.launch(it) }
+                    }
+                    item {
+                        PermissionRow(
+                            stringResource(R.string.checklist_mic),
+                            arrayOf(Manifest.permission.RECORD_AUDIO),
+                            refreshTick,
+                        ) { permissionLauncher.launch(it) }
+                    }
+                    item {
+                        PermissionRow(
+                            stringResource(R.string.checklist_location),
+                            arrayOf(
+                                Manifest.permission.ACCESS_COARSE_LOCATION,
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                            ),
+                            refreshTick,
+                        ) { permissionLauncher.launch(it) }
+                    }
+                    item {
+                        val alarmsOk = remember(refreshTick) {
+                            context.getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() == true
+                        }
+                        ChecklistRow(
+                            title = stringResource(R.string.checklist_exact_alarm),
+                            subtitle = stringResource(
+                                if (alarmsOk) R.string.checklist_granted else R.string.checklist_tap_to_grant,
+                            ),
+                            good = alarmsOk,
+                        ) {
+                            context.startActivity(
+                                Intent(
+                                    Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                    Uri.parse("package:${context.packageName}"),
+                                ),
+                            )
+                        }
+                    }
+                }
+                HintText(stringResource(R.string.checklist_hint_guides))
+            }
+        }
+
+        SectionHeader(stringResource(R.string.section_app_settings))
+        SectionCard {
+            item {
+                var master by remember(refreshTick) {
+                    mutableStateOf(Core.prefs.getBoolean(PrefKeys.MASTER_TOGGLE, PrefKeys.MASTER_TOGGLE_DEF))
+                }
+                SwitchRow(
+                    title = stringResource(R.string.master_toggle),
+                    subtitle = stringResource(R.string.master_toggle_summary),
+                    checked = master,
+                    leading = Icons.Default.Key,
+                ) {
+                    master = it
+                    Core.prefs.putBoolean(PrefKeys.MASTER_TOGGLE, it)
                 }
             }
-            HorizontalDivider()
-            UpdateRow()
+            item {
+                var menuMode by remember(refreshTick) {
+                    mutableStateOf(Core.prefs.getBoolean(PrefKeys.MENU_MODE_ENABLED, PrefKeys.MENU_MODE_ENABLED_DEF))
+                }
+                SwitchRow(
+                    title = stringResource(R.string.pref_menu_mode),
+                    subtitle = stringResource(R.string.pref_menu_mode_summary),
+                    checked = menuMode,
+                    leading = Icons.AutoMirrored.Filled.List,
+                ) {
+                    menuMode = it
+                    Core.prefs.putBoolean(PrefKeys.MENU_MODE_ENABLED, it)
+                }
+            }
+            item {
+                var use12h by remember(refreshTick) {
+                    mutableStateOf(Core.prefs.getBoolean(PrefKeys.USE_12H, false))
+                }
+                SwitchRow(
+                    title = stringResource(R.string.pref_use12h),
+                    subtitle = null,
+                    checked = use12h,
+                    leading = Icons.Default.Schedule,
+                ) {
+                    use12h = it
+                    Core.prefs.putBoolean(PrefKeys.USE_12H, it)
+                }
+            }
+            item { BrightnessRow() }
+            item { CreatorNameRow() }
+            item { UpdateRow() }
         }
 
         Spacer(Modifier.height(innerPadding.calculateBottomPadding() + NAV_PILL_CLEARANCE))
     }
 }
 
+/**
+ * The Glyph's brightness: an auto toggle and a slider, under one title.
+ *
+ * A [PrefRow] like every other row of the group rather than a bare `Column`,
+ * so its leading icon lands on the same 16 dp inset and the same 16 dp gap as
+ * the rows above and below it. It declares itself THREE-line because that is
+ * the padding (12 dp) the block has always had; nothing here fits in 88 dp, so
+ * the minimum never binds.
+ */
+@Composable
+private fun BrightnessRow() {
+    PrefRow(lines = PrefRowLines.THREE, leading = { PrefIcon(Icons.Default.BrightnessMedium) }) {
+        Text(stringResource(R.string.brightness), style = MaterialTheme.typography.titleMedium)
+        var brightness by remember {
+            mutableFloatStateOf(Core.prefs.getFloat(PrefKeys.BRIGHTNESS, PrefKeys.BRIGHTNESS_DEF))
+        }
+        var auto by remember {
+            mutableStateOf(Core.prefs.getBoolean(PrefKeys.AUTO_BRIGHTNESS, PrefKeys.AUTO_BRIGHTNESS_DEF))
+        }
+        // Auto-brightness writes BRIGHTNESS from the render thread, so the
+        // slider must follow the pref (not just local state) to show what
+        // auto is doing. Pref-change listeners fire on the main thread.
+        DisposableEffect(Unit) {
+            val listener: (String) -> Unit = { key ->
+                when (key) {
+                    PrefKeys.BRIGHTNESS ->
+                        brightness = Core.prefs.getFloat(PrefKeys.BRIGHTNESS, PrefKeys.BRIGHTNESS_DEF)
+                    PrefKeys.AUTO_BRIGHTNESS ->
+                        auto = Core.prefs.getBoolean(PrefKeys.AUTO_BRIGHTNESS, PrefKeys.AUTO_BRIGHTNESS_DEF)
+                }
+            }
+            Core.prefs.addChangeListener(listener)
+            onDispose { Core.prefs.removeChangeListener(listener) }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // MD3's shape-morphing icon toggle: a full circle when auto
+            // is off, squaring off to a 12 dp-cornered rounded square
+            // when it is on, and pinching to 8 dp under the finger — the
+            // library's own `toggleableShapes`, animated by it on the
+            // theme's effects spring (never-bouncing, deliberately, so a
+            // toggle cannot wobble).
+            //
+            // The morph once REPLACED a hand-rolled 1 dp outline that
+            // faded in when the button was off. Both are here now, and
+            // that is the user's own reversal after living with the
+            // morph alone: on this card the unchecked container IS the
+            // card (see [offStateOutline]), so until you switch it on
+            // there was no shape on screen for the morph to be an
+            // affordance for. Do not "restore" the morph-only version.
+            // The outline costs no layout either: it is drawn inside the
+            // container's own bounds, which the modifier sets — hence no
+            // `size` here, and see [TOGGLE_CONTAINER_SIZE] for why the
+            // control is 36 dp rather than 40.
+            NoRipple {
+                FilledIconToggleButton(
+                    checked = auto,
+                    onCheckedChange = { on ->
+                        auto = on
+                        Core.prefs.putBoolean(PrefKeys.AUTO_BRIGHTNESS, on)
+                    },
+                    shapes = IconButtonDefaults.toggleableShapes(),
+                    modifier = Modifier.offStateOutline(auto),
+                ) {
+                    Icon(
+                        Icons.Default.BrightnessAuto,
+                        contentDescription = stringResource(
+                            if (auto) R.string.auto_brightness_on else R.string.auto_brightness_off,
+                        ),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+            // 4 dp, not the 12 this used to be. The gap you SEE is not
+            // this number: the toggle's node is
+            // `minimumInteractiveComponentSize`'s 48 dp square with a
+            // 36 dp container centred in it (see [offStateOutline]), so
+            // 6 dp of it is already empty, and the Slider keeps half a
+            // thumb width inside its own bounds before the track starts.
+            // 12 dp on top of those put ~18 dp of white between a toggle
+            // and a slider that belong to each other, which the user
+            // reported as comically wide. 4 then read as too tight, so
+            // this is the middle of a range whose ends have both been
+            // seen on device: ~16 dp optical, still visibly one control
+            // pair rather than two neighbours. (Phase 17 did not touch
+            // this line — the 12 had been here since the row was
+            // written; what changed around it was the ring.)
+            Spacer(Modifier.width(8.dp))
+            Slider(
+                value = brightness,
+                onValueChange = {
+                    // Fiddling with the slider means "I'll do it myself":
+                    // drop out of auto first, so the controller has stopped
+                    // polling before the manual value lands.
+                    if (auto) {
+                        auto = false
+                        Core.prefs.putBoolean(PrefKeys.AUTO_BRIGHTNESS, false)
+                    }
+                    brightness = it.coerceIn(0.05f, 1f)
+                    Core.prefs.putFloat(PrefKeys.BRIGHTNESS, brightness)
+                },
+                valueRange = 0.05f..1f,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+/**
+ * The name credited as `author` on designs made on this phone.
+ *
+ * An inline text field rather than a row that opens a dialog, following the
+ * brightness block just above it: this is a value you glance at and occasionally
+ * correct, not a decision that deserves its own surface.
+ *
+ * Written straight through to the pref on every keystroke, which is cheap
+ * (`Prefs` is an async-committed SharedPreferences) and removes the entire class
+ * of "I typed it but never pressed anything" bug — there is no Save button to
+ * miss, and no half-entered state to reconcile on rotation.
+ *
+ * **It renames nothing.** `author` is stamped once, when a design is created,
+ * and is immutable from then on (see `ui/CreateTab.kt`), so editing this affects
+ * the NEXT design and no existing one. The summary string says so out loud,
+ * because the opposite is a reasonable thing to assume.
+ */
+@Composable
+private fun CreatorNameRow() {
+    var creator by remember {
+        mutableStateOf(Core.prefs.getString(PrefKeys.CREATOR_NAME, PrefKeys.CREATOR_NAME_DEF))
+    }
+    // THREE-line for the same reason as [BrightnessRow]: it is the 12 dp
+    // padding this block has always had, and nothing in it fits in 88 dp.
+    PrefRow(lines = PrefRowLines.THREE, leading = { PrefIcon(Icons.Default.Person) }) {
+        Text(stringResource(R.string.pref_creator_name), style = MaterialTheme.typography.titleMedium)
+        Text(
+            stringResource(R.string.pref_creator_name_summary),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        OutlinedTextField(
+            value = creator,
+            onValueChange = {
+                // Capped at the format's own author limit, and stripped of the
+                // newlines a keyboard's paste can smuggle in: this string ends
+                // up in a JSON file other people read.
+                creator = it.replace('\n', ' ').take(DesignCodec.MAX_AUTHOR_LENGTH)
+                Core.prefs.putString(PrefKeys.CREATOR_NAME, creator)
+            },
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            placeholder = { Text(stringResource(R.string.pref_creator_name_hint)) },
+            singleLine = true,
+        )
+    }
+}
+
 // ---------- Tutorial tab ----------
 
+// The topics that open a POP-UP, ordered as their rows are: the "how this works"
+// guide first, then the two "the system is in your way" fixes.
+//
+// The Create guide is not in here. It is a full-screen guided demo of the real
+// editor (`DesignDemoActivity`) rather than a dialog, because the thing it has to
+// teach is a set of GESTURES — swipe to paint, hold a frame to move it — and a
+// paragraph cannot teach either. Its row is presented like the others: title,
+// one-line subtitle, one card of the same group, because that part was never the
+// problem. (It used to say "same divider" — the group's rows are separated by a
+// 2 dp gap of page background now, and nothing in this list draws a line. See
+// [SectionCard].)
 private enum class TutorialTopic { KEY, HANDOVER, RESTRICTED }
 
 @Composable
@@ -1139,23 +1596,34 @@ private fun TutorialTab(innerPadding: PaddingValues, scrollState: ScrollState) {
 
         HintText(stringResource(R.string.tut_hint))
         SectionCard {
-            SetupRow(
-                title = stringResource(R.string.tut_title),
-                subtitle = stringResource(R.string.tut_button_subtitle),
-                good = null,
-            ) { topic = TutorialTopic.KEY }
-            HorizontalDivider()
-            SetupRow(
-                title = stringResource(R.string.tut_handover_title),
-                subtitle = stringResource(R.string.tut_handover_subtitle),
-                good = null,
-            ) { topic = TutorialTopic.HANDOVER }
-            HorizontalDivider()
-            SetupRow(
-                title = stringResource(R.string.tut_restricted_title),
-                subtitle = stringResource(R.string.tut_restricted_subtitle),
-                good = null,
-            ) { topic = TutorialTopic.RESTRICTED }
+            item {
+                SetupRow(
+                    title = stringResource(R.string.tut_title),
+                    subtitle = stringResource(R.string.tut_button_subtitle),
+                    good = null,
+                ) { topic = TutorialTopic.KEY }
+            }
+            item {
+                SetupRow(
+                    title = stringResource(R.string.tut_create_title),
+                    subtitle = stringResource(R.string.tut_create_subtitle),
+                    good = null,
+                ) { context.startActivity(DesignDemoActivity.intent(context)) }
+            }
+            item {
+                SetupRow(
+                    title = stringResource(R.string.tut_handover_title),
+                    subtitle = stringResource(R.string.tut_handover_subtitle),
+                    good = null,
+                ) { topic = TutorialTopic.HANDOVER }
+            }
+            item {
+                SetupRow(
+                    title = stringResource(R.string.tut_restricted_title),
+                    subtitle = stringResource(R.string.tut_restricted_subtitle),
+                    good = null,
+                ) { topic = TutorialTopic.RESTRICTED }
+            }
         }
 
         Spacer(Modifier.height(innerPadding.calculateBottomPadding() + NAV_PILL_CLEARANCE))
@@ -1390,6 +1858,17 @@ private fun DisplayRow(
             // active toy, 12 dp rounded square when it is, animated by the
             // component on the theme's effects spring. Nothing about the row's
             // drag machinery is involved.
+            //
+            // **No off-state ring here**, and that is a decision rather than an
+            // omission. Phase 17 added one on the argument that an off toggle on
+            // a `surface` row is invisible; the user, who had asked for the ring
+            // on the auto-brightness toggle and not on this, reported the result
+            // immediately: nineteen rows each carrying an outlined circle turn a
+            // list of toys into a wall of buttons, and every one of them looks
+            // too big. The state this button carries is already spelled out
+            // twice on the row — by the dot that fills beside the name and by
+            // the row's own container — so the ring was the third telling and
+            // the only one that cost the list its calm. See [offStateOutline].
             NoRipple {
                 FilledIconToggleButton(
                     checked = shown,
@@ -1429,17 +1908,171 @@ private fun SectionHeader(text: String) {
         text,
         style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.tertiary,
-        modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 8.dp),
+        modifier = Modifier.padding(start = SECTION_HEADER_START, top = 24.dp, bottom = 8.dp),
     )
 }
 
+/** [SectionHeader]'s text inset. Shared so the collapsible variant cannot drift. */
+private val SECTION_HEADER_START = 24.dp
+
+/**
+ * A [SectionHeader] that opens and closes the group under it.
+ *
+ * **The whole row is the control**, not just the chevron: the user has reported
+ * before that people do not realise a small icon is tappable, so the tap target
+ * is the full width of the page and the chevron is only the *indicator* of what
+ * that tap will do. It carries the content description (the header text is
+ * already read out beside it), so a screen reader says "Initial setup, Collapse"
+ * rather than naming the icon twice.
+ *
+ * The chevron rotates rather than swapping glyphs: a rotation is a POSITION
+ * change, so it rides [MaterialTheme.motionScheme]'s spatial spring like every
+ * other movement in this app, and 180° means the same arrow points at the thing
+ * the tap will produce in both states.
+ */
 @Composable
-private fun SectionCard(content: @Composable () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(24.dp),
+private fun CollapsibleSectionHeader(text: String, expanded: Boolean, onToggle: () -> Unit) {
+    val rotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+        label = "sectionHeaderChevron",
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(start = SECTION_HEADER_START, end = 16.dp, top = 24.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column { content() }
+        Text(
+            text,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.tertiary,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            Icons.Default.ExpandMore,
+            contentDescription = stringResource(
+                if (expanded) R.string.section_collapse else R.string.section_expand,
+            ),
+            tint = MaterialTheme.colorScheme.tertiary,
+            modifier = Modifier.graphicsLayer { rotationZ = rotation },
+        )
+    }
+}
+
+/**
+ * Where one card sits inside its group — the only thing its corner radii depend
+ * on. See [SectionCard] for why a group is many cards rather than one.
+ *
+ * Pure enough to unit-test, and tested, because "the last item of a two-item
+ * group must be LAST and not MIDDLE" is exactly the sort of off-by-one that is
+ * invisible until a corner is wrong on a device.
+ */
+internal enum class SectionItemPosition { ONLY, FIRST, MIDDLE, LAST }
+
+/** [SectionItemPosition] for item [index] of a group of [count]. */
+internal fun sectionItemPosition(index: Int, count: Int): SectionItemPosition = when {
+    count <= 1 -> SectionItemPosition.ONLY
+    index <= 0 -> SectionItemPosition.FIRST
+    index >= count - 1 -> SectionItemPosition.LAST
+    else -> SectionItemPosition.MIDDLE
+}
+
+/**
+ * The OUTER corner of a group: the four corners that face the page.
+ *
+ * Measured off Nothing's own Settings and Gallery (7 groups sampled at 1.25 px
+ * per dp): 19–23 px, mean 16.5 dp. It replaces a 24 dp that was never measured.
+ */
+private val SECTION_OUTER_CORNER = 16.dp
+
+/**
+ * The corner between two cards of the same group: 2–4 px in the same sample.
+ * Nearly square, but not square — the gap between two items reads as a seam
+ * rather than as a cut.
+ */
+private val SECTION_INNER_CORNER = 3.dp
+
+/**
+ * The gap between two cards of a group. Measured at 2–3 px, and the gap pixels
+ * are exactly the PAGE background — which is why this is a gap and not a
+ * divider (see [SectionCard]).
+ */
+private val SECTION_ITEM_GAP = 2.dp
+
+/** The page margin either side of a group. Unchanged; measured at 20 px = 16 dp. */
+private val SECTION_HORIZONTAL_MARGIN = 16.dp
+
+/** The shape of one card, given where it sits in its group. */
+private fun SectionItemPosition.shape(): RoundedCornerShape = when (this) {
+    SectionItemPosition.ONLY -> RoundedCornerShape(SECTION_OUTER_CORNER)
+    SectionItemPosition.FIRST -> RoundedCornerShape(
+        topStart = SECTION_OUTER_CORNER,
+        topEnd = SECTION_OUTER_CORNER,
+        bottomStart = SECTION_INNER_CORNER,
+        bottomEnd = SECTION_INNER_CORNER,
+    )
+    SectionItemPosition.MIDDLE -> RoundedCornerShape(SECTION_INNER_CORNER)
+    SectionItemPosition.LAST -> RoundedCornerShape(
+        topStart = SECTION_INNER_CORNER,
+        topEnd = SECTION_INNER_CORNER,
+        bottomStart = SECTION_OUTER_CORNER,
+        bottomEnd = SECTION_OUTER_CORNER,
+    )
+}
+
+/** Collects a group's rows so [SectionCard] can count them. See its KDoc. */
+internal class SectionCardScope internal constructor() {
+    private val entries = mutableListOf<@Composable () -> Unit>()
+
+    internal val items: List<@Composable () -> Unit> get() = entries
+
+    /** One row of the group, and therefore one card. */
+    fun item(content: @Composable () -> Unit) {
+        entries += content
+    }
+}
+
+/**
+ * A group of settings rows, drawn the way Nothing OS draws one.
+ *
+ * **Each row is its own card.** This used to be a single [Card] with 24 dp
+ * corners and `HorizontalDivider`s between its rows, which is Material's
+ * grouping and not the system's. Measured off Nothing's Settings and Gallery
+ * (7 groups, screenshots at 1.25 px per dp), theirs is:
+ *
+ * - one card per row, separated by [SECTION_ITEM_GAP] of bare page background —
+ *   the separator is the gap, so **there are no dividers**;
+ * - [SECTION_OUTER_CORNER] on the four corners that face the page;
+ * - [SECTION_INNER_CORNER] on every corner that faces another row of the group.
+ *
+ * That is why this takes a builder ([SectionCardScope.item]) rather than plain
+ * content: a card's corners depend on how many siblings it has and where it sits
+ * among them, so the group has to be able to COUNT its rows before it draws the
+ * first one. Callers never pass an index — see [sectionItemPosition].
+ *
+ * The rows are invoked in a loop, so their identity is positional: a caller that
+ * adds or removes rows conditionally would move state between them. No caller
+ * does today; every group is a fixed list.
+ */
+@Composable
+internal fun SectionCard(content: SectionCardScope.() -> Unit) {
+    val items = SectionCardScope().apply(content).items
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = SECTION_HORIZONTAL_MARGIN),
+        verticalArrangement = Arrangement.spacedBy(SECTION_ITEM_GAP),
+    ) {
+        items.forEachIndexed { index, item ->
+            key(index) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = sectionItemPosition(index, items.size).shape(),
+                ) {
+                    item()
+                }
+            }
+        }
     }
 }
 
@@ -1513,6 +2146,151 @@ internal fun NoRipple(content: @Composable () -> Unit) {
 }
 
 /**
+ * The hairline ring that makes an icon toggle **visible while it is OFF**: an
+ * outlined circle when unchecked, gone when checked. For the app's STATEFUL icon
+ * toggles — auto-brightness, onion skin — and for the editor's repeat indicator.
+ *
+ * It also sizes the control, at [TOGGLE_CONTAINER_SIZE], and that is not a
+ * convenience: the ring is drawn against that number, so a caller that set its
+ * own size would move the container out from under the ring. One value, applied
+ * and drawn in the same place.
+ *
+ * ## Why this exists again
+ *
+ * The auto-brightness toggle used to have a hand-rolled 1 dp outline; Phase 1b
+ * replaced it with MD3's `toggleableShapes` morph on the argument that the shape
+ * IS the affordance. Having lived with it, the user asked for the outline back
+ * **in addition to** the morph. That is a deliberate reversal, not a regression
+ * to tidy away, and the reason is measurable rather than aesthetic: this theme
+ * pins every `surfaceContainer*` role to the card colour (see `ui/theme/Theme.kt`),
+ * and `filledIconToggleButtonColors()`'s UNCHECKED container is the
+ * `surfaceContainer` token — so an off toggle sitting on a card is the card,
+ * exactly, in both schemes; there is no faint edge to find. There
+ * is nothing to morph the shape *of* until you switch it on, which is the one
+ * moment the affordance needed to have done its work. The morph still carries
+ * the on/off difference; this carries "there is a control here at all".
+ *
+ * **It is not for every icon toggle.** Phase 17 also put it on the Toys tab's
+ * "set as active toy" button, which the user had not asked for and did not want:
+ * nineteen rows each carrying an outlined circle read as a list of heavy buttons
+ * rather than as a list of toys. A ring earns its place on a toggle that stands
+ * alone in a row of plain controls, not on one that repeats down a list.
+ *
+ * ## Why it stopped drawing outside the button, and how
+ *
+ * The ring used to be visibly LARGER than the filled squircle it becomes, so the
+ * control appeared to change size as you switched it on. The reason is in
+ * material3: `Surface` — which every icon toggle is built from — applies the
+ * caller's modifier and then `.minimumInteractiveComponentSize()`, and that
+ * layout node reports **48 dp whatever the container measures**, centring the
+ * smaller painted background inside it. A `drawWithContent` in the caller's
+ * modifier therefore sees a 48 dp box while the visible container is 40 (now
+ * [TOGGLE_CONTAINER_SIZE]), and drew a ring 4 dp proud of it on every side.
+ *
+ * So the ring is no longer drawn to `size`: it is drawn to a
+ * [TOGGLE_CONTAINER_SIZE] square **centred in whatever box this node was given**,
+ * which is exactly where `minimumInteractiveComponentSize` puts the container.
+ * Off and on now occupy the identical footprint, and the 48 dp touch target is
+ * untouched — it is the thing that was making the ring big, and it is the one
+ * part of this that must not change.
+ *
+ * ## The colour
+ *
+ * `onSurfaceVariant` at [TOGGLE_OUTLINE_ALPHA] — the supporting-text ink these
+ * toggles sit beside, three quarters opaque so it reads as the container's
+ * boundary rather than as a drawn black circle, which is what the user reported
+ * of the full-strength version. Over the card that every one of these toggles
+ * sits on that composites to #919197 in light and #696C71 in dark: **3.14:1 and
+ * 3.23:1**, down from 5.20:1 and 4.70:1 at full strength, and deliberately just
+ * over the 3:1 WCAG asks of a non-text control boundary rather than comfortably
+ * past it.
+ * Deliberately NOT the `outline` role, which sounds right and is not: #9A9AA2 on
+ * light and #5A5D63 on dark are ~2.3:1 against the surfaces this app puts toggles
+ * on, and a boundary you have to look for is the bug this exists to fix.
+ *
+ * The weight stays at 1 dp: below a hairline the ring stops being drawn crisply
+ * on any density, and the alpha is the honest place to spend the reduction.
+ *
+ * ## The motion
+ *
+ * ONE progress value on the theme's **effects** spring drives both the ring's
+ * radius and its opacity, so the ring cannot be a circle at half opacity around
+ * a container that has already squared off. Effects, never spatial, for the same
+ * reason the morph itself is: an under-damped ring would wobble around a toggle
+ * that had already settled. Off is a full circle (half the container); on is
+ * [TOGGLE_CHECKED_CORNER], the corner `toggleableShapes()` uses — so the two run
+ * the identical curve and stay concentric all the way through.
+ *
+ * ## Why a draw, not `Modifier.border`
+ *
+ * `Surface` applies the caller's modifier OUTSIDE its own background, so a
+ * `border` in this position would be painted first and then covered by an opaque
+ * container. Drawing after `drawContent()` is the only place the ring can land on
+ * top. It is also a DRAW-phase read of the animation: the ring fading in
+ * recomposes nothing.
+ */
+@Composable
+internal fun Modifier.offStateOutline(checked: Boolean): Modifier {
+    val ink = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = TOGGLE_OUTLINE_ALPHA)
+    val progress = animateFloatAsState(
+        targetValue = if (checked) 1f else 0f,
+        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
+        label = "offStateOutline",
+    )
+    return size(TOGGLE_CONTAINER_SIZE).drawWithContent {
+        drawContent()
+        // Read here, not in composition — see the KDoc.
+        val t = progress.value.coerceIn(0f, 1f)
+        if (t >= 1f) return@drawWithContent
+        val stroke = TOGGLE_OUTLINE_WIDTH.toPx()
+        // The container, centred in the node's own bounds — which are the 48 dp
+        // touch target, not the container, whenever the toggle is a Surface. See
+        // the KDoc: this centring IS the fix.
+        val side = TOGGLE_CONTAINER_SIZE.toPx().coerceAtMost(size.minDimension)
+        val left = (size.width - side) / 2f
+        val top = (size.height - side) / 2f
+        // Inset by half the stroke so the ring sits fully INSIDE the container's
+        // bounds; a centred stroke would straddle its edge.
+        val radius = lerp(side / 2f, TOGGLE_CHECKED_CORNER.toPx(), t)
+        drawRoundRect(
+            color = ink.copy(alpha = ink.alpha * (1f - t)),
+            topLeft = Offset(left + stroke / 2f, top + stroke / 2f),
+            size = Size(side - stroke, side - stroke),
+            cornerRadius = CornerRadius((radius - stroke / 2f).coerceAtLeast(0f)),
+            style = Stroke(stroke),
+        )
+    }
+}
+
+/** The off-state ring's width: a hairline. Thicker reads as an outlined BUTTON. */
+private val TOGGLE_OUTLINE_WIDTH = 1.dp
+
+/**
+ * How opaque that ring is. See [offStateOutline]'s colour section for the
+ * contrast this lands on in both schemes, and why it is deliberately close to
+ * the 3:1 floor rather than comfortably over it.
+ */
+private const val TOGGLE_OUTLINE_ALPHA = 0.75f
+
+/** The corner `IconButtonDefaults.toggleableShapes()` squares off to when checked. */
+private val TOGGLE_CHECKED_CORNER = 12.dp
+
+/**
+ * The painted container of an outlined icon toggle: **36 dp, down from MD3's
+ * small-icon-button 40**.
+ *
+ * The user asked for the whole control to come down a little after Phase 17 —
+ * at 40 dp with a ring around it, it crowded the slider beside it and the tool
+ * buttons either side of it. 36 dp is one 4 dp step down, still 12 dp clear of
+ * the 24 dp icon inside it, and it changes nothing about reachability: the
+ * toggle's touch target is `minimumInteractiveComponentSize`'s 48 dp square,
+ * which is a layout the container sits centred inside and does not set.
+ *
+ * Applied by [offStateOutline] itself, which also draws the ring against it.
+ */
+internal val TOGGLE_CONTAINER_SIZE = 36.dp
+
+/**
  * Breathing room between a dialog and the top and bottom edges of the screen.
  *
  * Applied as PADDING ON THE DIALOG'S WRAPPING BOX, never on its Surface, and
@@ -1530,7 +2308,7 @@ internal fun NoRipple(content: @Composable () -> Unit) {
 internal val DIALOG_VERTICAL_MARGIN = 40.dp
 
 @Composable
-private fun HintText(text: String) {
+internal fun HintText(text: String) {
     Text(
         text,
         style = MaterialTheme.typography.bodySmall,
@@ -1540,22 +2318,132 @@ private fun HintText(text: String) {
 }
 
 /**
- * Title over a subtitle, the whole row clickable — a real MD3 [ListItem]
- * (headline `content` + `supportingContent`), not a `Column` with
- * `Modifier.clickable`.
+ * How tall a settings row is and how much padding it carries — Material3's own
+ * one/two/three-line list metrics, restated here because [PrefRow] had to stop
+ * using [ListItem]. See [PrefRow] for why.
  *
- * What that buys, for free and to spec: the row's press ripple and its shape
- * morph (rectangular at rest → 16 dp corners under the finger) run on
- * [MaterialTheme.motionScheme]'s fast spatial spring, the container/content
- * colours cross-fade on its effects spring, and the whole row is one merged
- * accessibility node with a ≥ 48 dp target instead of two loose Text nodes.
+ * The numbers are material3's, read from its source (`ListItem.kt`):
+ * `ListItemVerticalPadding` 8 dp, `ListItemThreeLineVerticalPadding` 12 dp, and
+ * `ListTokens.Item{One,Two,Three}LineContainerHeight` 56/72/88 dp. Restating
+ * them keeps every row exactly the height it was before the rewrite.
+ */
+private enum class PrefRowLines { ONE, TWO, THREE }
+
+private val PrefRowLines.verticalPadding: Dp
+    get() = if (this == PrefRowLines.THREE) 12.dp else 8.dp
+
+private val PrefRowLines.minHeight: Dp
+    get() = when (this) {
+        PrefRowLines.ONE -> 56.dp
+        PrefRowLines.TWO -> 72.dp
+        PrefRowLines.THREE -> 88.dp
+    }
+
+/**
+ * Material3's `ListItemStartPadding` / `ListItemEndPadding`, and its
+ * `LeadingContentEndPadding` / `TrailingContentStartPadding` — all four are
+ * 16 dp, so one constant says it once. See [PrefRow].
+ */
+private val PREF_ROW_PADDING = 16.dp
+
+/** Material3's `ListTokens.ItemLeadingIconSize`, which is also `Icon`'s default. */
+private val PREF_ROW_ICON_SIZE = 24.dp
+
+/**
+ * The layout every settings row uses: an optional leading icon, a stack of text,
+ * an optional trailing control — **with the leading and trailing slots centred
+ * vertically at every line count.**
+ *
+ * ## Why this is not a [ListItem]
+ *
+ * It was one, and the check marks in the Initial setup group were visibly skewed
+ * upwards on some rows and not others. The cause is in material3's own layout
+ * (`ListItem.kt`, `place()`): the leading and trailing slots are placed at
+ * `if (isThreeLine) topPadding else CenterVertically.align(...)`, and
+ * `ListItemType` counts a row as THREE-line as soon as its supporting text wraps
+ * (`isSupportingMultiline`). So "Essential Key listener", whose subtitle wraps to
+ * two lines, top-aligned its mark while its single-line neighbours centred
+ * theirs — which is exactly the asymmetry that was reported. There is no public
+ * API to override that alignment, so the row is laid out here instead.
+ *
+ * Everything else is deliberately unchanged: the same 16 dp insets and slot
+ * gaps, the same `onSurfaceVariant` leading tint that `ListItemDefaults` was
+ * providing, the same per-line-count heights (see [PrefRowLines]), the same
+ * ripple, and one merged accessibility node (`Modifier.clickable` merges its
+ * descendants) with a ≥ 48 dp target.
+ *
+ * **What was lost:** [ListItem]'s press SHAPE MORPH — the row no longer rounds
+ * its corners under the finger. That is a property of the component, not
+ * something a caller can lend to a `Row`, and the centred mark is worth more
+ * than the morph. The ripple still acknowledges the press.
+ *
+ * [lines] is the caller's business because only the caller knows whether its
+ * subtitle wrapped; the title+subtitle rows below measure it with `onTextLayout`
+ * and hand it back, which is the same signal material3 derives internally.
+ */
+@Composable
+private fun PrefRow(
+    lines: PrefRowLines,
+    leading: (@Composable () -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .heightIn(min = lines.minHeight)
+            .padding(horizontal = PREF_ROW_PADDING, vertical = lines.verticalPadding),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (leading != null) {
+            // The tint ListItemDefaults.colors() was giving the leading slot.
+            CompositionLocalProvider(
+                LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant,
+                content = leading,
+            )
+            Spacer(Modifier.width(PREF_ROW_PADDING))
+        }
+        Column(Modifier.weight(1f), content = content)
+        if (trailing != null) {
+            Spacer(Modifier.width(PREF_ROW_PADDING))
+            trailing()
+        }
+    }
+}
+
+/**
+ * A settings row's leading icon: one size, one tint, one gap, for every row on
+ * the Settings tab.
+ *
+ * `contentDescription` is deliberately absent rather than optional. Every one of
+ * these sits beside a label that already names the setting, and [PrefRow] merges
+ * the row into a single accessibility node — a description here would make a
+ * screen reader say the same thing twice. This is the established convention in
+ * this file; see [ChecklistRow]'s mark, which is silent for the same reason.
+ */
+@Composable
+private fun PrefIcon(icon: ImageVector) {
+    Icon(icon, contentDescription = null, modifier = Modifier.size(PREF_ROW_ICON_SIZE))
+}
+
+/**
+ * Title over a subtitle, the whole row clickable — a [PrefRow], and see its KDoc
+ * for why that is no longer an MD3 [ListItem].
  *
  * The subtitle is animated because [UpdateRow] rewrites it live as the check
  * runs (Idle → Checking → UpToDate / Available / Failed) and every one of
  * those is a different length; the static callers simply never trigger it.
  */
 @Composable
-private fun SetupRow(title: String, subtitle: String, good: Boolean?, onClick: () -> Unit) {
+private fun SetupRow(
+    title: String,
+    subtitle: String,
+    good: Boolean?,
+    leading: ImageVector? = null,
+    onClick: () -> Unit,
+) {
     // Tint is a COLOUR → effects spring, so it settles without a bounce and
     // ahead of the geometry, as MD3 intends.
     val subtitleColor by animateColorAsState(
@@ -1573,30 +2461,33 @@ private fun SetupRow(title: String, subtitle: String, good: Boolean?, onClick: (
     // The row's height changes with the new text's line count — a SIZE, hence
     // the spatial spring.
     val resize = MaterialTheme.motionScheme.defaultSpatialSpec<IntSize>()
-    ListItem(
+    // See [PrefRow]: the row's metrics follow whether the subtitle wrapped, and
+    // only the laid-out text knows that.
+    var subtitleLines by remember { mutableIntStateOf(1) }
+    PrefRow(
+        lines = if (subtitleLines > 1) PrefRowLines.THREE else PrefRowLines.TWO,
+        leading = leading?.let { { PrefIcon(it) } },
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        supportingContent = {
-            AnimatedContent(
-                targetState = subtitle,
-                transitionSpec = {
-                    // Crossfade, not a slide: the two strings say the same kind
-                    // of thing about the same row, so there is no direction to
-                    // imply.
-                    (fadeIn(fade) togetherWith fadeOut(fade))
-                        .using(SizeTransform(clip = false) { _, _ -> resize })
-                },
-                label = "setupRowSubtitle",
-            ) { text ->
-                Text(
-                    text,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = subtitleColor,
-                )
-            }
-        },
     ) {
         Text(title, style = MaterialTheme.typography.titleMedium)
+        AnimatedContent(
+            targetState = subtitle,
+            transitionSpec = {
+                // Crossfade, not a slide: the two strings say the same kind
+                // of thing about the same row, so there is no direction to
+                // imply.
+                (fadeIn(fade) togetherWith fadeOut(fade))
+                    .using(SizeTransform(clip = false) { _, _ -> resize })
+            },
+            label = "setupRowSubtitle",
+        ) { text ->
+            Text(
+                text,
+                style = MaterialTheme.typography.bodySmall,
+                color = subtitleColor,
+                onTextLayout = { subtitleLines = it.lineCount },
+            )
+        }
     }
 }
 
@@ -1604,6 +2495,10 @@ private fun SetupRow(title: String, subtitle: String, good: Boolean?, onClick: (
  * Setup-checklist row: a grey check mark on the left once the item is
  * configured and working, a grey question mark while it is not (or cannot
  * be verified).
+ *
+ * The mark is **vertically centred whatever the subtitle does**, which it was
+ * not until this became a [PrefRow] — see that KDoc for the material3 layout
+ * rule that used to shove it to the top of any row whose subtitle wrapped.
  */
 @Composable
 private fun ChecklistRow(title: String, subtitle: String, good: Boolean?, onClick: () -> Unit) {
@@ -1623,14 +2518,13 @@ private fun ChecklistRow(title: String, subtitle: String, good: Boolean?, onClic
     // effects, scale on spatial (damped 0.6, so the incoming mark pops).
     val iconFade = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
     val iconScale = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
-    ListItem(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        // The mark is the list item's LEADING slot, so its tint (and the gap to
-        // the text) now come from ListItemDefaults rather than being spelled
-        // out here — the icon inherits `leadingContentColor`, which is the same
-        // onSurfaceVariant it was hard-coded to.
-        leadingContent = {
+    // See [PrefRow]: the row's metrics follow whether the subtitle wrapped.
+    var subtitleLines by remember { mutableIntStateOf(1) }
+    PrefRow(
+        lines = if (subtitleLines > 1) PrefRowLines.THREE else PrefRowLines.TWO,
+        // The mark's tint (and the gap to the text) come from [PrefRow], which
+        // provides the same `onSurfaceVariant` ListItemDefaults used to.
+        leading = {
             AnimatedContent(
                 targetState = good == true,
                 transitionSpec = {
@@ -1642,18 +2536,19 @@ private fun ChecklistRow(title: String, subtitle: String, good: Boolean?, onClic
                 Icon(
                     if (ok) Icons.Default.Check else Icons.AutoMirrored.Filled.HelpOutline,
                     contentDescription = null,
+                    modifier = Modifier.size(PREF_ROW_ICON_SIZE),
                 )
             }
         },
-        supportingContent = {
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = subtitleColor,
-            )
-        },
+        onClick = onClick,
     ) {
         Text(title, style = MaterialTheme.typography.titleMedium)
+        Text(
+            subtitle,
+            style = MaterialTheme.typography.bodySmall,
+            color = subtitleColor,
+            onTextLayout = { subtitleLines = it.lineCount },
+        )
     }
 }
 
@@ -1673,31 +2568,41 @@ private fun PermissionRow(title: String, permissions: Array<String>, refreshTick
 /**
  * A settings row whose trailing control is a [Switch].
  *
- * A real MD3 [ListItem] with the switch in its trailing slot. Deliberately the
- * NON-interactive [ListItem] overload: the toggleable overload would put
- * `Role.Checkbox` on the row and demote the switch to a passive graphic, which
- * is a step down from the `Role.Switch` this has always announced. The switch
- * keeps its own API (`checked` / `onCheckedChange`) and therefore its own
- * spec motion — the thumb's slide and squash already ride
- * [MaterialTheme.motionScheme] — while the row around it now gets MD3's list
- * metrics, slot spacing and merged semantics.
+ * A [PrefRow] with the switch in its trailing slot, and deliberately NOT a
+ * clickable row: the switch keeps its own API (`checked` / `onCheckedChange`)
+ * and therefore `Role.Switch`, its own spec motion — the thumb's slide and
+ * squash already ride [MaterialTheme.motionScheme] — and its own ≥ 48 dp target.
+ * A clickable row wrapping it would announce a second, redundant action for the
+ * same state. (This was an MD3 [ListItem] until the leading icons arrived; see
+ * [PrefRow] for why every settings row had to stop being one.)
  */
 @Composable
-private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
-    ListItem(
-        modifier = Modifier.fillMaxWidth(),
-        supportingContent = subtitle?.let {
-            {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+private fun SwitchRow(
+    title: String,
+    subtitle: String?,
+    checked: Boolean,
+    leading: ImageVector? = null,
+    onChange: (Boolean) -> Unit,
+) {
+    var subtitleLines by remember { mutableIntStateOf(1) }
+    PrefRow(
+        lines = when {
+            subtitle == null -> PrefRowLines.ONE
+            subtitleLines > 1 -> PrefRowLines.THREE
+            else -> PrefRowLines.TWO
         },
-        trailingContent = { NoRipple { Switch(checked = checked, onCheckedChange = onChange) } },
+        leading = leading?.let { { PrefIcon(it) } },
+        trailing = { NoRipple { Switch(checked = checked, onCheckedChange = onChange) } },
     ) {
         Text(title, style = MaterialTheme.typography.titleMedium)
+        if (subtitle != null) {
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                onTextLayout = { subtitleLines = it.lineCount },
+            )
+        }
     }
 }
 
@@ -1761,6 +2666,7 @@ private fun UpdateRow() {
             is UpdateUiState.Failed -> false
             else -> null
         },
+        leading = Icons.Default.SystemUpdate,
     ) {
         when (val s = state) {
             // Once an update is known, the row becomes the download link.
@@ -1856,6 +2762,45 @@ private fun ScreenSettingsDialog(id: String, onDismiss: () -> Unit) {
                         )
                     }
                     "ambient" -> AmbientSettings()
+                    "custom" -> {
+                        // One read of the design directory per opening of this
+                        // dialog. The list is small and the store caches it; the
+                        // Create tab is where designs are managed, this is only
+                        // where one is chosen.
+                        val designs = remember { Core.designStore.list() }
+                        if (designs.isEmpty()) {
+                            // Saying so beats an empty radio group, which reads
+                            // as a dialog that failed to load.
+                            Text(
+                                stringResource(R.string.pref_custom_none),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        } else {
+                            Text(
+                                stringResource(R.string.pref_custom_design),
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                            val unnamed = stringResource(R.string.pref_custom_unnamed)
+                            // A stored id that no longer names a design (it was
+                            // deleted) highlights the first design instead —
+                            // matching what AndroidDesignPort actually plays, so
+                            // the dialog never claims a selection the matrix
+                            // disagrees with. The pref is only written on a tap.
+                            var selected by remember {
+                                mutableStateOf(
+                                    Core.prefs.getString(PrefKeys.CUSTOM_DESIGN_ID, PrefKeys.CUSTOM_DESIGN_ID_DEF)
+                                        .takeIf { id -> designs.any { it.id == id } }
+                                        ?: designs.first().id,
+                                )
+                            }
+                            designs.forEach { design ->
+                                ChoiceRow(design.name.ifBlank { unnamed }, selected == design.id) {
+                                    selected = design.id
+                                    Core.prefs.putString(PrefKeys.CUSTOM_DESIGN_ID, design.id)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         },
@@ -1945,9 +2890,14 @@ private fun StringChoiceGroup(options: List<String>, key: String, def: String) {
  *
  * These sit in a dialog that already pads its content, so the horizontal
  * content padding is zeroed to keep the rows where they have always been.
+ *
+ * `internal` rather than private because the new-design dialog in `CreateTab.kt`
+ * asks its own pick-one-of-three (which phone the design is for) and must ask it
+ * with the same row the per-toy dialogs use — the same promotion [SectionCard],
+ * [HintText] and [NoRipple] already made, for the same reason.
  */
 @Composable
-private fun ChoiceRow(label: String, selected: Boolean, onSelect: () -> Unit) {
+internal fun ChoiceRow(label: String, selected: Boolean, onSelect: () -> Unit) {
     // Whole row, not just the RadioButton: the row IS the tap target here, so a
     // ripple sweeping it would be the loud feedback we are removing. The dot
     // filling on the expressive spring is the acknowledgement. See [NoRipple].
