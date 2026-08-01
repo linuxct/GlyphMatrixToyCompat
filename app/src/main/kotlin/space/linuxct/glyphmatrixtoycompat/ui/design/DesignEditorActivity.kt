@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.GridOff
 import androidx.compose.material.icons.filled.GridOn
@@ -58,6 +59,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
@@ -68,6 +70,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -90,6 +93,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LifecycleStartEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -102,6 +106,11 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import space.linuxct.glyphmatrixtoycompat.Core
 import space.linuxct.glyphmatrixtoycompat.R
+import space.linuxct.glyphmatrixtoycompat.ai.AiGate
+import space.linuxct.glyphmatrixtoycompat.ai.GlyphApplyResult
+import space.linuxct.glyphmatrixtoycompat.ai.GlyphEditorBridge
+import space.linuxct.glyphmatrixtoycompat.ai.aiGate
+import space.linuxct.glyphmatrixtoycompat.core.ai.GlyphToolContext
 import space.linuxct.glyphmatrixtoycompat.core.design.DEFAULT_FRAME_DURATION_MS
 import space.linuxct.glyphmatrixtoycompat.core.design.Design
 import space.linuxct.glyphmatrixtoycompat.core.design.DesignCodec
@@ -432,6 +441,60 @@ internal fun EditorScaffold(
 
     var settingsOpen by remember { mutableStateOf(false) }
 
+    // The assistant's sign-in. Only the DIALOG's visibility is held here — the
+    // flow it starts lives in an activity-scoped ViewModel, so rotating the phone
+    // while the browser is in front does not abandon a bound socket. See
+    // [GlyphAiSignInDialog].
+    //
+    // `rememberSaveable`, unlike `settingsOpen` directly above, and that is the
+    // other half of surviving rotation: a sign-in leaves the app for the browser
+    // and comes back minutes later, and the phone may well have been turned over
+    // in between. A plain `remember` would keep the JOB alive and still drop the
+    // dialog that reports it finished.
+    var aiOpen by rememberSaveable { mutableStateOf(false) }
+
+    // The assistant's half of the editor. Held here rather than inside the chat
+    // modal so that a turn survives the modal being closed — and so the gate
+    // below can be decided without composing anything.
+    val ai = glyphAiViewModel()
+    val aiState by ai.state.collectAsStateWithLifecycle()
+
+    // How the assistant reads and writes the canvas.
+    //
+    // Registered rather than injected: the ViewModel outlives this composition,
+    // and a turn that started before a rotation must apply its design to the
+    // editor that exists *after* it. Keyed on the state and the scheduler, so a
+    // new editor replaces the old registration; `clearEditor` is identity-checked
+    // for the frame in which both compositions exist.
+    val bridge = remember(state, saver) {
+        object : GlyphEditorBridge {
+            override fun snapshot(): GlyphToolContext = GlyphToolContext(
+                design = state.composed(),
+                openVariant = state.codename,
+                selectedFrameIndex = state.selectedIndex,
+            )
+
+            override fun apply(design: Design): GlyphApplyResult {
+                val previous = state.replaceDesign(design)
+                    // Model-facing, not user-facing: the orchestrator hands this
+                    // back as a failed tool result so the model does not go on to
+                    // describe a change that did not happen.
+                    ?: return GlyphApplyResult.Refused(
+                        "The editor could not open that document, so nothing was changed.",
+                    )
+                // Straight into the ordinary debounced write — an assistant's
+                // change is a change like any other, and every guarantee in this
+                // file's KDoc applies to it unaltered.
+                saver.schedule()
+                return GlyphApplyResult.Applied(previous)
+            }
+        }
+    }
+    DisposableEffect(bridge) {
+        ai.setEditor(bridge)
+        onDispose { ai.clearEditor(bridge) }
+    }
+
     // Hoisted to here, not held inside the canvas, because the reset control
     // lives in the tool row — the canvas is the wrong place to put a button when
     // every pixel of it is a drawing target. Deliberately NOT reset on a variant
@@ -513,6 +576,22 @@ internal fun EditorScaffold(
                         Icon(
                             Icons.Default.Smartphone,
                             contentDescription = stringResource(R.string.create_show),
+                        )
+                    }
+                    // The design assistant: the disclosure, then the sign-in, then
+                    // the conversation — one button, and [aiGate] decides which of
+                    // the three it opens. It lives here because this is the bar
+                    // somebody is looking at when they realise placing 137 dots by
+                    // hand is slow.
+                    //
+                    // To the right of "show on matrix", which stays the leftmost
+                    // and most consequential action; sparkles is the app-wide
+                    // convention for "an assistant does this", so the icon carries
+                    // the meaning without a label.
+                    IconButton(onClick = { aiOpen = true }) {
+                        Icon(
+                            Icons.Default.AutoAwesome,
+                            contentDescription = stringResource(R.string.ai_action),
                         )
                     }
                     // Loop, key mode and the variant explanation live behind
@@ -612,6 +691,27 @@ internal fun EditorScaffold(
             onChanged = { saver.schedule() },
             onDismiss = { settingsOpen = false },
         )
+    }
+
+    // The assistant's three doors, in the order [aiGate] puts them: nothing leaves
+    // the device before the disclosure, and nothing reaches OpenAI before the
+    // sign-in. The gate is re-evaluated on every state change, so accepting the
+    // disclosure moves straight on to the sign-in and completing the sign-in
+    // moves straight on to the chat — without the user tapping sparkles again.
+    if (aiOpen) {
+        when (aiGate(consented = aiState.consented, signedIn = aiState.signedIn)) {
+            AiGate.CONSENT -> GlyphAiConsentDialog(
+                onAccept = { ai.acceptConsent() },
+                onDismiss = { aiOpen = false },
+            )
+
+            AiGate.SIGN_IN -> GlyphAiSignInDialog(onDismiss = { aiOpen = false })
+
+            AiGate.CHAT -> GlyphAiChatSheet(
+                designId = state.design.id,
+                onDismiss = { aiOpen = false },
+            )
+        }
     }
 }
 
@@ -2230,6 +2330,76 @@ internal class EditorState(design: Design, codename: PokemonCodename) {
         return true
     }
 
+    // ---- whole-document replacement ----
+
+    /**
+     * Replaces the entire document with [incoming], and returns the one it
+     * replaced.
+     *
+     * This is the assistant's only way onto the canvas, and it is a *whole
+     * document* on purpose: the model may change `kind`, `loop`, `keyMode`,
+     * `levels` and the frames of **every variant the design carries**, not just
+     * the one on screen. Anything narrower would mean the editor deciding which
+     * of the model's changes it was willing to accept, which is a second set of
+     * rules to disagree with `GlyphAiTools`.
+     *
+     * ## What follows from that
+     *
+     * - **The open variant's frames are rebuilt** through [loadFrames], so the
+     *   canvas shows the new art immediately and the timeline is the new
+     *   timeline. A variant the user is *not* looking at needs nothing done to
+     *   it: it is already in [design] and [loadFrames] will find it on the next
+     *   switch, which is precisely how [addVariant] already works.
+     * - **A `kind` change lands for free.** The timeline and onion skin are
+     *   composed from `design.kind`, so an animation appearing or disappearing
+     *   mid-session is a recomposition rather than a special case.
+     * - **A `levels` change re-clamps the brush.** `cells` are palette *indices*;
+     *   a document that arrives with a two-entry palette while the brush points
+     *   at swatch three would leave a selection with no swatch under it and a
+     *   brush that paints index 2 into a palette that has none.
+     * - **Undo histories are dropped**, exactly as [switchTo] drops them and for
+     *   the same reason: their snapshots are arrays of the old geometry and the
+     *   old palette. The whole-document step back is [replaceDesign] itself,
+     *   called with what this returned.
+     *
+     * ## What the model may not change
+     *
+     * Identity. `id` names the file, `author` and `createdAt` describe a person
+     * and a moment, and `format`/`formatVersion` are the app's to declare — all
+     * are pinned from the current design here, on top of `GlyphAiTools` already
+     * merging onto it, so neither layer alone is load-bearing. `modifiedAt` is
+     * restamped, because the design genuinely just changed.
+     *
+     * Returns null and changes nothing if [incoming] carries no artwork at all,
+     * which no validated document does — the check is here so that "the editor
+     * refused" is a state the caller can report to the model rather than a
+     * blank canvas nobody explains.
+     */
+    fun replaceDesign(incoming: Design): Design? {
+        if (incoming.variants.isEmpty()) return null
+        val previous = composed()
+        val next = incoming.copy(
+            format = previous.format,
+            formatVersion = previous.formatVersion,
+            id = previous.id,
+            author = previous.author,
+            createdAt = previous.createdAt,
+            createdWith = previous.createdWith,
+            modifiedAt = nowIsoUtc(),
+        )
+        design = next
+        // Only reachable if a document arrived without the variant being edited,
+        // which the tools do not allow. Falling back rather than trusting it is
+        // what stops `composed()` from re-creating the variant on the next save.
+        if (next.variantFor(codename) == null) codename = openingCodename(next, codename)
+        frames.clear()
+        frames.addAll(loadFrames(next, codename))
+        selectedIndex = 0
+        brushIndex = brushIndex.coerceIn(0, max(0, min(next.levels.size, MAX_SWATCHES) - 1))
+        dirty = true
+        return previous
+    }
+
     // ---- saving ----
 
     /**
@@ -2260,8 +2430,16 @@ internal class EditorState(design: Design, codename: PokemonCodename) {
      * The design with the live frames written back into the open variant, and
      * `modifiedAt` restamped. `createdAt` and `author` are never touched here —
      * see the file KDoc for where `author` is actually enforced.
+     *
+     * **Internal, not private, and that is a deliberate widening.** This is
+     * exactly "the design as it is on screen, unsaved edits included", which is
+     * what the assistant has to be shown — a model answering from the last thing
+     * written to disk would describe strokes the user made a second ago as though
+     * they had never happened. Reproducing the fold anywhere else would be a
+     * second answer to "what is the art right now", free to disagree with this
+     * one; see [replaceDesign] for the other half of the same argument.
      */
-    private fun composed(): Design {
+    fun composed(): Design {
         val encoded = ArrayList<DesignFrame>(frames.size)
         for (entry in frames) {
             // An encode failure means the palette cannot express a cell, which

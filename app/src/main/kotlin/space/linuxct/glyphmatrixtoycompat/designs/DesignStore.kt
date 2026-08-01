@@ -7,6 +7,7 @@ import space.linuxct.glyphmatrixtoycompat.core.design.DesignCodec
 import space.linuxct.glyphmatrixtoycompat.core.design.newDesignId
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * On-disk storage for user designs. This is the app's **first** app-owned file
@@ -48,6 +49,46 @@ class DesignStore(context: Context) {
 
     private val dir: File =
         File(context.createDeviceProtectedStorageContext().filesDir, DIRECTORY_NAME)
+
+    /**
+     * Everything else that belongs to a design and must go when it does.
+     *
+     * **The hook is deliberately here and not at the call sites.** Deleting a
+     * design can be a two-part act — the artwork, and whatever else is keyed by
+     * its id — and the parts must not be able to drift. Today `ui/CreateTab`
+     * funnels both of its delete buttons through one `store.delete(design.id)`;
+     * tomorrow somebody adds a third, or a bulk delete, or a "clear all" in
+     * settings, and nothing about writing that code would suggest there is a
+     * second file to remove. Putting it in the one function that removes the
+     * design makes forgetting it impossible rather than merely unlikely.
+     *
+     * **What it must not be is an import.** This field used to hold an
+     * `ai/ChatStore` directly, which had `designs/` — a storage layer that
+     * `AodToyService` depends on before the first unlock — depending on the AI
+     * feature, which is explicitly unpublishable and may one day be absent from a
+     * build entirely. A listener inverts that: `ai/` knows about designs, and
+     * `designs/` knows only that *something* may care. See
+     * `ai/DesignChatCleanup` for the one registration, and [DesignDeletionHooks]
+     * for why a failing listener cannot cost the caller its delete.
+     */
+    private val hooks = DesignDeletionHooks()
+
+    /**
+     * Registers [listener] to be told, by id, about every design this store
+     * deletes. Called once per process, from the composition root.
+     *
+     * There is no removal, on purpose: the only registrant is the object graph
+     * itself, which lives as long as the process, and a listener that could be
+     * dropped is a deletion that could be missed.
+     *
+     * [listener] runs **inside** [delete], on the caller's thread and while this
+     * store's monitor is held. That is what lets it call back into this store —
+     * `storedIds()`, say — without deadlocking, and it means the work it does
+     * should be the modest file I/O the caller already expected of `delete`.
+     */
+    fun addDeletionListener(listener: (id: String) -> Unit) {
+        hooks.add(listener)
+    }
 
     /**
      * Cached listing for the design list UI, so scrolling does not re-parse
@@ -155,18 +196,49 @@ class DesignStore(context: Context) {
         }
     }
 
-    /** Deletes a design. Returns true if a file was removed. */
+    /**
+     * Deletes a design **and everything registered as belonging to it**. Returns
+     * true if the design file was removed.
+     *
+     * The listeners run unconditionally, not only when the design file was there
+     * to remove: a design already gone from disk can still have left something
+     * behind, and an orphan would be adopted by whatever design next carried that
+     * id ([allocateId] checks design files, and nothing else). See [hooks].
+     *
+     * The index is dropped **before** the listeners run, so a listener that asks
+     * this store what still exists — as the chat cleanup does — sees the design
+     * gone rather than reading a cache that still lists it.
+     */
     @Synchronized
     fun delete(id: String): Boolean {
         val file = fileFor(id) ?: return false
-        val deleted = try {
-            file.delete()
-        } catch (e: Exception) {
-            DebugLog.w(TAG, "delete $id failed: ${e.message}")
-            false
-        }
-        if (deleted) index = null
-        return deleted
+        // The index goes first, and unconditionally: a listener may ask this
+        // store what still exists, and a cache that still lists the design would
+        // have it keep something it should be taking with it.
+        index = null
+        return deleteDesignFile(file, id, hooks)
+    }
+
+    /**
+     * The id of every design file present, whether or not it parses.
+     *
+     * Deliberately *not* `list().map { it.id }`. This answers "does a design with
+     * this id exist?", which is the same question [exists] and [allocateId] ask,
+     * and it has to answer it the same way — from the filesystem. A design file
+     * that fails validation is still a design the user has, and anything keyed by
+     * its id (a conversation, say) must not be treated as an orphan and swept up
+     * because today's build could not parse the artwork.
+     *
+     * A design sitting under its `.bak` name counts too. [recoverBackups] will
+     * put it back on the next listing, so treating it as absent for one moment
+     * would be enough to have something else keyed by its id swept away.
+     *
+     * Cheap: it reads names, never contents.
+     */
+    @Synchronized
+    fun storedIds(): Set<String> {
+        val files = dir.listFiles() ?: return emptySet()
+        return files.mapNotNullTo(HashSet(files.size)) { storedDesignId(it.name) }
     }
 
     /**
@@ -248,12 +320,98 @@ class DesignStore(context: Context) {
     private companion object {
         const val TAG = "DesignStore"
         const val DIRECTORY_NAME = "designs"
-        const val FILE_SUFFIX = ".json"
-        const val TMP_SUFFIX = ".tmp"
-
-        /** Where the outgoing file waits while its replacement lands. */
-        const val BAK_SUFFIX = ".bak"
     }
+}
+
+internal const val FILE_SUFFIX = ".json"
+internal const val TMP_SUFFIX = ".tmp"
+
+/** Where the outgoing file waits while its replacement lands. */
+internal const val BAK_SUFFIX = ".bak"
+
+/**
+ * The design id a file in the designs directory belongs to, or null if the name
+ * is not one this store writes.
+ *
+ * Top-level and pure for the same reason [replaceViaBackup] is: `DesignStore`
+ * needs a `Context` and cannot be built under plain JUnit, and this is the rule
+ * that decides whether something keyed by a design id is an orphan. Getting it
+ * wrong in the harmless direction leaves a stale file; getting it wrong in the
+ * other deletes a conversation whose design is alive but temporarily under its
+ * backup name.
+ *
+ * Hence all three names are accepted — `<id>.json`, `<id>.json.bak`,
+ * `<id>.json.tmp` — and the result is checked against the codec's safe-token
+ * rule, so nothing else in the directory can ever be read as an id.
+ */
+internal fun storedDesignId(fileName: String): String? {
+    val id = when {
+        fileName.endsWith(FILE_SUFFIX + BAK_SUFFIX) -> fileName.removeSuffix(FILE_SUFFIX + BAK_SUFFIX)
+        fileName.endsWith(FILE_SUFFIX + TMP_SUFFIX) -> fileName.removeSuffix(FILE_SUFFIX + TMP_SUFFIX)
+        fileName.endsWith(FILE_SUFFIX) -> fileName.removeSuffix(FILE_SUFFIX)
+        else -> return null
+    }
+    return id.takeIf { DesignCodec.isSafeId(it) }
+}
+
+/**
+ * The "something else belongs to this design" hook, and the whole of its
+ * failure policy.
+ *
+ * A separate class rather than a field of listeners on `DesignStore` so that
+ * both halves of the contract can be proven under plain JUnit, which cannot
+ * build a `DesignStore` at all:
+ *
+ * - **A listener is told about every delete**, by id, in registration order.
+ * - **A listener that fails costs nobody their delete.** The whole point of the
+ *   design store is that "your design is gone" is a promise it keeps; a chat
+ *   store that cannot be reached — locked storage, a context that has none, a
+ *   file another process holds — must not turn that into an exception on the way
+ *   out of `delete`. So every listener is called inside its own catch, and one
+ *   throwing does not stop the next.
+ *
+ * `CopyOnWriteArrayList` because registration happens once at process start
+ * while deletes happen on whatever thread the UI used, and a plain list would be
+ * a data race with no lock that covers both.
+ */
+internal class DesignDeletionHooks {
+
+    private val listeners = CopyOnWriteArrayList<(String) -> Unit>()
+
+    fun add(listener: (String) -> Unit) {
+        listeners.add(listener)
+    }
+
+    /** Tells every listener that the design called [id] has been deleted. */
+    fun notifyDeleted(id: String) {
+        for (listener in listeners) {
+            try {
+                listener(id)
+            } catch (e: Exception) {
+                DebugLog.w("DesignStore", "a deletion listener failed for $id: ${e.message}")
+            }
+        }
+    }
+}
+
+/**
+ * [DesignStore.delete]'s file work, without the `Context` that class needs.
+ *
+ * Extracted so a test can watch a real file go and a real listener fire — the
+ * same reason [replaceViaBackup] is out here. The listeners are notified
+ * **whether or not** the file was there: a design already gone from disk can
+ * still have left something behind under its id, and an orphan would be adopted
+ * by whatever design next allocated that id.
+ */
+internal fun deleteDesignFile(file: File, id: String, hooks: DesignDeletionHooks): Boolean {
+    val deleted = try {
+        file.delete()
+    } catch (e: Exception) {
+        DebugLog.w("DesignStore", "delete $id failed: ${e.message}")
+        false
+    }
+    hooks.notifyDeleted(id)
+    return deleted
 }
 
 /**

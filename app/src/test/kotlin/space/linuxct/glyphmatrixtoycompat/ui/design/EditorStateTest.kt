@@ -3,6 +3,7 @@ package space.linuxct.glyphmatrixtoycompat.ui.design
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -414,5 +415,253 @@ class EditorStateTest {
         assertEquals(PokemonCodename.ARBOK, state.codename)
         assertEquals(PokemonCodename.ARBOK.size, state.selected.frame.size)
         assertEquals(listOf(PokemonCodename.ARBOK), state.variantsPresent)
+    }
+
+    // ---- whole-document replacement, and the way back ----
+    //
+    // The assistant's only route onto the canvas. Everything here is about the
+    // two things a per-frame edit cannot express: a document that changes `kind`
+    // or `levels` under the editor, and a step back that has to restore all of it
+    // at once.
+
+    /**
+     * A frame of [codename]'s geometry filled with palette entry [index].
+     *
+     * `encode` takes *brightness*, not indices — the editor paints straight from
+     * the palette — so the level is looked up rather than passed through.
+     */
+    private fun solidFrame(codename: PokemonCodename, index: Int, levels: List<Int>) = DesignFrame(
+        durationMs = 90,
+        cells = DesignFrames.encode(
+            IntArray(codename.cellCount) { levels[index] },
+            levels,
+            codename.size,
+        )!!,
+    )
+
+    @Test
+    fun replacingTheDocumentPutsTheNewArtOnTheOpenCanvas() {
+        val state = state()
+        val before = state.design
+
+        val applied = state.replaceDesign(
+            before.copy(
+                variants = before.variants + (
+                    home.codename to DesignVariant(
+                        frames = listOf(solidFrame(home, 2, DEFAULT_LEVELS)),
+                    )
+                    ),
+            ),
+        )
+
+        assertNotNull("the apply was refused", applied)
+        assertEquals(1, state.frames.size)
+        assertTrue(state.cells(0).all { it == DEFAULT_LEVELS[2] })
+        assertEquals(0, state.selectedIndex)
+    }
+
+    /**
+     * The edit scope the whole feature was specified around: the model may write
+     * **any variant the design carries**, not merely the one on screen. A change
+     * to the variant that is not open has nothing to do on the canvas — it has to
+     * be there when the user switches.
+     */
+    @Test
+    fun aVariantThatIsNotOpenIsWrittenStraightIntoTheDesign() {
+        val state = state()
+        val arbok = PokemonCodename.ARBOK
+        val before = state.design
+
+        state.replaceDesign(
+            before.copy(
+                variants = before.variants + (
+                    arbok.codename to DesignVariant(
+                        frames = listOf(solidFrame(arbok, 2, DEFAULT_LEVELS)),
+                    )
+                    ),
+            ),
+        )
+
+        // Nothing changed on screen: the open variant is still bellsprout.
+        assertEquals(home, state.codename)
+        assertEquals(1, state.design.variantFor(arbok)?.frames?.size)
+
+        assertTrue(state.switchTo(arbok))
+        assertTrue(state.cells(0).all { it == DEFAULT_LEVELS[2] })
+    }
+
+    /**
+     * A timeline that appears mid-session. `kind` decides whether the editor
+     * shows one at all, so a static design becoming a three-frame animation has
+     * to arrive with three live frames, not with one and a stale `kind`.
+     */
+    @Test
+    fun aStaticDesignCanBecomeAnAnimationAndBack() {
+        val state = state(kind = DesignKind.STATIC, frames = 1)
+        val before = state.composed()
+
+        state.replaceDesign(
+            before.copy(
+                kind = DesignKind.DYNAMIC,
+                loop = true,
+                variants = before.variants + (
+                    home.codename to DesignVariant(
+                        frames = List(3) { solidFrame(home, it % 3, DEFAULT_LEVELS) },
+                    )
+                    ),
+            ),
+        )
+
+        assertEquals(DesignKind.DYNAMIC, state.design.kind)
+        assertTrue(state.design.loop)
+        assertEquals(3, state.frames.size)
+        assertTrue(state.canOnionSkin)
+
+        // And back the other way, which is the case that would leave a timeline
+        // on screen with a static design behind it.
+        state.replaceDesign(before)
+        assertEquals(DesignKind.STATIC, state.design.kind)
+        assertEquals(1, state.frames.size)
+        assertFalse(state.canOnionSkin)
+    }
+
+    /**
+     * `cells` are palette *indices*, so a document that arrives with a shorter
+     * palette moves every swatch under the user's brush. Left unclamped, the
+     * brush would point past the end of the palette and paint an index no swatch
+     * shows.
+     */
+    @Test
+    fun aShorterPaletteRe_clampsTheBrush() {
+        val state = state()
+        state.brushIndex = 2
+        val before = state.composed()
+
+        val twoLevels = listOf(0, 4095)
+        state.replaceDesign(
+            before.copy(
+                levels = twoLevels,
+                variants = before.variants + (
+                    home.codename to DesignVariant(
+                        frames = listOf(solidFrame(home, 1, twoLevels)),
+                    )
+                    ),
+            ),
+        )
+
+        assertEquals(twoLevels, state.design.levels)
+        assertEquals(listOf(0, 1), state.brushIndices)
+        assertEquals(1, state.brushIndex)
+        assertEquals(4095, state.brushValue())
+    }
+
+    /**
+     * Identity is the app's, never the document's. `id` names the file on disk,
+     * and `author` and `createdAt` describe a person and a moment that a model
+     * rewriting the artwork has no business restating.
+     */
+    @Test
+    fun theDocumentCannotRenameOrRe_attributeTheDesign() {
+        val state = state()
+        val before = state.composed()
+
+        state.replaceDesign(
+            before.copy(
+                id = "ffffffffffffffffffffffffffffffff",
+                author = "Somebody else",
+                createdAt = "1999-01-01T00:00:00Z",
+                name = "A new name",
+            ),
+        )
+
+        assertEquals(before.id, state.design.id)
+        assertEquals(before.author, state.design.author)
+        assertEquals(before.createdAt, state.design.createdAt)
+        // The name is content, not identity: the model may change it.
+        assertEquals("A new name", state.design.name)
+    }
+
+    /**
+     * The one-tap way back, over the two changes that per-frame undo cannot
+     * express. Everything except `modifiedAt` — which is honestly restamped,
+     * because reverting is itself a change to the file — comes back identical.
+     */
+    @Test
+    fun revertingRestoresTheWholeDocumentIncludingKindAndLevels() {
+        val state = state(kind = DesignKind.STATIC, frames = 1)
+        state.stroke(6, 6)
+        val before = state.composed()
+
+        val twoLevels = listOf(0, 4095)
+        val previous = state.replaceDesign(
+            before.copy(
+                kind = DesignKind.DYNAMIC,
+                levels = twoLevels,
+                name = "Assistant's version",
+                variants = mapOf(
+                    home.codename to DesignVariant(
+                        frames = List(4) { solidFrame(home, 1, twoLevels) },
+                    ),
+                    PokemonCodename.ARBOK.codename to DesignVariant(
+                        frames = listOf(solidFrame(PokemonCodename.ARBOK, 1, twoLevels)),
+                    ),
+                ),
+            ),
+        )
+        assertNotNull(previous)
+        assertEquals(4, state.frames.size)
+
+        // The snapshot the editor handed back is what "Undo AI change" applies.
+        state.replaceDesign(previous!!)
+
+        val after = state.composed()
+        assertEquals(before.copy(modifiedAt = ""), after.copy(modifiedAt = ""))
+        assertEquals(1, state.frames.size)
+        assertEquals(DesignKind.STATIC, state.design.kind)
+        assertEquals(DEFAULT_LEVELS, state.design.levels)
+        // Down to the pixel that was drawn before the assistant touched anything.
+        assertEquals(DEFAULT_LEVELS.last(), state.cells(0)[6 * home.size + 6])
+    }
+
+    /**
+     * The revert snapshot is "as shown", not "as last saved": a stroke made after
+     * the design was written to disk is part of what a revert has to bring back.
+     */
+    @Test
+    fun theRevertSnapshotIncludesEditsThatWereNeverSaved() {
+        val state = state()
+        state.stroke(3, 4)
+
+        val previous = state.replaceDesign(
+            state.design.copy(
+                variants = state.design.variants + (
+                    home.codename to DesignVariant(
+                        frames = listOf(solidFrame(home, 0, DEFAULT_LEVELS)),
+                    )
+                    ),
+            ),
+        )!!
+
+        assertTrue("the assistant's blank frame is on the canvas", state.cells(0).all { it == 0 })
+        state.replaceDesign(previous)
+        assertEquals(DEFAULT_LEVELS.last(), state.cells(0)[4 * home.size + 3])
+    }
+
+    /**
+     * A document with no artwork at all is refused rather than applied. Nothing
+     * validated can be in that state; the point is that the caller gets an answer
+     * it can hand back to the model instead of the user getting a blank canvas
+     * nobody explains.
+     */
+    @Test
+    fun aDocumentWithNoArtworkIsRefusedAndChangesNothing() {
+        val state = state()
+        state.stroke(2, 2)
+        val before = state.composed()
+
+        assertNull(state.replaceDesign(Design(id = before.id)))
+
+        assertEquals(before.copy(modifiedAt = ""), state.composed().copy(modifiedAt = ""))
+        assertEquals(DEFAULT_LEVELS.last(), state.cells(0)[2 * home.size + 2])
     }
 }

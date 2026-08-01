@@ -64,6 +64,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.Brush
@@ -155,6 +156,7 @@ import space.linuxct.glyphmatrixtoycompat.R
 import space.linuxct.glyphmatrixtoycompat.core.DebugLog
 import space.linuxct.glyphmatrixtoycompat.core.PrefKeys
 import space.linuxct.glyphmatrixtoycompat.core.SessionArbiter
+import space.linuxct.glyphmatrixtoycompat.core.ai.ChatWire
 import space.linuxct.glyphmatrixtoycompat.core.design.DesignCodec
 import space.linuxct.glyphmatrixtoycompat.ui.design.DemoTarget
 import space.linuxct.glyphmatrixtoycompat.ui.design.DesignDemoActivity
@@ -1409,6 +1411,7 @@ private fun SettingsTab(innerPadding: PaddingValues, scrollState: ScrollState) {
             }
             item { BrightnessRow() }
             item { CreatorNameRow() }
+            item { AiModelRow() }
             item { UpdateRow() }
         }
 
@@ -1565,6 +1568,66 @@ private fun CreatorNameRow() {
             },
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             placeholder = { Text(stringResource(R.string.pref_creator_name_hint)) },
+            singleLine = true,
+        )
+    }
+}
+
+/**
+ * The model id the design assistant is asked for.
+ *
+ * ## Why this is a setting at all
+ *
+ * The id in [ChatWire.MODEL] is a guess about somebody else's backend, and it is
+ * a moving target — when it stops being accepted, every message fails with the
+ * same opaque error and the feature is simply dead until the next release. This
+ * row is the escape hatch: a working id typed here revives it on the next
+ * message, with no update and no restart.
+ *
+ * ## Why it lives here, next to the creator name
+ *
+ * The obvious alternative is the chat sheet's own overflow — closer to the
+ * failure. But the chat is *inside* the design editor, behind sign-in and the
+ * disclosure, and the state this fixes is one where the chat is the thing that
+ * does not work. Settings is where a stuck user looks, it is reachable from a
+ * cold start, and it puts the field beside the other typed preference in the
+ * app so it reads as an app setting rather than as a debug affordance.
+ *
+ * Written through on every keystroke and read fresh per turn (see
+ * `ai/GlyphAiViewModel`) — same no-Save-button reasoning as [CreatorNameRow].
+ * Empty is the reset: [ChatWire.resolveModel] turns it back into the built-in
+ * default, which is what both the placeholder and the supporting line say.
+ */
+@Composable
+private fun AiModelRow() {
+    var model by remember {
+        mutableStateOf(Core.prefs.getString(PrefKeys.AI_MODEL, PrefKeys.AI_MODEL_DEF))
+    }
+    // THREE-line for the same reason as [CreatorNameRow].
+    PrefRow(lines = PrefRowLines.THREE, leading = { PrefIcon(Icons.Default.AutoAwesome) }) {
+        Text(stringResource(R.string.pref_ai_model), style = MaterialTheme.typography.titleMedium)
+        Text(
+            stringResource(R.string.pref_ai_model_summary),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        OutlinedTextField(
+            value = model,
+            onValueChange = {
+                // Newlines stripped and length capped for the same reason as the
+                // creator name: this is a single token that ends up in a request
+                // body, and a paste can carry anything.
+                model = it.replace('\n', ' ').take(ChatWire.MODEL_MAX_LENGTH)
+                Core.prefs.putString(PrefKeys.AI_MODEL, model)
+            },
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            placeholder = { Text(stringResource(R.string.pref_ai_model_hint, ChatWire.MODEL)) },
+            // The one thing the field itself cannot show: what a blank — or an
+            // all-spaces — box actually sends. Resolved by the same function the
+            // request uses, so it can never disagree with it.
+            supportingText = {
+                Text(stringResource(R.string.pref_ai_model_current, ChatWire.resolveModel(model)))
+            },
             singleLine = true,
         )
     }

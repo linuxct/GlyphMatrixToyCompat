@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import space.linuxct.glyphmatrixtoycompat.R
 import space.linuxct.glyphmatrixtoycompat.ui.design.Camera
 import space.linuxct.glyphmatrixtoycompat.ui.design.DeviceBack
@@ -126,7 +127,56 @@ private const val DIALOG_ENTER_SCALE = 0.85f
  * spring, which never bounces. Nothing here is a tween or a literal duration.
  */
 @Composable
-internal fun MotionDialog(onDismiss: () -> Unit, content: @Composable (dismiss: () -> Unit) -> Unit) {
+internal fun MotionDialog(
+    onDismiss: () -> Unit,
+    /**
+     * Lets the content take the whole window instead of a dialog-sized card.
+     *
+     * Exactly three things change, and all of them are about the *window* rather
+     * than the motion:
+     *
+     * - `usePlatformDefaultWidth` is turned off, so the window is measured against
+     *   the display rather than against `config_prefDialogWidth` (see
+     *   [dialogCardWidth] for what that cap normally does for us);
+     * - `decorFitsSystemWindows` is turned off with it — see below;
+     * - the vertical margin that keeps a card off the status bar is dropped,
+     *   because a full-screen surface handles its own insets.
+     *
+     * ## Why `decorFitsSystemWindows` has to go with it
+     *
+     * **A dialog is its own window, and it does not inherit the activity's
+     * edge-to-edge.** Every Activity in this app calls `enableEdgeToEdge()`; a
+     * `Dialog` opened from one still gets a window whose decor fits system windows,
+     * which means the *window* is resized or panned when the IME appears and the
+     * insets are consumed before the content ever sees them. Full-screen content
+     * that then applies `safeDrawingPadding()` — which includes the IME — pays for
+     * the keyboard twice: the window shrinks by the keyboard's height AND the
+     * content pads by it again, leaving the composer squashed against the top of
+     * the screen with an empty list under it. That is exactly the jump the
+     * assistant's chat showed the moment its input was tapped, and why it appeared
+     * to fix itself on the first keystroke: the next recomposition re-measured
+     * against insets that had by then settled.
+     *
+     * Turning it off makes the content the only thing accounting for the keyboard.
+     * The library does the whole job from this one flag — `setDecorFitsSystemWindows(false)`,
+     * a non-floating window theme, `fitInsetsTypes = 0`, and a soft-input mode of
+     * `ADJUST_NOTHING` (S and above; `ADJUST_RESIZE` below it) — applied while the
+     * window is being built rather than poked at afterwards through
+     * `DialogWindowProvider`. Compose's own KDoc recommends the pair, in as many
+     * words: use `decorFitsSystemWindows = false` when `usePlatformDefaultWidth` is
+     * false, "to support using the entire screen and avoiding UI glitches on some
+     * devices when the IME animates in".
+     *
+     * Both stay ON for the card dialogs, which are floating windows sized by the
+     * platform and correct as they are.
+     *
+     * A parameter rather than a second implementation so that every pop-up in
+     * this app still enters and leaves on the same springs. The one full-screen
+     * caller is the assistant's chat, which is a conversation and not a card.
+     */
+    fullScreen: Boolean = false,
+    content: @Composable (dismiss: () -> Unit) -> Unit,
+) {
     val visible = remember { MutableTransitionState(false).apply { targetState = true } }
     // Guarded by `targetState`: at the first composition currentState is false
     // but the transition is already running towards true, so isIdle is false and
@@ -136,12 +186,18 @@ internal fun MotionDialog(onDismiss: () -> Unit, content: @Composable (dismiss: 
     }
     val fade = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
     val scale = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
-    Dialog(onDismissRequest = { visible.targetState = false }) {
+    Dialog(
+        onDismissRequest = { visible.targetState = false },
+        properties = DialogProperties(
+            usePlatformDefaultWidth = !fullScreen,
+            decorFitsSystemWindows = !fullScreen,
+        ),
+    ) {
         AnimatedVisibility(
             visibleState = visible,
             // Outside the Surface, so it caps how tall these dialogs may grow
             // without padding the short ones. See [DIALOG_VERTICAL_MARGIN].
-            modifier = Modifier.padding(vertical = DIALOG_VERTICAL_MARGIN),
+            modifier = if (fullScreen) Modifier else Modifier.padding(vertical = DIALOG_VERTICAL_MARGIN),
             enter = fadeIn(fade) + scaleIn(scale, initialScale = DIALOG_ENTER_SCALE),
             exit = fadeOut(fade) + scaleOut(scale, targetScale = DIALOG_ENTER_SCALE),
             label = "dialogMotion",

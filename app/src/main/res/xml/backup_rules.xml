@@ -18,6 +18,16 @@
   own entry, but restoring a toy order and a screen selection onto different
   hardware is a decision with its own edge cases; re-picking a few preferences
   costs a minute, whereas a redrawn design is gone forever.
+
+  THE OPENAI TOKEN IS DELIBERATELY ABSENT, and this note exists so that stays
+  true on purpose rather than by accident. ai/TokenStore keeps the refresh and
+  access tokens in CREDENTIAL-protected storage — the one thing in this app that
+  does, precisely because it must not be readable before the first unlock. That
+  domain (`file`) is not named above, and because any <include> turns backup into
+  an allowlist, it is excluded by construction: a credential cannot be lifted out
+  of a cloud backup and cannot be restored onto another device, which would be a
+  live sign-in on hardware its owner never authorised. Signing in again is one
+  tap. DO NOT add a `file`-domain rule here without moving that decision first.
 -->
 <data-extraction-rules>
     <cloud-backup>

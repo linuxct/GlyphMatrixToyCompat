@@ -261,6 +261,12 @@
     <string name="pref_creator_name_summary">Credited as the author on designs you make from now on. Designs you have already made keep the name they were saved with.</string>
     <string name="pref_creator_name_hint">Leave empty for no credit</string>
 
+    <!-- Assistant model (the model id the design assistant is asked for) -->
+    <string name="pref_ai_model">Assistant model</string>
+    <string name="pref_ai_model_summary">The model the design assistant talks to. If it stops answering, put a working model id here — it applies to your next message.</string>
+    <string name="pref_ai_model_hint">Leave empty for %1$s</string>
+    <string name="pref_ai_model_current">Asking for %1$s</string>
+
     <!-- Create tab -->
     <string name="create_title">Your designs</string>
     <string name="create_hint">Designs you draw here play on the Glyph Matrix. Use “Show on Glyph Matrix” in a design\'s ⋮ menu to put one there.</string>
@@ -357,6 +363,111 @@
     <string name="editor_onion_on">Onion skin on — hide the previous frame</string>
     <string name="editor_onion_off">Onion skin off — show the previous frame</string>
     <string name="editor_settings">Design settings</string>
+
+    <!-- Design assistant.
+         Three doors behind one sparkles button, in this order: the disclosure,
+         the sign-in, the conversation. The copy names OpenAI explicitly wherever
+         it appears, because that is who the account belongs to and where the
+         design, the messages and any attached photo actually go. -->
+    <string name="ai_action">Design with an assistant</string>
+    <string name="ai_title">Design with an assistant</string>
+    <string name="ai_body_signed_out">Sign in with your OpenAI account and an assistant can help you design Glyph art — describing what you want instead of placing every dot by hand. Signing in opens your browser.</string>
+    <string name="ai_body_signed_in">You\'re signed in with OpenAI. Opening the assistant…</string>
+    <string name="ai_waiting">Waiting for you to finish in the browser…</string>
+    <string name="ai_sign_in">Sign in</string>
+    <string name="ai_retry">Try again</string>
+    <string name="ai_sign_out">Sign out</string>
+    <string name="ai_cancel">Cancel</string>
+    <string name="ai_error_timeout">Sign-in timed out waiting for the browser. Try again.</string>
+    <string name="ai_error_port">Another sign-in is still finishing. Wait a moment and try again.</string>
+    <string name="ai_error_no_browser">No browser on this phone can open the sign-in page.</string>
+    <string name="ai_error_failed">Sign-in did not complete.</string>
+
+    <!-- The one-off disclosure, shown before anything at all leaves the device.
+         It has to answer three questions: what is sent, to whom, and what stays
+         here. Declining is simply closing it — nothing is stored either way. -->
+    <string name="ai_consent_title">Before you start</string>
+    <string name="ai_consent_body">To help with a design, the assistant is sent the design you have open — its artwork as text — along with the messages you type and any photo you attach. That goes to OpenAI, over the account you sign in with, and is subject to their terms and privacy policy.</string>
+    <string name="ai_consent_storage">Your conversation is kept on this phone, beside the design, and is deleted when the design is. Attached photos are not stored.</string>
+    <string name="ai_consent_accept">I understand</string>
+    <string name="ai_consent_decline">Not now</string>
+
+    <!-- The conversation itself. -->
+    <string name="ai_chat_empty_title">Describe what you want</string>
+    <string name="ai_chat_empty_body">Ask for a design in words — “a smiley face”, “make it blink”, “turn this photo into art” — and the assistant reads what is on your canvas and draws it. You can undo anything it changes.</string>
+    <string name="ai_chat_hint">Ask for a design…</string>
+    <string name="ai_chat_send">Send</string>
+    <string name="ai_chat_stop">Stop waiting</string>
+    <string name="ai_chat_attach">Attach a photo</string>
+    <string name="ai_chat_remove_photo">Remove this photo</string>
+    <string name="ai_chat_attach_failed">That image could not be read.</string>
+    <string name="ai_chat_changed">The assistant changed your design.</string>
+    <string name="ai_chat_undo">Undo AI change</string>
+    <string name="ai_chat_copy">Copy</string>
+    <string name="ai_chat_dismiss">Dismiss</string>
+    <!-- The header's overflow. Clearing a conversation is destructive and gets a
+         confirmation, and the confirmation's job is to say the one thing a
+         person is right to worry about: the artwork is not part of this. -->
+    <string name="ai_chat_menu">More options for this conversation</string>
+    <string name="ai_chat_reset">Reset this chat</string>
+    <string name="ai_chat_reset_title">Reset this chat?</string>
+    <string name="ai_chat_reset_body">The conversation about this design is deleted from this phone and the assistant starts again with no memory of it. Your design is not touched — anything it already drew stays on the canvas.</string>
+    <string name="ai_chat_reset_confirm">Reset</string>
+    <plurals name="ai_chat_photo_count">
+        <item quantity="one">%1$d photo</item>
+        <item quantity="other">%1$d photos</item>
+    </plurals>
+
+    <!-- What the assistant is doing, while it does it. One per ChatTrace. -->
+    <string name="ai_trace_thinking">Working out what to draw…</string>
+    <string name="ai_trace_processing">Reading what came back…</string>
+    <string name="ai_trace_reading">Reading your design…</string>
+    <string name="ai_trace_applying">Putting it on your canvas…</string>
+    <string name="ai_trace_checking">Checking the drawing against the panel…</string>
+    <string name="ai_trace_running">Running %1$s…</string>
+
+    <!-- How long the turn in flight has been running. Minutes and seconds, shown
+         only once a turn is long enough that the wait is worth naming. -->
+    <string name="ai_elapsed">%1$d:%2$02d</string>
+
+    <!-- The live step list. A turn can take minutes because the assistant draws,
+         the app checks that drawing against the panel, and the assistant redraws
+         when the check fails — and none of that was visible before, so a working
+         turn read as a hang. The heading says which of the two is happening, and
+         it names the design rather than the assistant: what is being checked is
+         whether the drawing fits a 137-cell disc, not whether the assistant was
+         careful. -->
+    <string name="ai_steps_title">Drawing, and checking if the design works…</string>
+    <string name="ai_steps_title_retrying">That draft didn\'t fit — drawing another…</string>
+
+    <!-- What it did, after the fact: in the live list while the turn runs, and
+         under the finished message afterwards. A failure names the attempt, so a
+         run of them reads as progress rather than as the same thing going wrong
+         over and over. -->
+    <string name="ai_tool_read">Read your design</string>
+    <string name="ai_tool_applied">Updated your design</string>
+    <!-- A passed check means the draft is LEGAL, not that the job is done: the
+         assistant is free to look at its own preview and draw another. Worded so
+         that a success followed by "Checked draft 7 — didn\'t fit" reads as two
+         drafts rather than as our validator being overruled. -->
+    <string name="ai_tool_checked">Draft %1$d — fits the panel, may still be redrawn</string>
+    <string name="ai_tool_failed">%1$s — didn\'t work</string>
+    <string name="ai_step_read_failed">Couldn\'t read your design — trying again</string>
+    <string name="ai_step_check_failed">Checked draft %1$d — didn\'t fit, redrawing</string>
+    <string name="ai_step_apply_failed">Draft %1$d — the canvas wouldn\'t take it, redrawing</string>
+
+    <!-- Why a turn produced no answer. Four categories because the recovery
+         differs; the server's own words are shown underneath, verbatim, and the
+         detail is copyable — a wrong model id, a rejected header and an expired
+         token all fail the same way and only that text tells them apart. -->
+    <string name="ai_chat_error_transport">Couldn\'t reach the assistant service.</string>
+    <string name="ai_chat_error_server">The assistant service refused the request.</string>
+    <string name="ai_chat_error_stuck">The assistant kept working without answering.</string>
+    <!-- The same run of rounds, but it had a drawing that passed its checks, so
+         that draft is on the canvas rather than thrown away. Says both halves:
+         it ran out of time, AND something landed. The undo banner is showing. -->
+    <string name="ai_chat_error_stuck_salvaged">It ran out of time. Its last checked draft is on your canvas — say what to change, or undo it.</string>
+    <string name="ai_chat_error_empty">The assistant finished without saying anything.</string>
 
     <!-- Timeline -->
     <string name="editor_frame_thumb">Frame %1$d</string>

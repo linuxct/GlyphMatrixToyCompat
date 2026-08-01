@@ -1,5 +1,7 @@
 package space.linuxct.glyphmatrixtoycompat.core
 
+import space.linuxct.glyphmatrixtoycompat.core.ai.ChatWire
+
 /**
  * Minimal settings store abstraction. The Android implementation wraps
  * SharedPreferences in DEVICE-PROTECTED storage (Direct Boot safe) — see
@@ -152,6 +154,22 @@ object PrefKeys {
      */
     const val CREATOR_NAME = "creatorName"
     const val CREATOR_NAME_DEF = ""
+
+    /**
+     * The model id the design assistant talks to, or "" to use the built-in one.
+     *
+     * Here rather than beside the OAuth token because it is not a secret — it is
+     * the name of a model, the same kind of fact as [CREATOR_NAME] — and the
+     * credential-protected stores are unreadable before the first unlock, which
+     * is a cost with nothing to buy.
+     *
+     * The default is [ChatWire.MODEL] itself rather than a second copy of the
+     * literal, so "what does this app ask for" has exactly one answer. Empty is
+     * a perfectly good stored value: [ChatWire.resolveModel] turns it back into
+     * the built-in default, which is what makes clearing the field a reset.
+     */
+    const val AI_MODEL = "aiModel"
+    const val AI_MODEL_DEF = ChatWire.MODEL
 
     const val AMBIENT_BACKGROUND = "ambientBackground"
     const val AMBIENT_BACKGROUND_DEF = 0

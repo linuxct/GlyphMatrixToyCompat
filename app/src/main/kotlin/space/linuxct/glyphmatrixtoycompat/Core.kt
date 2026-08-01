@@ -2,6 +2,7 @@ package space.linuxct.glyphmatrixtoycompat
 
 import android.content.Context
 import com.nothing.ketchum.Common
+import space.linuxct.glyphmatrixtoycompat.ai.DesignChatCleanup
 import space.linuxct.glyphmatrixtoycompat.audio.AudioVisualizerEngine
 import space.linuxct.glyphmatrixtoycompat.core.AndroidRenderScheduler
 import space.linuxct.glyphmatrixtoycompat.core.AutoBrightness
@@ -101,6 +102,13 @@ object Core {
         // onActivate, and arbiter.revive() at the end of this method can trigger
         // that before the first unlock after a reboot.
         designStore = DesignStore(app)
+        // The one place `designs/` and `ai/` are joined, and it is joined from
+        // here rather than by an import inside DesignStore: deleting a design has
+        // to take its conversation with it, but the storage layer the always-on
+        // display depends on must not depend on the assistant. Registration only;
+        // nothing credential-protected is touched until the first delete, which
+        // is what makes this safe to run during Direct Boot.
+        DesignChatCleanup.install(app, designStore)
         glyphLink = GlyphLink(app)
         scheduler = AndroidRenderScheduler()
         shake = ShakeDetector(app)

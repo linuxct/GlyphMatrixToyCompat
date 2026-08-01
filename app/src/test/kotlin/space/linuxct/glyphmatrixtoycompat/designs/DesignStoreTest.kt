@@ -2,6 +2,7 @@ package space.linuxct.glyphmatrixtoycompat.designs
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -144,6 +145,104 @@ class DesignStoreTest {
         assertTrue(ok)
         assertEquals(new, f.target.readText())
         assertFalse(f.backup.exists())
+    }
+
+    // endregion
+
+    // region deletion hooks
+
+    /**
+     * The hook that replaced `DesignStore`'s import of `ai/ChatStore`.
+     *
+     * `designs/` is a storage layer the always-on display reads before the first
+     * unlock, and `ai/` is an optional feature that may one day not be in the
+     * build at all, so the dependency had to point the other way. What must not
+     * change is the behaviour it was there for: deleting a design takes
+     * everything keyed by its id with it, and no failure of that second part can
+     * cost the caller the first.
+     */
+    @Test
+    fun `a registered hook is told the id of every design deleted`() {
+        val f = fixture(withTarget = true)
+        val hooks = DesignDeletionHooks()
+        val seen = mutableListOf<String>()
+        hooks.add { seen.add(it) }
+
+        assertTrue(deleteDesignFile(f.target, "abc", hooks))
+
+        assertFalse(f.target.exists())
+        assertEquals(listOf("abc"), seen)
+    }
+
+    @Test
+    fun `a design already gone still notifies, so nothing is left orphaned`() {
+        val f = fixture(withTarget = false)
+        val hooks = DesignDeletionHooks()
+        val seen = mutableListOf<String>()
+        hooks.add { seen.add(it) }
+
+        // False: there was no design file to remove. The conversation about it
+        // may still exist, and an orphan would be adopted by the next design
+        // allocated that id — `allocateId` looks at design files and nothing else.
+        assertFalse(deleteDesignFile(f.target, "abc", hooks))
+
+        assertEquals(listOf("abc"), seen)
+    }
+
+    @Test
+    fun `a store with no hook registered deletes exactly as it always did`() {
+        val f = fixture(withTarget = true)
+
+        assertTrue(deleteDesignFile(f.target, "abc", DesignDeletionHooks()))
+
+        assertFalse("the design is gone, hook or no hook", f.target.exists())
+    }
+
+    @Test
+    fun `a hook that throws costs the caller nothing`() {
+        val f = fixture(withTarget = true)
+        val hooks = DesignDeletionHooks()
+        val seen = mutableListOf<String>()
+        // The realistic failure: credential-protected storage while the device is
+        // locked, or a file another process holds open.
+        hooks.add { throw IllegalStateException("locked") }
+        hooks.add { seen.add(it) }
+
+        // Not `assertThrows`: the whole point is that this returns.
+        assertTrue(deleteDesignFile(f.target, "abc", hooks))
+
+        assertFalse(f.target.exists())
+        assertEquals("one listener failing must not silence the next", listOf("abc"), seen)
+    }
+
+    // endregion
+
+    // region what counts as a stored design
+
+    @Test
+    fun `every name the store writes maps back to its design id`() {
+        assertEquals("abc123", storedDesignId("abc123.json"))
+        // A design that only exists under its backup name is still the user's
+        // design: `recoverBackups` puts it back on the next listing. Reading it as
+        // absent for even a moment would have anything keyed by its id swept up.
+        assertEquals("abc123", storedDesignId("abc123.json.bak"))
+        assertEquals("abc123", storedDesignId("abc123.json.tmp"))
+    }
+
+    @Test
+    fun `nothing else in the directory is read as a design id`() {
+        val notOurs = listOf(
+            "abc123",
+            "abc123.txt",
+            ".json",
+            "abc 123.json",
+            "../secrets.json",
+            "sub/abc.json",
+            "abc.json.bak.bak",
+            "",
+        )
+
+        notOurs.forEach { assertNull(it, storedDesignId(it)) }
     }
 
     // endregion

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WHY THIS FILE EXISTS: the OpenAI sign-in is a PKCE flow whose redirect target is
+  a ServerSocket this app opens on the loopback interface —
+  `http://localhost:1455/auth/callback` (ai/OAuthCallbackServer.kt). The browser
+  redirects there over PLAIN HTTP, and since API 28 the platform default
+  (`cleartextTrafficPermitted="false"`) blocks that.
+
+  SCOPE, and why it is this narrow: the exemption names loopback and nothing else.
+  `localhost` and `127.0.0.1` never leave the device — the packets do not reach a
+  network interface — so there is no wire for anyone to read them off, which is
+  the entire risk cleartext carries. Everything else, the token endpoint and every
+  API call included, falls through to the base config and stays HTTPS-only.
+
+  Deliberately NOT `<base-config cleartextTrafficPermitted="true">` with an
+  https-only exception for the API host. That is the shape pulseloop-android uses,
+  and it is right *there* because that app lets the user configure an arbitrary
+  http:// OTLP endpoint on their LAN. This app has no such setting: nothing it
+  talks to is cleartext except its own loopback socket, so an allowlist of one is
+  both sufficient and much easier to keep honest.
+
+  `::1` is not listed: `<domain>` matches hostnames, and the callback server binds
+  and is reached by the IPv4 loopback literal.
+-->
+<network-security-config>
+    <!-- The default for every host this app contacts: TLS, system trust anchors,
+         no user-installed CAs, no cleartext. -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <!-- The one exception: the OAuth callback, on this device only. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>
