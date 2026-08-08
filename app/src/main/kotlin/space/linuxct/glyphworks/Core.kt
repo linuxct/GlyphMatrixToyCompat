@@ -98,6 +98,7 @@ object Core {
         // Must precede every prefs reader below (ScreenManager and the arbiter
         // read the screen order and current screen as they are built).
         if (PrefsMigration.run(prefs)) DebugLog.i("Core", "prefs migrated to v${PrefKeys.PREFS_VERSION_CURRENT}")
+        armToyProbe()
         // Device-protected, like prefs — CustomScreen reads a design during
         // onActivate, and arbiter.revive() at the end of this method can trigger
         // that before the first unlock after a reboot.
@@ -193,5 +194,37 @@ object Core {
         // from process start — including before first unlock after boot — the
         // current screen renders and the system decides whether it is shown.
         arbiter.revive()
+    }
+
+    /**
+     * Decide whether the always-on-toy check may call a negative a negative yet.
+     *
+     * See [PrefKeys.TOY_PROBE_ARMED]: Nothing OS will not bind a freshly-installed
+     * toy until this process has restarted once, so on the very first run the
+     * checklist would tell a user who has just selected GlyphWorks that they have
+     * not. This runs once per process — every process, including one started by
+     * the accessibility service or the toy itself — and arms on the second.
+     *
+     * Idempotent and cheap: two boolean reads on the already-open store, and after
+     * arming, one.
+     */
+    private fun armToyProbe() {
+        if (prefs.getBoolean(PrefKeys.TOY_PROBE_ARMED, PrefKeys.TOY_PROBE_ARMED_DEF)) return
+        // A latch that has already tripped proves binding works here, so an
+        // install that is already fine does not have to sit through a restart.
+        // This is also what carries an upgrade from an older build straight to
+        // armed rather than muting its checklist for one process.
+        val alreadyBound = prefs.getLong(PrefKeys.TOY_LAST_BOUND, PrefKeys.TOY_LAST_BOUND_DEF) > 0L
+        val seenOnce = prefs.getBoolean(PrefKeys.TOY_PROBE_SEEN_ONCE, PrefKeys.TOY_PROBE_SEEN_ONCE_DEF)
+        when {
+            alreadyBound || seenOnce -> {
+                prefs.putBoolean(PrefKeys.TOY_PROBE_ARMED, true)
+                DebugLog.i("Core", "toy probe armed (bound=$alreadyBound seenOnce=$seenOnce)")
+            }
+            else -> {
+                prefs.putBoolean(PrefKeys.TOY_PROBE_SEEN_ONCE, true)
+                DebugLog.i("Core", "toy probe not armed yet: first process since install")
+            }
+        }
     }
 }

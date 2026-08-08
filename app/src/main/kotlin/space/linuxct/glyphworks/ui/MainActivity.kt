@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Toast
@@ -259,7 +260,12 @@ private val DISPLAY_NAMES = mapOf(
     "coin" to R.string.screen_coin,
     "dino" to R.string.screen_dino,
     "bottle" to R.string.screen_bottle,
-    "rps" to R.string.screen_rps,
+    // TEMPORARILY DISABLED — Rock Paper Scissors. This map is the Toys tab's
+    // roster: [loadOrder] keeps only stored ids that are keys here, then appends
+    // any key the store has not seen, so dropping the entry removes the row and
+    // with it every way to enable the toy. Restore alongside the matching line in
+    // screens/ScreenRegistry.kt, which is what the Essential Key cycles.
+    // "rps" to R.string.screen_rps,
     "counter" to R.string.screen_counter,
     "breathing" to R.string.screen_breathing,
     "timer" to R.string.screen_timer,
@@ -434,6 +440,23 @@ private fun MainScreen(startTab: Int = 0) {
     // "open on this tab" means: a rotation must not throw the user back to it.
     val pagerState = rememberPagerState(initialPage = startTab, pageCount = { Tab.entries.size })
     val scope = rememberCoroutineScope()
+
+    // The untested-hardware notice, on the first render of the real UI — which is
+    // the first thing the user sees after onboarding, and on every later launch
+    // is simply already acknowledged. `rememberSaveable` so a rotation with it
+    // open does not re-ask a question the user has just answered.
+    var untestedAck by rememberSaveable {
+        mutableStateOf(
+            !isTestedGlyphDevice() &&
+                !Core.prefs.getBoolean(PrefKeys.UNTESTED_DEVICE_ACK, PrefKeys.UNTESTED_DEVICE_ACK_DEF),
+        )
+    }
+    if (untestedAck) {
+        UntestedDeviceDialog(onDismiss = {
+            untestedAck = false
+            Core.prefs.putBoolean(PrefKeys.UNTESTED_DEVICE_ACK, true)
+        })
+    }
     // Tapping a nav chip scrolls the pager instead of assigning an index —
     // scrolling is POSITION, hence spatial. The chip then follows the pager for
     // free, which is what keeps a TAP animated now that the chip's own springs
@@ -1517,6 +1540,11 @@ private fun probeSetup(context: Context): SetupStatus {
         // the row still opens the picker.)
         alwaysOnToy = Core.arbiter.owner == SessionArbiter.Owner.TOY ||
             Core.prefs.getLong(PrefKeys.TOY_LAST_BOUND, PrefKeys.TOY_LAST_BOUND_DEF) > 0L,
+        // ...and whether a `false` above is worth reporting yet. On the first run
+        // after a fresh install the system has not bound the toy no matter what
+        // the user picked, so the latch says "not set" about a step they have
+        // just done. See PrefKeys.TOY_PROBE_ARMED.
+        toyProbeArmed = Core.prefs.getBoolean(PrefKeys.TOY_PROBE_ARMED, PrefKeys.TOY_PROBE_ARMED_DEF),
         notifications = anyGranted(SETUP_NOTIFICATION_PERMISSIONS),
         microphone = anyGranted(SETUP_MICROPHONE_PERMISSIONS),
         location = anyGranted(SETUP_LOCATION_PERMISSIONS),
@@ -1636,8 +1664,17 @@ private fun SettingsTab(
                         val toyOk = setup.alwaysOnToy
                         ChecklistRow(
                             title = stringResource(R.string.checklist_toy),
+                            // Three states, not two. Until the probe is armed the
+                            // honest answer is "cannot tell yet" — saying "not
+                            // selected" to someone who has just selected it is how
+                            // this row earned a bug report. See
+                            // PrefKeys.TOY_PROBE_ARMED.
                             subtitle = stringResource(
-                                if (toyOk) R.string.checklist_toy_on else R.string.checklist_toy_hint,
+                                when {
+                                    toyOk -> R.string.checklist_toy_on
+                                    !setup.toyProbeArmed -> R.string.checklist_toy_pending
+                                    else -> R.string.checklist_toy_hint
+                                },
                             ),
                             good = if (toyOk) true else null,
                         ) {
@@ -1994,16 +2031,8 @@ private fun TutorialTab(innerPadding: PaddingValues, scrollState: ScrollState) {
 
     when (topic) {
         TutorialTopic.KEY -> KeyTutorialDialog(onDismiss = { topic = null })
-        TutorialTopic.HANDOVER -> TutorialInfoDialog(
-            title = stringResource(R.string.tut_handover_title),
-            intro = stringResource(R.string.tut_handover_intro),
-            steps = listOf(
-                stringResource(R.string.tut_handover_step1),
-                stringResource(R.string.tut_handover_step2),
-            ),
-            note = stringResource(R.string.tut_handover_note),
-            onDismiss = { topic = null },
-        )
+        // Shared with onboarding's key-mode page; see HandoverTutorialDialog.
+        TutorialTopic.HANDOVER -> HandoverTutorialDialog(onDismiss = { topic = null })
         null -> {}
     }
 }
@@ -2967,6 +2996,39 @@ private fun SwitchRow(
 
 // ---------- unsupported-device dead end ----------
 
+/**
+ * One-time notice on a Glyph device that is not the Phone (4a) Pro.
+ *
+ * Distinct from [UnsupportedDeviceScreen], which replaces the app: this one sits
+ * on top of a working app and says only that nobody has watched it run here. The
+ * device name and matrix size are in the copy because a bug report that includes
+ * them is worth far more than one that does not, and this is the moment the user
+ * is looking at the words "report it".
+ *
+ * Written on dismissal and never reset. There is no way back to it from Settings
+ * on purpose — it is an acknowledgement, not a preference.
+ */
+@Composable
+private fun UntestedDeviceDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.untested_dismiss)) }
+        },
+        title = { Text(stringResource(R.string.untested_title)) },
+        text = {
+            Text(
+                stringResource(
+                    R.string.untested_body,
+                    Build.MODEL ?: "unknown",
+                    Core.glyphLink.matrixLength,
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        },
+    )
+}
+
 /** Shown instead of the app on hardware without a Glyph Matrix. */
 @Composable
 private fun UnsupportedDeviceScreen() {
@@ -3002,8 +3064,18 @@ private fun ScreenSettingsDialog(id: String, onDismiss: () -> Unit) {
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 when (id) {
+                    // "Analog" is last because it is the odd one out: the first
+                    // three are the same digits with different furniture, and it
+                    // replaces them outright. Its index must stay 3 —
+                    // ClockScreen.THEME_ANALOG — since the choice is stored as an
+                    // ordinal.
                     "clock" -> IntChoiceGroup(
-                        options = listOf("Plain digits", "Digits + battery bar", "Digits + battery ring"),
+                        options = listOf(
+                            "Plain digits",
+                            "Digits + battery bar",
+                            "Digits + battery ring",
+                            "Analog",
+                        ),
                         key = PrefKeys.CLOCK_THEME,
                         def = PrefKeys.CLOCK_THEME_DEF,
                     )
@@ -3115,7 +3187,12 @@ private fun AmbientSettings() {
     IntChoiceGroup(
         options = listOf(
             "Digital clock", "Analog clock", "Connection status", "Battery %",
-            "Download speed", "Tilt ball", "Pixel clock (themed)",
+            // "Clock (themed)" follows the Clock toy's own theme setting, so
+            // picking analog there makes this option draw the same dial as
+            // "Analog clock" above. Two routes to one frame, which is what
+            // "follows the toy" has always meant here — themes 1 and 2 behave the
+            // same way against no other background.
+            "Download speed", "Tilt ball", "Clock (themed)",
             "Battery gauge", "Solar path", "Moon phase",
         ),
         key = PrefKeys.AMBIENT_BACKGROUND,

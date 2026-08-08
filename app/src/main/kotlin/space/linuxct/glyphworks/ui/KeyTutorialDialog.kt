@@ -356,6 +356,30 @@ private fun platformDialogWidth(context: Context): Dp {
 }
 
 /**
+ * "Hand over the Essential Key": the two system settings that stop Nothing OS
+ * acting on the key before this app sees it.
+ *
+ * Named rather than assembled at each call site because there are two — the
+ * Tutorials tab and onboarding's key-mode page — and this is a set of numbered
+ * instructions about someone else's Settings app. Two copies would be two things
+ * to correct the day a firmware update moves a menu, and the one that got missed
+ * would be the one walking a first-run user into a dead end.
+ */
+@Composable
+fun HandoverTutorialDialog(onDismiss: () -> Unit) {
+    TutorialInfoDialog(
+        title = stringResource(R.string.tut_handover_title),
+        intro = stringResource(R.string.tut_handover_intro),
+        steps = listOf(
+            stringResource(R.string.tut_handover_step1),
+            stringResource(R.string.tut_handover_step2),
+        ),
+        note = stringResource(R.string.tut_handover_note),
+        onDismiss = onDismiss,
+    )
+}
+
+/**
  * A short numbered-steps guide pop-up (styled like the tutorial dialog):
  * title, intro, numbered steps, optional note and optional action button.
  */
@@ -1045,7 +1069,7 @@ private val COMPASS = charsetFrame(
 )
 
 /**
- * The Pixel Clock toy on its plain-digits theme reading 12:34, stacked "12"
+ * The Clock toy on its plain-digits theme reading 12:34, stacked "12"
  * over "34" — the clock_13_1234_t0 golden.
  */
 private val CLOCK = charsetFrame(
@@ -1068,25 +1092,31 @@ private val CLOCK = charsetFrame(
 
 /**
  * The Ambient toy — the *analog* clock background at 10:08 (hour and minute
- * hands), from the ambient_13_bg_analog_1008 golden. Deliberately not the
- * default digital background: digits here would look almost identical to
- * [CLOCK] and the "cycle between toys" animations would read as no change at
- * all.
+ * hands, inside the panel border), from the ambient_13_bg_analog_1008 golden.
+ * Deliberately not the default digital background: digits here would look almost
+ * identical to [CLOCK] and the "cycle between toys" animations would read as no
+ * change at all.
+ *
+ * **The two formats invert each other**, so this is transcribed with a script
+ * rather than by eye: a golden writes OFF as a space and a dim cell as `.`, while
+ * [charsetFrame] writes OFF as `.` and reads `:` as its dimmest level. Copying a
+ * golden straight in turns every off cell into a lit one — which is the whole
+ * panel, since the border made most rows non-empty.
  */
 private val AMBIENT = charsetFrame(
     listOf(
-        ".............",
-        ".............",
-        "..........+..",
-        "..#......+...",
-        "...##...+....",
-        ".....#.+.....",
-        "......#......",
-        ".............",
-        ".............",
-        ".............",
-        ".............",
-        ".............",
-        ".............",
+        "....:::::....",
+        "..::.....::..",
+        ".:........+:.",
+        ".:#......+.:.",
+        ":..##...+...:",
+        ":....#.+....:",
+        ":.....#.....:",
+        ":...........:",
+        ":...........:",
+        ".:.........:.",
+        ".:.........:.",
+        "..::.....::..",
+        "....:::::....",
     ),
 )

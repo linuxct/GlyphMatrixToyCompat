@@ -22,6 +22,11 @@ class ClockScreenTest {
         GoldenAscii.check("clock_13_1234_t1_bar", ClockScreen.renderFrame(h13.context), 13)
         h13.prefs.putInt(PrefKeys.CLOCK_THEME, 2)
         GoldenAscii.check("clock_13_1234_t2_ring", ClockScreen.renderFrame(h13.context), 13)
+        // Theme 3 goes through renderFrame like the rest, which is the point of
+        // asserting it here: the dial is reached by the screen's normal path, not
+        // only by calling renderAnalog directly.
+        h13.prefs.putInt(PrefKeys.CLOCK_THEME, ClockScreen.THEME_ANALOG)
+        GoldenAscii.check("clock_13_1234_t3_analog", ClockScreen.renderFrame(h13.context), 13)
 
         val h25 = TestHarness(25)
         h25.clock.hour = 12
@@ -30,6 +35,8 @@ class ClockScreenTest {
         GoldenAscii.check("clock_25_1234_t0", ClockScreen.renderFrame(h25.context), 25)
         h25.prefs.putInt(PrefKeys.CLOCK_THEME, 2)
         GoldenAscii.check("clock_25_1234_t2_ring", ClockScreen.renderFrame(h25.context), 25)
+        h25.prefs.putInt(PrefKeys.CLOCK_THEME, ClockScreen.THEME_ANALOG)
+        GoldenAscii.check("clock_25_1234_t3_analog", ClockScreen.renderFrame(h25.context), 25)
     }
 
     @Test

@@ -53,6 +53,13 @@ object PrefKeys {
      * `ScreenManager.enabledScreens()` appends every roster screen missing from
      * the stored CSV to the end of the order. A migration would only be needed to
      * rename or remove an id, which is a different operation entirely.
+     *
+     * `rps` is still listed while Rock Paper Scissors is temporarily disabled, and
+     * that is deliberate. Both readers resolve this CSV against a roster and drop
+     * what they cannot find — the Toys tab against `DISPLAY_NAMES`, the cycle
+     * against `ScreenRegistry` — so the stale id costs nothing, and leaving it in
+     * place means the toy returns to its old position rather than the end of the
+     * list when it is switched back on.
      */
     const val SCREEN_ORDER_DEF =
         "ambient,clock,eyes,speed,battery,solar,moon,dice,coin,dino,bottle,rps,counter,breathing," +
@@ -195,10 +202,49 @@ object PrefKeys {
     const val TOY_LAST_BOUND = "toyLastBound"
     const val TOY_LAST_BOUND_DEF = 0L
 
+    /**
+     * Whether [TOY_LAST_BOUND] can be believed when it says *no*.
+     *
+     * ## The problem this exists for
+     *
+     * Nothing OS binds the selected always-on toy lazily, and after a **fresh
+     * install** it does not bind a newly-registered toy at all until this app's
+     * process has been through a full restart — an update, a force-stop, or a
+     * reboot. So during the very first run, a user who has just picked GlyphWorks
+     * in the toy picker is told, correctly by the latch and wrongly by any human
+     * measure, that they have not.
+     *
+     * Re-probing does not help: there is nothing new to read. The latch is written
+     * from `AodToyService.onBind`, and the bind is the thing that has not happened.
+     *
+     * So the checklist stops *asserting* anything about the toy until this app has
+     * been seen alive in two different processes. [TOY_PROBE_SEEN_ONCE] records the
+     * first; the second start reads it and sets this. A latch that has tripped is
+     * proof on its own, so an install that is already working arms immediately
+     * rather than waiting a restart.
+     */
+    const val TOY_PROBE_ARMED = "toyProbeArmed"
+    const val TOY_PROBE_ARMED_DEF = false
+
+    /** One process has started since install. See [TOY_PROBE_ARMED]. */
+    const val TOY_PROBE_SEEN_ONCE = "toyProbeSeenOnce"
+    const val TOY_PROBE_SEEN_ONCE_DEF = false
+
 
     /** First-run onboarding completed; MainActivity redirects there until set. */
     const val ONBOARDING_DONE = "onboardingDone"
     const val ONBOARDING_DONE_DEF = false
+
+    /**
+     * The "this device is not the one this app was tested on" notice has been
+     * dismissed. Written when the user taps it away, never reset — the point is
+     * to say it once.
+     *
+     * Only ever shown on hardware that is not a Phone (4a) Pro; see
+     * `isTestedGlyphDevice`.
+     */
+    const val UNTESTED_DEVICE_ACK = "untestedDeviceAck"
+    const val UNTESTED_DEVICE_ACK_DEF = false
 
     /**
      * Whether the "would you like to watch the tutorial?" offer has ever been put

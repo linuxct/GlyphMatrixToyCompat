@@ -42,7 +42,7 @@ jobs:
           echo "name=$VN" >> "$GITHUB_OUTPUT"
           echo "code=$VC" >> "$GITHUB_OUTPUT"
 
-      # Two artefacts, one run, one keystore.
+      # Three artefacts, one run, one keystore.
       #
       # `github` APK — the sideload build, with the design assistant and the
       # in-app update checker. This is what a human downloads and installs.
@@ -51,11 +51,19 @@ jobs:
       # INTERNET permission (see app/src/play/). An .aab, because Play has taken
       # bundles only since 2021.
       #
-      # Both are signed by the `release` build type's signingConfig, so the same
-      # keystore.properties written above covers both and neither can drift from
-      # the other's commit.
+      # `play` APK — the same build as that bundle, installable. Play cannot
+      # accept it, and it is not what most people want; it is here so the Play
+      # build can be put on a phone and checked. A bundle is not a thing you can
+      # sideload, so without this the only way to try what Play users actually
+      # get is to publish to a test track and wait for review.
+      #
+      # All three are signed by the `release` build type's signingConfig, so the
+      # one keystore.properties written above covers them and none can drift from
+      # another's commit.
       - name: Build release artefacts
-        run: ./gradlew assembleGithubRelease bundlePlayRelease --no-daemon
+        run: >
+          ./gradlew assembleGithubRelease bundlePlayRelease assemblePlayRelease
+          --no-daemon
 
       - name: Rename artefacts
         run: |
@@ -63,6 +71,8 @@ jobs:
              app/build/outputs/apk/github/release/glyphworks-${{ steps.ver.outputs.name }}.apk
           mv app/build/outputs/bundle/playRelease/app-play-release.aab \
              app/build/outputs/bundle/playRelease/glyphworks-${{ steps.ver.outputs.name }}-play.aab
+          mv app/build/outputs/apk/play/release/app-play-release.apk \
+             app/build/outputs/apk/play/release/glyphworks-${{ steps.ver.outputs.name }}-play.apk
 
       # Absent a keystore.properties, Gradle emits an UNSIGNED release build
       # rather than failing — so a secret that is missing, renamed or expired
@@ -77,12 +87,14 @@ jobs:
       #   * `-strict` is NOT usable here: it exits 4 on a self-signed certificate,
       #     and every Android release key is self-signed.
       #
-      # The APK gets apksigner, which does return a meaningful exit code.
-      - name: Verify both artefacts are signed
+      # APKs get apksigner, which does return a meaningful exit code.
+      - name: Verify all three artefacts are signed with one key
         run: |
           set -euo pipefail
-          AAB=app/build/outputs/bundle/playRelease/glyphworks-${{ steps.ver.outputs.name }}-play.aab
-          APK=app/build/outputs/apk/github/release/glyphworks-${{ steps.ver.outputs.name }}.apk
+          V=${{ steps.ver.outputs.name }}
+          AAB=app/build/outputs/bundle/playRelease/glyphworks-$V-play.aab
+          GH_APK=app/build/outputs/apk/github/release/glyphworks-$V.apk
+          PLAY_APK=app/build/outputs/apk/play/release/glyphworks-$V-play.apk
 
           # Resolved to ONE path, highest version. Left as a glob,
           # build-tools/*/apksigner expands to every installed version and the
@@ -94,23 +106,26 @@ jobs:
             echo "::error::$AAB is not signed — check the KEYSTORE_* secrets"
             exit 1
           fi
-          "$APKSIGNER" verify "$APK"
+          "$APKSIGNER" verify "$GH_APK"
+          "$APKSIGNER" verify "$PLAY_APK"
 
-          # Play associates an app with one signing certificate for good, and the
-          # sideload APK must stay installable over the top of itself. Both come
-          # from the `release` build type's signingConfig, so a mismatch means
+          # Play ties an app to one signing certificate for good, and the sideload
+          # APK must stay installable over the top of itself. All three come from
+          # the `release` build type's signingConfig, so a mismatch means
           # something has gone wrong in a way worth stopping for.
           # keytool prints "\t SHA256: 76:0A:F4:…"; apksigner prints bare lowercase
           # hex. awk takes the second field so the label cannot survive into the
           # value — stripping it with tr/sed instead mangles the "A" of "SHA256".
           AAB_CERT=$(keytool -printcert -jarfile "$AAB" | awk '/SHA256:/ {print $2; exit}' | tr -d ':' | tr 'A-F' 'a-f')
-          APK_CERT=$("$APKSIGNER" verify --print-certs "$APK" \
-                     | grep -m1 -i "SHA-256 digest" | awk '{print $NF}')
-          if [ "$AAB_CERT" != "$APK_CERT" ]; then
-            echo "::error::bundle and APK are signed with different keys ($AAB_CERT vs $APK_CERT)"
+          GH_CERT=$("$APKSIGNER" verify --print-certs "$GH_APK" \
+                    | grep -m1 -i "SHA-256 digest" | awk '{print $NF}')
+          PLAY_CERT=$("$APKSIGNER" verify --print-certs "$PLAY_APK" \
+                      | grep -m1 -i "SHA-256 digest" | awk '{print $NF}')
+          if [ "$AAB_CERT" != "$GH_CERT" ] || [ "$PLAY_CERT" != "$GH_CERT" ]; then
+            echo "::error::artefacts are signed with different keys (aab=$AAB_CERT github=$GH_CERT play=$PLAY_CERT)"
             exit 1
           fi
-          echo "both artefacts signed with $APK_CERT"
+          echo "all three artefacts signed with $GH_CERT"
 
       - name: Build release notes
         run: |
@@ -124,23 +139,29 @@ jobs:
             fi
           } > /tmp/release_notes.md
 
-      # Both assets go on the release. The .aab is not installable — it is the
-      # file to upload to the Play Console — so the notes say which is which
-      # before anyone downloads the wrong one.
+      # All three assets go on the release. Two of them are not what a visitor
+      # wants, and one of those cannot even be installed, so the notes lead with
+      # which file to take before anyone downloads the wrong one.
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          V=${{ steps.ver.outputs.name }}
           {
-            echo "**glyphworks-${{ steps.ver.outputs.name }}.apk** — install this one. Includes the design assistant and the in-app update checker."
+            echo "### Which file?"
             echo
-            echo "**glyphworks-${{ steps.ver.outputs.name }}-play.aab** — the Google Play build, for uploading to the Play Console. Not installable directly, and ships without the assistant, the updater or the INTERNET permission."
+            echo "| File | For |"
+            echo "|---|---|"
+            echo "| **glyphworks-$V.apk** | **Install this one.** The full build: design assistant and in-app update checker included. |"
+            echo "| glyphworks-$V-play.aab | Upload to the Play Console. Not installable. |"
+            echo "| glyphworks-$V-play.apk | The Play build, installable — for checking what Play users get. No assistant, no updater, no INTERNET permission. |"
             echo
             cat /tmp/release_notes.md
           } > /tmp/release_body.md
 
-          gh release create "v${{ steps.ver.outputs.name }}" \
-            --title "GlyphWorks ${{ steps.ver.outputs.name }}" \
+          gh release create "v$V" \
+            --title "GlyphWorks $V" \
             --notes-file /tmp/release_body.md \
-            "app/build/outputs/apk/github/release/glyphworks-${{ steps.ver.outputs.name }}.apk" \
-            "app/build/outputs/bundle/playRelease/glyphworks-${{ steps.ver.outputs.name }}-play.aab"
+            "app/build/outputs/apk/github/release/glyphworks-$V.apk" \
+            "app/build/outputs/bundle/playRelease/glyphworks-$V-play.aab" \
+            "app/build/outputs/apk/play/release/glyphworks-$V-play.apk"

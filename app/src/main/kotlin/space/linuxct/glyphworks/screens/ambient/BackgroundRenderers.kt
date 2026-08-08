@@ -16,7 +16,8 @@ import space.linuxct.glyphworks.screens.SpeedScreen
 /**
  * The ambient background options (ambientBackground 0-9):
  * 0 digital text clock, 1 analog clock, 2 connection status, 3 battery %,
- * 4 download speed, 5 tilt ball, 6 pixel clock (honours clockTheme),
+ * 4 download speed, 5 tilt ball, 6 clock (honours clockTheme, so it can draw the
+ * same dial as 1 when that theme is analog),
  * 7 battery gauge, 8 solar path, 9 moon phase.
  */
 interface AmbientBackground {
@@ -61,25 +62,13 @@ private class TextClockBackground : AmbientBackground {
 }
 
 /**
- * 1: analog clock: hour hand len 5/7 at full brightness, minute hand len 6/9
- * at 0.6x. The minute-hand angle includes the seconds, so it visibly steps
- * every second. No second hand.
+ * 1: analog clock — the same dial the Clock screen draws on its analog theme,
+ * border included. `ClockScreen.renderAnalog` owns it; this used to be a second
+ * copy of the same arithmetic, which is exactly the arrangement that lets one of
+ * two identical clocks quietly gain a feature the other does not.
  */
 private class AnalogClockBackground : AmbientBackground {
-    override fun render(c: ScreenContext, nowMs: Long): IntArray {
-        val canvas = MatrixCanvas(c.size)
-        val center = c.size / 2
-        val hourLen = if (c.size >= 25) 7f else 5f
-        val minLen = if (c.size >= 25) 9f else 6f
-        val hour = c.ports.clock.hourOfDay() % 12
-        val minute = c.ports.clock.minute()
-        val second = c.ports.clock.second()
-        val hourAngle = (hour + minute / 60f) * 30f
-        val minAngle = (minute + second / 60f) * 6f
-        canvas.ray(center, center, minAngle, minLen, 2457) // 0.6 * 4095
-        canvas.ray(center, center, hourAngle, hourLen, 4095)
-        return canvas.copyOut()
-    }
+    override fun render(c: ScreenContext, nowMs: Long): IntArray = ClockScreen.renderAnalog(c)
 }
 
 /** 2: connection status icon (Wi-Fi / cellular / airplane / none). */
@@ -195,7 +184,7 @@ private class TiltBallBackground : AmbientBackground {
     }
 }
 
-/** 6: pixel clock, honouring clockTheme (same renderer as the clock screen). */
+/** 6: the Clock toy, honouring clockTheme (same renderer as the clock screen). */
 private class PixelClockBackground : AmbientBackground {
     override fun render(c: ScreenContext, nowMs: Long): IntArray = ClockScreen.renderFrame(c)
 }

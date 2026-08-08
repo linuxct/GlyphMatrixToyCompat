@@ -49,10 +49,17 @@
     <string name="onb_perm_alarm_why">Guarantees the Timer chime lands on the second, even when the phone is dozing.</string>
 
     <string name="onb_mode_title">How should the Key behave?</string>
-    <string name="onb_mode_body">The listener is on — now pick your pressing style. You can change this any time from the main screen.</string>
+    <string name="onb_mode_body">The listener is on. Two things left: let the key actually reach GlyphWorks, then decide what a press does. Both can be changed later from the main screen.</string>
     <string name="onb_mode_regular">Regular mode</string>
     <string name="onb_mode_regular_desc">Press once for the toy’s action, twice to jump to the next toy, three times to return to the background toy. Fast, and kind to muscle memory.</string>
     <string name="onb_mode_how">How do they work?</string>
+
+    <!-- Key-mode page, above the two choices: the system setting that has to be
+         changed before either mode does anything. -->
+    <string name="onb_mode_handover_title">First: let the key reach this app</string>
+    <string name="onb_mode_handover_body">Out of the box, Nothing OS acts on the Essential Key itself — Essential Space opens before GlyphWorks ever sees the press. Two settings fix that, and neither disables Essential Space.</string>
+    <string name="onb_mode_handover_action">Show me how</string>
+    <string name="onb_mode_choose">Then: pick your pressing style</string>
     <string name="onb_mode_menu">Menu mode</string>
     <string name="onb_mode_menu_desc">Double-press opens a blinking toy selector on the matrix; single presses then cycle through the toys, and the highlighted one is chosen after a short pause. Outside the menu, a single press still fires the toy’s action.</string>
 
@@ -71,12 +78,22 @@
 
     <string name="glyph_settings_unavailable">Glyph settings not available</string>
 
+    <!-- Untested-device notice. Shown once, on hardware that is not a Phone (4a)
+         Pro. Not a warning that anything is broken — it says what is and is not
+         known, and asks for the report that would change that. -->
+    <string name="untested_title">Untested on this phone</string>
+    <string name="untested_body">GlyphWorks has only been tested on the Nothing Phone (4a) Pro. Your phone (%1$s) has a %2$d×%2$d Glyph Matrix, and everything here is drawn for it — but nobody has watched it run on this hardware, so your experience may vary.\n\nIf something looks wrong or does not work, please report it: github.com/linuxct/glyphworks\n\nThis message will not appear again.</string>
+    <string name="untested_dismiss">Got it</string>
+
     <!-- Setup checklist -->
     <string name="checklist_accessibility">Essential Key listener (accessibility service)</string>
     <string name="checklist_accessibility_on">Running — Essential Key is captured</string>
     <string name="checklist_accessibility_off">Off — tap to enable in Accessibility settings</string>
     <string name="checklist_toy">Always-on Glyph Toy</string>
     <string name="checklist_toy_hint">Select “GlyphWorks” in Glyph settings so toys keep running on AOD (tap to open)</string>
+    <!-- First run after a fresh install: Nothing OS has not bound the toy yet, so
+         the app genuinely cannot tell whether it has been selected. -->
+    <string name="checklist_toy_pending">Select “GlyphWorks” in Glyph settings (tap to open) — this can’t be confirmed until the app restarts</string>
     <string name="checklist_toy_on">Selected — verified by a system toy binding (tap to change)</string>
     <string name="checklist_notifications">Notifications (Timer chime)</string>
     <string name="checklist_mic">Microphone (music visualizer)</string>
@@ -194,7 +211,7 @@
 
     <!-- Toy display names -->
     <string name="screen_ambient">Ambient (background)</string>
-    <string name="screen_clock">Pixel Clock</string>
+    <string name="screen_clock">Clock</string>
     <string name="screen_eyes">Eyes</string>
     <string name="screen_speed">Download Speed</string>
     <string name="screen_battery">Battery</string>

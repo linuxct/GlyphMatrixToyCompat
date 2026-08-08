@@ -49,6 +49,16 @@ internal data class SetupStatus(
     val accessibility: Boolean,
     /** GlyphWorks has been selected as the always-on Glyph Toy (latched; see the KDoc). */
     val alwaysOnToy: Boolean,
+    /**
+     * Whether a *false* [alwaysOnToy] means anything yet.
+     *
+     * False only during the first run after a fresh install, where Nothing OS has
+     * not yet bound the newly-registered toy no matter what the user selects — so
+     * the latch reads "not set" for a user who has just set it. See
+     * `PrefKeys.TOY_PROBE_ARMED` for the mechanism and why re-probing cannot fix
+     * it.
+     */
+    val toyProbeArmed: Boolean,
     /** `POST_NOTIFICATIONS` — the Timer chime. */
     val notifications: Boolean,
     /** `RECORD_AUDIO` — the music visualizer. */
@@ -68,11 +78,23 @@ internal data class SetupStatus(
      */
     val needsAttention: Boolean
         get() = !accessibility ||
-            !alwaysOnToy ||
+            toyNeedsAttention ||
             !notifications ||
             !microphone ||
             !location ||
             !exactAlarms
+
+    /**
+     * The always-on toy counts against the badge only once its answer can be
+     * trusted.
+     *
+     * Silence during that first run is the deliberate part. The alternative is a
+     * badge insisting on a step the user has just completed, with no way to make
+     * it go away and nothing wrong to fix — which teaches people to ignore the
+     * badge, and the badge is the only thing pointing at the five items that
+     * *are* real.
+     */
+    val toyNeedsAttention: Boolean get() = !alwaysOnToy && toyProbeArmed
 
     companion object {
         /**
@@ -82,6 +104,7 @@ internal data class SetupStatus(
         val COMPLETE = SetupStatus(
             accessibility = true,
             alwaysOnToy = true,
+            toyProbeArmed = true,
             notifications = true,
             microphone = true,
             location = true,

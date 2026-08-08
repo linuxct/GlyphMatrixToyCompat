@@ -67,7 +67,7 @@ Glyph Button feeds the same action pipeline), but the 4a Pro is the primary targ
 | Toy | Interactive | Description |
 |---|---|---|
 | Ambient (background) | – | The home screen: a compositor with 10 selectable backgrounds (digital/analog clock, connection status, battery %, download speed, tilt ball, themed pixel clock, battery gauge, solar path, moon phase), a charging indicator layer (4 styles) and a music-reactive layer that takes over while audio plays. Night and shake-to-show gating included. |
-| Pixel Clock | – | Stacked HH/MM pixel clock; themes add a battery bar or battery ring. |
+| Clock | – | Stacked HH/MM pixel clock; themes add a battery bar or battery ring, or swap the digits for an analog dial framed by the panel border. |
 | Eyes | – | A pair of eyes that wander and blink, drawn with a bright rim so the eye shape reads even with the pupil centred. |
 | Download Speed | – | Live network download speed. |
 | Battery | – | Battery gauge: the matrix fills to the charge level; charging adds a rising wave and a pulsing bolt. Optionally shows the charging wattage instead while plugged in. |
@@ -407,6 +407,7 @@ Two GitHub Actions workflows live in `.github/workflows/`:
   |---|---|
   | `glyphworks-<version>.apk` | The sideload build. Install this one. |
   | `glyphworks-<version>-play.aab` | The Play build, for uploading to the Play Console. Not installable directly. |
+  | `glyphworks-<version>-play.apk` | The same Play build, installable — for putting what Play users get on a phone, which a bundle cannot do. |
 
   Signing is on the `release` build type, so both variants take the same certificate, and the
   workflow **verifies** that before it creates the tag — absent a `keystore.properties`,

@@ -60,12 +60,27 @@ class SetupStatusTest {
             SetupStatus(
                 accessibility = false,
                 alwaysOnToy = false,
+                toyProbeArmed = true,
                 notifications = false,
                 microphone = false,
                 location = false,
                 exactAlarms = false,
             ),
         )
+    }
+
+    /**
+     * The one item that is allowed to stay quiet while unsatisfied, and only
+     * while the app cannot yet tell. See `PrefKeys.TOY_PROBE_ARMED`.
+     */
+    @Test
+    fun `an unset toy stays silent until the probe can be believed`() {
+        val cannotTellYet = SetupStatus.COMPLETE.copy(alwaysOnToy = false, toyProbeArmed = false)
+        assertFalse(
+            "before the probe is armed a missing toy is unknown, not missing",
+            badgeShown(cannotTellYet),
+        )
+        assertNeedsAttention(cannotTellYet.copy(toyProbeArmed = true))
     }
 
     @Test

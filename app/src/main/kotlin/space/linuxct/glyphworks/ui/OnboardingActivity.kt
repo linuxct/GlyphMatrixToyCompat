@@ -589,6 +589,7 @@ private fun ModePage() {
         mutableStateOf(Core.prefs.getBoolean(PrefKeys.MENU_MODE_ENABLED, PrefKeys.MENU_MODE_ENABLED_DEF))
     }
     var showTutorial by remember { mutableStateOf(false) }
+    var showHandover by remember { mutableStateOf(false) }
     fun select(enabled: Boolean) {
         menuMode = enabled
         Core.prefs.putBoolean(PrefKeys.MENU_MODE_ENABLED, enabled)
@@ -631,7 +632,52 @@ private fun ModePage() {
     ]
     PageScaffold(frame, stringResource(R.string.onb_mode_title), revealMillis = 0) {
         BodyText(stringResource(R.string.onb_mode_body))
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
+
+        // **The prerequisite comes first, and it is a card so it cannot be read
+        // as a third option.**
+        //
+        // Until Essential Space is told to wait, the system consumes the press
+        // and NEITHER mode below does anything — so a user who picks a mode and
+        // leaves has a key that does nothing and no reason to suspect a setting
+        // two menus deep in someone else's app. The choice is the page's title,
+        // but this is the part that decides whether the page mattered.
+        //
+        // It sits above the cards rather than below because it is genuinely
+        // sequential — "first this, then that" — and the two headings say so.
+        Card(
+            Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            ),
+        ) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                Text(
+                    stringResource(R.string.onb_mode_handover_title),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    stringResource(R.string.onb_mode_handover_body),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(4.dp))
+                // The same dialog the Tutorials tab opens, not a copy of its
+                // steps — see HandoverTutorialDialog.
+                TextButton(onClick = { showHandover = true }) {
+                    Text(stringResource(R.string.onb_mode_handover_action))
+                }
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
+        Text(
+            stringResource(R.string.onb_mode_choose),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Spacer(Modifier.height(10.dp))
         ModeCard(
             selected = !menuMode,
             title = R.string.onb_mode_regular,
@@ -653,6 +699,9 @@ private fun ModePage() {
     }
     if (showTutorial) {
         KeyTutorialDialog(onDismiss = { showTutorial = false })
+    }
+    if (showHandover) {
+        HandoverTutorialDialog(onDismiss = { showHandover = false })
     }
 }
 
@@ -1368,6 +1417,7 @@ private const val ART_LOCK = """
  * The track is deliberately wider than the old static drawing: at 19 cells the
  * knob travels ten columns, which is a third of the disc, and a throw that small
  * on a 13-cell track was the reason this needed redrawing rather than animating.
+ * See [TOGGLE_TRACK] for why the body is a stadium and not the ellipse it was.
  *
  * Only [TOGGLE_KNOB_OFF]..[TOGGLE_KNOB_ON] are ever asked for, and `ModePage`
  * builds all eleven once — so this runs at composition, never per frame.
@@ -1383,30 +1433,57 @@ private fun toggleArt(centre: Int): String {
     return grid.joinToString("\n") { String(it) }
 }
 
-/** The switch body: a 19x9 rounded track, drawn once and stamped into. */
+/**
+ * The switch body: a 19x9 stadium, drawn once and stamped into.
+ *
+ * ## A stadium, not an ellipse
+ *
+ * This used to be 19x9 and taper on every row — 11 straight cells at the top,
+ * then a single-cell step inward four times over. That is the outline of an
+ * **ellipse**, and MatrixArt centres the pattern in a 25-cell grid of square
+ * cells, so a 2:1 drawing really is 2:1 on screen: it read as an egg.
+ *
+ * A stadium is two semicircular caps joined by *straight* top and bottom edges,
+ * and the straight run is what makes it a track rather than a blob — 15 cells of
+ * it here against the ellipse's 11.
+ *
+ * **The caps needed radius 5, not 4.** At 4 a quarter-arc has only four rows to
+ * turn through, so it steps one cell per row and reads as a chamfered corner —
+ * still not round, just angular instead of oval. Growing the body to 21x11 buys a
+ * fifth row, and that is where the ends start looking like ends. It costs
+ * nothing: the furthest lit cell sits 10.2 from the centre of a 12.3-radius disc.
+ *
+ * Generated rather than eyeballed: a cell is on the outline when its distance to
+ * the spine — the segment from (5,5) to (15,5) — is within `5 - 0.75 .. 5 + 0.5`.
+ * Those two endpoints are also [TOGGLE_KNOB_OFF] and [TOGGLE_KNOB_ON], so the
+ * knob comes to rest exactly concentric with the cap it lands in.
+ */
 private val TOGGLE_TRACK = listOf(
-    "....###########....",
-    "..##...........##..",
-    ".#...............#.",
-    "#.................#",
-    "#.................#",
-    "#.................#",
-    ".#...............#.",
-    "..##...........##..",
-    "....###########....",
+    "...###############...",
+    "..##.............##..",
+    ".#.................#.",
+    "##.................##",
+    "#...................#",
+    "#...................#",
+    "#...................#",
+    "##.................##",
+    ".#.................#.",
+    "..##.............##..",
+    "...###############...",
 )
 
-/** The knob: a 5x5 disc, the largest that clears the track's rounded ends. */
-private val TOGGLE_KNOB = listOf(".###.", "#####", "#####", "#####", ".###.")
+/** The knob: a 7x7 disc, the largest that clears the track's rounded ends. */
+private val TOGGLE_KNOB =
+    listOf("..###..", ".#####.", "#######", "#######", "#######", ".#####.", "..###..")
 
-private const val TOGGLE_KNOB_RADIUS = 2
+private const val TOGGLE_KNOB_RADIUS = 3
 private const val TOGGLE_KNOB_TOP = 2
 
-/** Knob column when the key keeps its stock behaviour. */
-private const val TOGGLE_KNOB_OFF = 4
+/** Knob column when the key keeps its stock behaviour — the left cap's centre. */
+private const val TOGGLE_KNOB_OFF = 5
 
-/** ...and when menu mode is on. Ten columns of travel. */
-private const val TOGGLE_KNOB_ON = 14
+/** ...and when menu mode is on: the right cap's centre. Ten columns of travel. */
+private const val TOGGLE_KNOB_ON = 15
 
 /**
  * How long the switch rests at each end before throwing again.
