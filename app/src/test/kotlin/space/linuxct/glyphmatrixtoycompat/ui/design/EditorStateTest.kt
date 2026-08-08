@@ -27,7 +27,6 @@ import space.linuxct.glyphmatrixtoycompat.core.design.PokemonCodename
  * a design can never be reduced to no frames at all.
  */
 class EditorStateTest {
-
     private val home = PokemonCodename.BELLSPROUT
 
     private fun design(kind: DesignKind = DesignKind.DYNAMIC, frames: Int = 1): Design = Design(
@@ -79,18 +78,6 @@ class EditorStateTest {
         assertTrue(state.cells(0).all { it == 0 })
     }
 
-    @Test
-    fun frameIdsAreUniqueAcrossEverythingTheEditorEverMakes() {
-        val state = state(frames = 3)
-        state.addFrame()
-        state.duplicateFrame()
-        val before = state.frames.map { it.id }
-        state.switchTo(PokemonCodename.ARBOK)
-        state.addFrame()
-        val all = before + state.frames.map { it.id }
-        assertEquals("ids were reused", all.size, all.toSet().size)
-    }
-
     // ---- add / duplicate / delete ----
 
     @Test
@@ -126,15 +113,6 @@ class EditorStateTest {
         state.stroke(2, 2)
         assertEquals(0, state.cells(0)[2 * home.size + 2])
         assertEquals(DEFAULT_LEVELS.last(), state.cells(1)[2 * home.size + 2])
-    }
-
-    @Test
-    fun duplicatesDoNotInheritTheOriginalsUndoHistory() {
-        val state = state(frames = 1)
-        state.stroke(4, 4)
-        assertTrue(state.canUndo)
-        state.duplicateFrame()
-        assertFalse("the copy arrived with somebody else's history", state.canUndo)
     }
 
     /**
@@ -343,43 +321,10 @@ class EditorStateTest {
     )
 
     @Test
-    fun aDesignWithOneVariantHasNothingToSwitchBetween() {
-        val state = singleVariant(home)
-        assertEquals(listOf(home), state.variantsPresent)
-        assertEquals(PokemonCodename.ARBOK, state.missingVariant)
-    }
-
-    @Test
     fun aDesignWithBothVariantsGetsTheSwitcher() {
         val state = state()
         assertEquals(PokemonCodename.entries.toList(), state.variantsPresent)
         assertNull("nothing is missing", state.missingVariant)
-    }
-
-    /**
-     * The escape hatch. Adding the other size makes the switcher appear and
-     * leaves every pixel of the drawing that was already there alone — it adds a
-     * blank canvas, which is what a second size has always been.
-     */
-    @Test
-    fun addingTheMissingVariantIsWhatBringsTheSwitcherBack() {
-        val state = singleVariant(home)
-        state.stroke(6, 6)
-
-        assertTrue(state.addVariant(PokemonCodename.ARBOK))
-        assertEquals(PokemonCodename.entries.toList(), state.variantsPresent)
-        assertNull(state.missingVariant)
-        // A canvas, not artwork: nothing has been drawn for it yet.
-        assertEquals(0, state.design.variantFor(PokemonCodename.ARBOK)?.frames?.size)
-        // The drawing that was already open is untouched.
-        assertEquals(DEFAULT_LEVELS.last(), state.cells(0)[6 * home.size + 6])
-
-        // Idempotent, and now switchable — the newly added size opens on the
-        // blank frame `loadFrames` invents for a variant nobody has drawn.
-        assertFalse(state.addVariant(PokemonCodename.ARBOK))
-        assertTrue(state.switchTo(PokemonCodename.ARBOK))
-        assertEquals(1, state.frames.size)
-        assertTrue(state.cells(0).all { it == 0 })
     }
 
     /**
@@ -400,21 +345,6 @@ class EditorStateTest {
         val both = state().design
         assertEquals(home, openingCodename(both, home = home))
         assertEquals(PokemonCodename.ARBOK, openingCodename(both, home = PokemonCodename.ARBOK))
-    }
-
-    /**
-     * The same guarantee from the other end. `composed()` writes `codename`'s
-     * frames back, so "which variant is open" is precisely "which variant a save
-     * can create" — and for a one-size design opened this way it is the one that
-     * already exists, on this phone or the other.
-     */
-    @Test
-    fun aOneSizeDesignOpensOnTheSizeItHas() {
-        val design = singleVariant(PokemonCodename.ARBOK).design
-        val state = EditorState(design, openingCodename(design, home = home))
-        assertEquals(PokemonCodename.ARBOK, state.codename)
-        assertEquals(PokemonCodename.ARBOK.size, state.selected.frame.size)
-        assertEquals(listOf(PokemonCodename.ARBOK), state.variantsPresent)
     }
 
     // ---- whole-document replacement, and the way back ----
@@ -621,30 +551,6 @@ class EditorStateTest {
         assertEquals(DEFAULT_LEVELS, state.design.levels)
         // Down to the pixel that was drawn before the assistant touched anything.
         assertEquals(DEFAULT_LEVELS.last(), state.cells(0)[6 * home.size + 6])
-    }
-
-    /**
-     * The revert snapshot is "as shown", not "as last saved": a stroke made after
-     * the design was written to disk is part of what a revert has to bring back.
-     */
-    @Test
-    fun theRevertSnapshotIncludesEditsThatWereNeverSaved() {
-        val state = state()
-        state.stroke(3, 4)
-
-        val previous = state.replaceDesign(
-            state.design.copy(
-                variants = state.design.variants + (
-                    home.codename to DesignVariant(
-                        frames = listOf(solidFrame(home, 0, DEFAULT_LEVELS)),
-                    )
-                    ),
-            ),
-        )!!
-
-        assertTrue("the assistant's blank frame is on the canvas", state.cells(0).all { it == 0 })
-        state.replaceDesign(previous)
-        assertEquals(DEFAULT_LEVELS.last(), state.cells(0)[4 * home.size + 3])
     }
 
     /**

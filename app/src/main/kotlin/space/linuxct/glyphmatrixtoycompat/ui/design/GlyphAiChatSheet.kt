@@ -27,15 +27,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.StopCircle
+import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material.icons.outlined.AddPhotoAlternate
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.DeleteSweep
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.StopCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -43,6 +43,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -397,7 +398,7 @@ internal fun GlyphAiChatSheet(designId: String, onDismiss: () -> Unit) {
  * one beside it would have left the title — "Design with an assistant", the
  * longest string in this screen — competing with two words of chrome on either
  * side at every font scale. This app already has the answer for a row with more
- * than one action on it: the design list's card uses [Icons.Default.MoreVert] and
+ * than one action on it: the design list's card uses [Icons.Outlined.MoreVert] and
  * a [DropdownMenu], and both of the items below are things somebody does rarely
  * and on purpose. So the row keeps one icon, and the title keeps the width.
  *
@@ -419,7 +420,7 @@ private fun ChatHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onClose) {
-            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.tut_close))
+            Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.tut_close))
         }
         Text(
             stringResource(R.string.ai_title),
@@ -429,14 +430,28 @@ private fun ChatHeader(
         Box {
             IconButton(onClick = { menuOpen = true }) {
                 Icon(
-                    Icons.Default.MoreVert,
+                    Icons.Outlined.MoreVert,
                     contentDescription = stringResource(R.string.ai_chat_menu),
                 )
             }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenu(
+                expanded = menuOpen,
+                onDismissRequest = { menuOpen = false },
+                // The same 16 dp container the design list's overflow menu takes,
+                // and for the same reason — `MenuDefaults.shape` is still the
+                // pre-expressive 4 dp token. See `CreateTab`'s menu for the
+                // argument; the two menus must not disagree about what a menu is.
+                shape = MaterialTheme.shapes.large,
+            ) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.ai_chat_reset)) },
-                    leadingIcon = { Icon(Icons.Default.DeleteSweep, contentDescription = null) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Outlined.DeleteSweep,
+                            contentDescription = null,
+                            modifier = Modifier.size(MenuDefaults.LeadingIconSize),
+                        )
+                    },
                     enabled = canReset,
                     onClick = {
                         menuOpen = false
@@ -449,7 +464,11 @@ private fun ChatHeader(
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.ai_sign_out)) },
                     leadingIcon = {
-                        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
+                        Icon(
+                            Icons.AutoMirrored.Outlined.Logout,
+                            contentDescription = null,
+                            modifier = Modifier.size(MenuDefaults.LeadingIconSize),
+                        )
                     },
                     onClick = {
                         menuOpen = false
@@ -562,6 +581,19 @@ private fun ChatBubble(message: ChatMessage) {
                 Spacer(Modifier.height(4.dp))
                 ToolNoteRow(note, attemptOf(message.tools, index))
             }
+            // A checkpoint that outlived the process that wrote it — see
+            // `ChatTranscript.withPartial`. Said rather than hidden: a reply that
+            // stops mid-sentence is otherwise indistinguishable from a model that
+            // trailed off, and the honest reading is "the app was killed", which
+            // also explains why the design may not have changed.
+            if (message.partial) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    stringResource(R.string.ai_chat_interrupted),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -629,7 +661,7 @@ private fun ToolNoteRow(note: ChatToolNote, attempt: Int) {
     if (text.isBlank()) return
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
-            if (note.ok) Icons.Default.Check else Icons.Default.Refresh,
+            if (note.ok) Icons.Outlined.Check else Icons.Outlined.Refresh,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(14.dp),
@@ -843,7 +875,7 @@ private fun AttachmentRow(attachments: List<AttachedImage>, onRemove: (Long) -> 
                     modifier = Modifier.align(Alignment.TopEnd).size(24.dp),
                 ) {
                     Icon(
-                        Icons.Default.Close,
+                        Icons.Outlined.Close,
                         contentDescription = stringResource(R.string.ai_chat_remove_photo),
                         modifier = Modifier.size(14.dp),
                     )
@@ -865,7 +897,7 @@ private fun AttachmentRow(attachments: List<AttachedImage>, onRemove: (Long) -> 
  * makes them read as beside the field rather than under it, and it is what the
  * rest of this file already does with every row of its own.
  *
- * The stop glyph is [Icons.Default.StopCircle] rather than `Stop` for the second
+ * The stop glyph is [Icons.Outlined.StopCircle] rather than `Stop` for the second
  * half of the same problem. Material's `Stop` is a bare 12x12 square inside a
  * 24 dp box — half the ink of the send arrow it replaces, so the control appeared
  * to shrink at the exact moment it became the only one that does anything.
@@ -888,7 +920,7 @@ private fun Composer(
     ) {
         IconButton(onClick = onAttach, enabled = !sending) {
             Icon(
-                Icons.Default.AddPhotoAlternate,
+                Icons.Outlined.AddPhotoAlternate,
                 contentDescription = stringResource(R.string.ai_chat_attach),
             )
         }
@@ -910,14 +942,14 @@ private fun Composer(
         if (sending) {
             IconButton(onClick = onStop) {
                 Icon(
-                    Icons.Default.StopCircle,
+                    Icons.Outlined.StopCircle,
                     contentDescription = stringResource(R.string.ai_chat_stop),
                 )
             }
         } else {
             IconButton(onClick = onSend, enabled = canSend) {
                 Icon(
-                    Icons.AutoMirrored.Filled.Send,
+                    Icons.AutoMirrored.Outlined.Send,
                     contentDescription = stringResource(R.string.ai_chat_send),
                 )
             }

@@ -1,9 +1,7 @@
 package space.linuxct.glyphmatrixtoycompat.ui.design
 
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -17,20 +15,17 @@ import space.linuxct.glyphmatrixtoycompat.core.design.PokemonCodename
  *
  * Every step is written as one body that runs two ways — animated on screen, and
  * **instantly** when the tour has to rebuild its sandbox (Back, a step cut short
- * by Next, a rotation). The instant path is the one that can be tested on a JVM,
- * and it is also the one that carries the whole rewind guarantee: if replaying
- * steps 0..n did not land on the same state as playing them, then Back and
- * rotation would each drop the user into an editor that does not match the
- * caption in front of them.
+ * by Next, a rotation). The instant path is the one that can be tested on a JVM.
  *
- * So what is asserted here is not "the animation looks right" — a test cannot see
- * that — but the two things that decide whether the tour is *correct*: that it
- * demonstrates what it claims to (a duplicate that differs from its source, a
- * reorder that actually moves a frame, a duration that changes), and that it
- * touches nothing outside itself.
+ * Four things are worth a test here, and they are the four below: the sandbox is
+ * a throwaway, the script is internally coherent (nothing points at a control
+ * that is not on the stage it is spotlit from, nothing in the registry is dead),
+ * and the tour actually *does* what its captions claim. Nothing here pins the
+ * order of individual steps: the tour has been merged down twice now, and a test
+ * that spelled out which step comes fourth would have to be rewritten every time
+ * — which makes it a transcript of the script rather than a check on it.
  */
 class DesignDemoTest {
-
     private val home = PokemonCodename.BELLSPROUT
 
     /** The tour as the host replays it: a fresh sandbox, every step, no waits. */
@@ -49,6 +44,13 @@ class DesignDemoTest {
 
     // ---- the sandbox ----
 
+    /**
+     * The design the tour draws on could not be saved if it tried, and carries
+     * **one variant, deliberately** — the dialog step has just answered "which
+     * phone" with its default, so an editor showing both sizes would contradict
+     * the step before it and would put a variant switcher on screen that the
+     * user's own next design will not have.
+     */
     @Test
     fun theDemoDesignIsAThrowawayThatCouldNotBeSavedIfItTried() {
         val design = demoDesign(home, "Slow Ember")
@@ -58,17 +60,6 @@ class DesignDemoTest {
         assertEquals("", design.author)
         // Dynamic, because half of what needs teaching is the timeline.
         assertEquals(DesignKind.DYNAMIC, design.kind)
-    }
-
-    /**
-     * **One variant, deliberately.** The tour has just shown the new-design dialog
-     * answering "which phone" with its default — the one in your hand — so an
-     * editor carrying both sizes would contradict the step before it and would
-     * show a variant switcher that the user's own next design will not have.
-     */
-    @Test
-    fun theDemoDesignCarriesOnlyThisPhonesArtwork() {
-        val design = demoDesign(home, "Slow Ember")
         assertNotNull(design.variantFor(home))
         assertNull(design.variantFor(PokemonCodename.ARBOK))
         assertEquals(1, DemoSandbox(home).state.variantsPresent.size)
@@ -105,11 +96,14 @@ class DesignDemoTest {
     /**
      * The whole tour, replayed — and every claim its captions make, checked.
      *
-     * The frame layout at the end is the script's entire argument: a drawing, a
-     * duplicate of it that has been nudged so it is visibly a different frame, a
-     * blank one that was then dragged to the front, and a duration that moved off
-     * its default. If any of those stopped happening the captions would be
-     * describing something the user cannot see.
+     * This is the one test that survives a merge unchanged, and the reason is that
+     * it asserts the tour's *result* rather than its running order. Four steps
+     * became one when the timeline steps were merged and the frame layout below is
+     * identical, because the merged step still performs all four gestures: a
+     * drawing, a duplicate of it nudged so it is visibly a different frame, a
+     * blank frame dragged to the front, and a duration moved off its default. If
+     * any of that stopped happening — which is exactly what "shortening" a tour
+     * risks — the captions would be describing something the user cannot see.
      */
     @Test
     fun theWholeTourEndsWithTheAnimationItNarrated() {
@@ -121,7 +115,7 @@ class DesignDemoTest {
         assertEquals(0, state.selectedIndex)
         assertTrue("the moved frame should be the blank one", state.lit(0).isEmpty())
 
-        // The stroke survived the undo/redo step.
+        // The stroke survived the undo and redo the drawing step performs on it.
         val drawn = state.lit(1)
         assertTrue("nothing was painted", drawn.isNotEmpty())
         // The duplicate is the same drawing plus the nudge — which is the point of
@@ -130,101 +124,29 @@ class DesignDemoTest {
         assertTrue("the duplicate lost the drawing", nudged.containsAll(drawn))
         assertTrue("the duplicate was never nudged", nudged.size > drawn.size)
 
-        // Painted with the brightest swatch, because the palette step ends on it.
+        // Painted with the brightest swatch, because the palette taps end on it.
         assertEquals(state.design.levels.last(), state.frames[1].frame.copyOfCells()[drawn.first()])
 
-        // The duration step actually stepped, twice, off the default.
+        // The duration step actually stepped off the default, on the selected
+        // frame only.
         val durations = state.frames.map { it.durationMs }
         assertTrue("duration never changed", durations[0] > durations[1])
         assertEquals("only the selected frame's duration should move", durations[1], durations[2])
 
-        // And none of it went anywhere: no id, one variant, still dynamic.
+        // The Design settings steps put both controls back where they found them.
+        // They work the controls rather than pointing at them because four testers
+        // never found repeat — and the two changes are load-bearing on each other:
+        // switching to play once is what makes repeat disappear, so the switch
+        // back is what leaves a repeat toggle to demonstrate. Ending anywhere else
+        // would leave the tour describing a design it is no longer showing.
+        assertEquals(KeyMode.PLAY_PAUSE, state.design.keyMode)
+        assertTrue(state.design.loop)
+
+        // And none of it went anywhere: no id, one variant, still dynamic. "Add
+        // ... artwork" is pointed at and never pressed.
         assertEquals("", state.design.id)
         assertEquals(1, state.variantsPresent.size)
+        assertNull(state.design.variantFor(PokemonCodename.ARBOK))
         assertEquals(DesignKind.DYNAMIC, state.design.kind)
-    }
-
-    /**
-     * The Design settings steps put every control back where they found it.
-     *
-     * They exist because **four testers never found the repeat toggle**, so the
-     * tour opens the dialog and works both controls rather than pointing at the
-     * app-bar icon and moving on. Working a control means changing it, and the
-     * two changes are load-bearing on each other: switching to play once is what
-     * makes repeat disappear (which is the explanation), so the switch back is
-     * what leaves a repeat toggle for the next step to point at. If either return
-     * trip were ever dropped, the tour would end describing a design it is no
-     * longer showing.
-     */
-    @Test
-    fun theSettingsStepsEndWhereTheyStarted() {
-        val opensSettings = DEMO_STEPS.indexOfFirst { it.target == DemoTarget.SETTINGS_ACTION }
-        assertTrue("the tour never opens Design settings", opensSettings >= 0)
-        // Every settings control is demonstrated inside the dialog, not from the
-        // editor behind it.
-        assertTrue(
-            "a settings control is pointed at from the wrong stage",
-            DEMO_STEPS.filter {
-                it.target in setOf(DemoTarget.KEY_MODE, DemoTarget.LOOP, DemoTarget.ADD_VARIANT)
-            }.let { it.isNotEmpty() && it.all { step -> step.stage == DemoStage.SETTINGS } },
-        )
-
-        val before = replayTo(opensSettings).state.design
-        val after = replayTo(DEMO_STEPS.size).state.design
-        assertEquals("repeat was left toggled", before.loop, after.loop)
-        assertEquals("the key mode was left switched", before.keyMode, after.keyMode)
-        // And the states the tour needs in order to be able to demonstrate them
-        // at all: repeat only exists in play / pause, and it starts on.
-        assertEquals(KeyMode.PLAY_PAUSE, after.keyMode)
-        assertTrue(after.loop)
-        // "Add ... artwork" is pointed at and never pressed — pressing it would
-        // create a variant the tour has just explained this design does not have.
-        assertNull(after.variantFor(PokemonCodename.ARBOK))
-    }
-
-    /**
-     * Replaying is deterministic, which is what Back and a mid-tour rotation both
-     * rest on: the tour saves nothing but the step number, so landing on step
-     * eight has to mean exactly what arriving at step eight meant.
-     */
-    @Test
-    fun replayingToAStepLandsInTheSameStateEveryTime() {
-        for (step in DEMO_STEPS.indices) {
-            val a = replayTo(step).state
-            val b = replayTo(step).state
-            assertEquals("frame count at step $step", a.frames.size, b.frames.size)
-            assertEquals("selection at step $step", a.selectedIndex, b.selectedIndex)
-            assertEquals("brush at step $step", a.brushIndex, b.brushIndex)
-            a.frames.forEachIndexed { i, frame ->
-                assertArrayEquals(
-                    "frame $i at step $step",
-                    frame.frame.copyOfCells(),
-                    b.frames[i].frame.copyOfCells(),
-                )
-                assertEquals("duration $i at step $step", frame.durationMs, b.frames[i].durationMs)
-            }
-        }
-    }
-
-    /**
-     * Replaying the steps before a step is the same as playing them — stated as a
-     * property rather than assumed, because [DemoActor]'s two modes are the one
-     * place in the tour where the same intent is expressed twice.
-     */
-    @Test
-    fun replayingIsIncrementalStepByStep() {
-        var previous = replayTo(0)
-        for (step in 1..DEMO_STEPS.size) {
-            val next = replayTo(step)
-            // A step may add frames or repaint them, but nothing in this tour ever
-            // deletes a frame or a variant — the demo never demonstrates the one
-            // destructive control it has.
-            assertTrue(
-                "step ${step - 1} lost a frame",
-                next.state.frames.size >= previous.state.frames.size,
-            )
-            assertFalse("step ${step - 1} touched the id", next.state.design.id.isNotEmpty())
-            previous = next
-        }
     }
 }

@@ -62,9 +62,9 @@ import kotlin.math.roundToInt
  * preview lie about the hardware, which is the one thing this drawing exists to
  * avoid.
  *
- * [RECORDING_DOT_COLOR] is the third and last of those, and the only hue in an
- * otherwise strictly monochrome app — see its own KDoc for why it is allowed to
- * be one and why it must stay small.
+ * [RECORDING_DOT_COLOR] is the third and last of those, and one of the three hues
+ * an otherwise monochrome app allows itself — see its own KDoc for why it is
+ * allowed to be one and why it must stay small.
  */
 
 /**
@@ -110,11 +110,20 @@ fun MatrixDisc.transformedBy(scale: Float, offset: Offset): MatrixDisc = MatrixD
 val MATRIX_DISC_COLOR = Color(0xFF0E0E0E)
 
 /**
- * The recording indicator beside the matrix: **the one hue in this app**, and a
- * deliberate, single, product-accurate exception rather than an oversight.
+ * The recording indicator beside the matrix: **one of the three hues in this
+ * app**, and a deliberate, product-accurate exception rather than an oversight.
  *
- * The theme is strictly monochrome and everything that carries *meaning* obeys
- * it. This does not carry meaning: it is a picture of a small red square that
+ * The others are the Create tab's `+` FAB, painted in Nothing's brand red and
+ * blue (see `ui/theme/NothingBrand.kt`), and the setup-attention badge on the nav
+ * bar's Settings chip (`MainActivity`'s `AttentionBadge`). The three exceptions
+ * are unrelated and none licenses the others: the first is branding, on a single
+ * control; this one is a photograph; the third is the one place hue is allowed to
+ * carry meaning, and it was asked for explicitly. The rule they are exceptions to
+ * is unchanged and is stated in `Theme.kt` — the badge aside, no hue anywhere
+ * that carries *meaning*, and even there the exclamation mark rather than the red
+ * is what says it.
+ *
+ * This one does not carry meaning: it is a picture of a small red square that
  * exists on the back of the phone, in the same sense that [MATRIX_DISC_COLOR] is
  * a picture of black glass and the LEDs are pictures of white light. All three
  * are raw literals for the same reason — they depict physical objects, and an

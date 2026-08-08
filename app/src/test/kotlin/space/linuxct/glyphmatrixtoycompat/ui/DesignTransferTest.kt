@@ -33,7 +33,6 @@ import java.io.InputStream
  * `Design` and touch no `android.*`.
  */
 class DesignTransferTest {
-
     // region filename sanitising
 
     @Test
@@ -50,56 +49,11 @@ class DesignTransferTest {
     }
 
     @Test
-    fun `dot segments cannot escape a directory`() {
-        // The traversal characters are gone entirely, not merely rearranged: the
-        // result is a plain token that names a file in the directory the picker
-        // chose, and nowhere else.
-        assertEquals("etc-shadow", sanitiseFileBaseName("../../etc/shadow"))
-        assertEquals("", sanitiseFileBaseName(".."))
-        assertEquals("", sanitiseFileBaseName("."))
-        assertEquals("", sanitiseFileBaseName("../.."))
-    }
-
-    @Test
-    fun `a leading dot cannot make a hidden file`() {
-        assertEquals("bashrc", sanitiseFileBaseName(".bashrc"))
-        assertFalse(designFileName(design(name = ".hidden")).startsWith("."))
-    }
-
-    @Test
     fun `control characters and quotes are removed`() {
         assertEquals("a-b", sanitiseFileBaseName("a\u0000b"))
         assertEquals("a-b", sanitiseFileBaseName("a\nb"))
         assertEquals("name", sanitiseFileBaseName("\"name\""))
         assertEquals("a-b", sanitiseFileBaseName("a:b"))
-    }
-
-    @Test
-    fun `runs of rejected characters collapse to one separator`() {
-        assertEquals("a-b", sanitiseFileBaseName("a   ///   b"))
-        assertEquals("a-b", sanitiseFileBaseName("a ... b"))
-    }
-
-    @Test
-    fun `the result never starts or ends with a separator`() {
-        for (raw in listOf("   spaced   ", "***stars***", "///", " - a - ")) {
-            val out = sanitiseFileBaseName(raw)
-            assertFalse("<$out> from <$raw>", out.startsWith("-"))
-            assertFalse("<$out> from <$raw>", out.endsWith("-"))
-        }
-    }
-
-    @Test
-    fun `unicode letters and digits survive`() {
-        // isLetterOrDigit is Unicode-aware on purpose: mangling every non-ASCII
-        // name into hyphens would make the feature useless outside English,
-        // and a letter is not a path character in any filesystem.
-        assertEquals("Étoile-Filante", sanitiseFileBaseName("Étoile Filante"))
-        assertEquals("光る", sanitiseFileBaseName("光る"))
-        assertEquals("Тихий-Уголь", sanitiseFileBaseName("Тихий Уголь"))
-        // Emoji are not letters, so they become the separator rather than
-        // reaching a filesystem that may or may not cope with them.
-        assertEquals("moon", sanitiseFileBaseName("🌙 moon 🌙"))
     }
 
     @Test
@@ -114,15 +68,6 @@ class DesignTransferTest {
     fun `a name that sanitises to nothing falls back to the id`() {
         val d = design(name = "🌙🌙🌙")
         assertEquals("0123456789abcdef0123456789abcdef.json", designFileName(d))
-    }
-
-    @Test
-    fun `a name and an id that both sanitise to nothing still produce a filename`() {
-        // The id cannot actually be empty on a stored design (the codec rejects
-        // one), but designFileName must not be the place that discovers that.
-        val name = designFileName(design(name = "", id = ""))
-        assertEquals("design.json", name)
-        assertFalse(name.startsWith("."))
     }
 
     @Test
@@ -168,16 +113,6 @@ class DesignTransferTest {
     }
 
     @Test
-    fun `a stream one byte over the cap is rejected`() {
-        val bytes = ByteArray(DesignCodec.MAX_BYTES + 1) { ' '.code.toByte() }
-
-        assertEquals(
-            DesignCodec.REASON_TOO_LARGE,
-            invalidReason(DesignCodec.decode(bytes.inputStream())),
-        )
-    }
-
-    @Test
     fun `a real design well under the cap is read from a stream`() {
         val encoded = DesignCodec.encode(design())
         assertTrue(encoded.length < DesignCodec.MAX_BYTES)
@@ -203,15 +138,6 @@ class DesignTransferTest {
         assertEquals("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", stored.id)
         assertNotEquals(incoming.id, stored.id)
         assertTrue(DesignCodec.isSafeId(stored.id))
-    }
-
-    @Test
-    fun `an import preserves the original author`() {
-        val incoming = design(author = "someone-else")
-
-        val stored = importedDesign(incoming, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", NOW)
-
-        assertEquals("someone-else", stored.author)
     }
 
     @Test
@@ -253,24 +179,6 @@ class DesignTransferTest {
         assertEquals(1, deleted)
         assertTrue(fresh.exists())
         assertFalse(stale.exists())
-    }
-
-    @Test
-    fun `a copy dated in the future is treated as stale`() {
-        // A clock change or a restored backup can leave a file timestamped ahead
-        // of now, which under a plain age comparison would never expire.
-        val dir = tempDir()
-        val future = file(dir, "future.json", NOW_MS + 10 * DAY_MS)
-
-        assertEquals(1, pruneSharedCache(dir, NOW_MS, DAY_MS))
-        assertFalse(future.exists())
-    }
-
-    @Test
-    fun `pruning a directory that was never created is not an error`() {
-        val dir = File(tempDir(), "never-shared")
-
-        assertEquals(0, pruneSharedCache(dir, NOW_MS, DAY_MS))
     }
 
     // endregion

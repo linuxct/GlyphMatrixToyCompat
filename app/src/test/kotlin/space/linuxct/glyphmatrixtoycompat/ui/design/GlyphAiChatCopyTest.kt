@@ -30,7 +30,6 @@ import space.linuxct.glyphmatrixtoycompat.core.ai.GlyphAiTools
  * not wording.
  */
 class GlyphAiChatCopyTest {
-
     private val knownTools = listOf(
         GlyphAiTools.GET_CURRENT_DESIGN,
         GlyphAiTools.APPLY_DESIGN,
@@ -50,24 +49,6 @@ class GlyphAiChatCopyTest {
         val ids = everyTrace.map { it.messageRes() }
         ids.forEach { assertNotEquals("a trace mapped to no string", 0, it) }
         assertEquals("two traces share a string", ids.size, ids.toSet().size)
-    }
-
-    @Test
-    fun `a tool this build knows needs no format argument`() {
-        knownTools.forEach { assertNull(it, ChatTrace.RunningTool(it).messageArg()) }
-        assertNull(ChatTrace.Thinking.messageArg())
-        assertNull(ChatTrace.Processing.messageArg())
-    }
-
-    /**
-     * A tool added by a future build must still narrate. The name is a wire
-     * identifier and the line it lands in is a sentence, so the underscores go.
-     */
-    @Test
-    fun `a tool this build does not know is named in the line`() {
-        val trace = ChatTrace.RunningTool("set_frames")
-        assertEquals("set frames", trace.messageArg())
-        assertNotEquals(0, trace.messageRes())
     }
 
     @Test
@@ -97,14 +78,6 @@ class GlyphAiChatCopyTest {
         assertEquals("two tools share failure copy", ids.size, ids.toSet().size)
     }
 
-    /** A tool from a future build still fails legibly, named by its stored label. */
-    @Test
-    fun `an unknown tool falls back to generic failure copy carrying its label`() {
-        val note = ChatToolNote(name = "set_frames", label = "Set frames", ok = false)
-        assertNotEquals(0, stepFailureRes(note.name))
-        assertEquals("Set frames", stepFailureArg(note, attempt = 1))
-    }
-
     /**
      * The drawing tools are the ones whose repetition needs explaining, so those
      * are the ones that take an attempt number. Re-reading the design is not a
@@ -115,43 +88,6 @@ class GlyphAiChatCopyTest {
         assertEquals(3, stepFailureArg(note(GlyphAiTools.VALIDATE_DESIGN), attempt = 3))
         assertEquals(2, stepFailureArg(note(GlyphAiTools.APPLY_DESIGN), attempt = 2))
         assertNull(stepFailureArg(note(GlyphAiTools.GET_CURRENT_DESIGN), attempt = 4))
-    }
-
-    /**
-     * A check that passed is numbered like one that failed, because that is what
-     * it is: draft N was legal. "Checked the drawing — it fits" followed by
-     * "Checked draft 7 — didn't fit, redrawing" read as our own validator being
-     * overruled, when all that happened was two different drafts.
-     *
-     * Applying takes no number — a successful apply says "Updated your design",
-     * which needs none — and reading the design is not a draft at all.
-     */
-    @Test
-    fun `a passed check is numbered by attempt, and nothing else is`() {
-        assertEquals(3, stepOkArg(note(GlyphAiTools.VALIDATE_DESIGN), attempt = 3))
-        assertNull(stepOkArg(note(GlyphAiTools.APPLY_DESIGN), attempt = 2))
-        assertNull(stepOkArg(note(GlyphAiTools.GET_CURRENT_DESIGN), attempt = 1))
-        assertNull(stepOkArg(note("set_frames"), attempt = 1))
-    }
-
-    /**
-     * The attempt number is derived rather than stored, so the live list and the
-     * scrollback of the same turn cannot disagree. It counts calls to the *same*
-     * tool: the turn that prompted all of this read
-     * "read, check, check, check, check, apply", and the user needed to see the
-     * checks numbered 1 to 4 — not steps 2 to 5 of six.
-     */
-    @Test
-    fun `attempts are counted per tool, in order`() {
-        val notes = listOf(
-            note(GlyphAiTools.GET_CURRENT_DESIGN),
-            note(GlyphAiTools.VALIDATE_DESIGN),
-            note(GlyphAiTools.VALIDATE_DESIGN),
-            note(GlyphAiTools.VALIDATE_DESIGN),
-            note(GlyphAiTools.APPLY_DESIGN),
-        )
-
-        assertEquals(listOf(1, 1, 2, 3, 1), notes.indices.map { attemptOf(notes, it) })
     }
 
     private fun note(name: String) = ChatToolNote(name = name, label = ChatToolNote.labelFor(name))

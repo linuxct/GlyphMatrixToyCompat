@@ -87,37 +87,64 @@ internal enum class DemoTarget {
     /** The `+` riding beside the floating navigation pill. */
     FAB,
 
-    /** The new-design dialog's name field. */
-    DIALOG_NAME,
-
-    /** Its static / dynamic segmented row. Indexed: 0 static, 1 dynamic. */
+    /**
+     * The new-design dialog's static / dynamic segmented row. Indexed: 0 static,
+     * 1 dynamic.
+     *
+     * The **only** thing spotlit in that dialog, and the only one worth a hole:
+     * the name field and the device rows are a text box with a suggestion already
+     * in it and a pick-one list, both of which say what they are, while this is
+     * the one answer that cannot be changed afterwards.
+     */
     DIALOG_KIND,
 
-    /** Its "which phone is this for" rows. */
-    DIALOG_DEVICE,
-
-    /** The dialog's confirm button. */
+    /** The dialog's confirm button. Pressed, never spotlit. */
     DIALOG_CREATE,
 
     /** The drawing surface. */
     CANVAS,
 
-    /** One palette swatch. Indexed by palette entry: 0 off, 1 grey, 2 white. */
+    /**
+     * One palette swatch. Indexed by palette entry: 0 off, 1 grey, 2 white.
+     *
+     * Pressed, never spotlit: picking a shade is taught inside the [CANVAS] step,
+     * where the shade the finger has just chosen is what the next stroke paints.
+     * A hole around three swatches would have been a step of its own for a
+     * pick-one-of-three that shows its own selection.
+     */
     PALETTE,
 
-    /** One tool button. Indexed: 0 undo, 1 redo, 2 clear, 3 fill. */
+    /**
+     * One tool button. Indexed: 0 undo, 1 redo, 2 clear, 3 fill.
+     *
+     * Pressed, never spotlit, and for the reason the whole tour was shortened by:
+     * the row is four icons that mean what they draw. What is *not* guessable is
+     * that undo steps back a whole stroke rather than a cell, so the drawing step
+     * presses undo and redo over its own stroke and says so in a clause.
+     */
     TOOLS,
 
     /** One frame thumbnail on the timeline, indexed by frame position. */
     FRAME,
 
-    /** The add / duplicate / delete cluster. Indexed: 0 add, 1 duplicate, 2 delete. */
+    /**
+     * The add / duplicate / delete cluster. Indexed: 0 add, 1 duplicate, 2 delete.
+     *
+     * Pressed, never spotlit. The spotlight for the whole timeline step is
+     * [FRAME] — the strip — because the strip is where every one of these buttons
+     * shows its result.
+     */
     FRAME_ACTIONS,
 
-    /** The per-frame duration cluster. Indexed: 0 shorter, 1 longer. */
+    /** The per-frame duration cluster. Indexed: 0 shorter, 1 longer. Pressed, never spotlit. */
     DURATION,
 
-    /** The app bar's Design settings action. */
+    /**
+     * The app bar's Design settings action.
+     *
+     * Pressed, never spotlit — it sits *inside* [TOP_BAR], so the summary step's
+     * own hole is already around it when the ghost presses it to open the card.
+     */
     SETTINGS_ACTION,
 
     /** Inside Design settings: the key-mode row. Indexed: 0 play once, 1 play / pause. */
@@ -129,8 +156,48 @@ internal enum class DemoTarget {
     /** Inside Design settings: "Add ... artwork" for the other panel size. */
     ADD_VARIANT,
 
-    /** The app bar's "show this on the Glyph Matrix" action. */
-    SHOW_ACTION,
+    /**
+     * The floating preview: the disc that plays the animation over the canvas, and
+     * the pill under it that says what it is.
+     *
+     * Composed for a dynamic design only, and gated on nothing else — it is an
+     * on-screen widget that reads [EditorState] and rasterises frames, so it takes
+     * no preview lease and writes nothing. It therefore runs in the tour exactly
+     * as it does in the editor, playing the frames the tour has just drawn.
+     *
+     * The **only** thing on this screen the tour still spends a whole step on that
+     * is not a control: it is the one element whose behaviour cannot be guessed
+     * from its appearance, because tapping a preview to enlarge it is a gesture
+     * nothing else in the app uses.
+     */
+    LIVE_PREVIEW,
+
+    /**
+     * The app bar's actions, **as a group** — play/pause, the preview's eye, the
+     * assistant's sparkles and Design settings, inside the one `Row` that holds
+     * them.
+     *
+     * One target rather than four, and that is the tutorial's own lesson about
+     * itself: a step per icon made the tour longer than the editor is hard, and
+     * length is what stops a tutorial being finished. Four icons that each take a
+     * sentence do not need four spotlights — they need one spotlight and four
+     * sentences, which is what [R.string.demo_cap_top_bar] is.
+     *
+     * [SETTINGS_ACTION] survives alongside it because settings is the one action
+     * the tour *opens* — but it is no longer a step of its own: it is inside this
+     * row, so the summary's hole is already around it and the same step that
+     * names the four buttons presses the fourth. Everything else up here is
+     * described in the summary and nowhere else — none of play, the eye or the
+     * sparkles is individually tagged, and none of them can be, because a `Row`
+     * reports its own bounds and the tour asks the target for them.
+     *
+     * The other three are *not* pressed, and could not be. Play would have no
+     * panel to play on (the sandbox does not compose `LiveMatrixPreview`), the
+     * eye and the disc own state held inside `EditorScaffold` that the script
+     * cannot reach, and the sparkles lead to a sheet needing a session, a network
+     * and a ViewModel a sandbox that writes nothing does not have.
+     */
+    TOP_BAR,
 }
 
 /** One reported element: a [DemoTarget], plus which of them when there are several. */
@@ -494,13 +561,48 @@ internal class DemoStep(
 /**
  * The tour, in order.
  *
- * Every step is one or two sentences and one gesture. The detail — what
- * `playOnce` means, what the format carries, how to import somebody else's design
- * — belongs in the README and in the design-format document; a tour that tried to
- * carry it would be the wall of text this replaced.
- *
  * The order is the order somebody actually does it in: make a design, draw on it,
- * animate it, put it on the phone.
+ * animate it, watch it run, put it on the phone — and only then the assistant that
+ * could have done the drawing, which is an offer that means nothing until you know
+ * what it is offering to save you.
+ *
+ * ## One step per *place*, not one per control
+ *
+ * This list was eighteen steps and is ten, and the rule that took it there is the
+ * one [DemoTarget.TOP_BAR] was written for: **a control earns a spotlight only
+ * when what it does cannot be read off it.** A `+` beside a strip of frames adds a
+ * frame; a segmented pair of shades is a pick-one; undo is undo. None of those is
+ * worth stopping a reader for, and stopping a reader eleven times is how a
+ * tutorial gets skipped — which teaches nothing at all.
+ *
+ * So the middle of the tour is now three steps, each a *place* with one hole in
+ * the scrim over it and one caption naming everything in it:
+ *
+ * - **the canvas** — the shades, the drag, the pinch, and the tool row (was four);
+ * - **the timeline** — duplicate, add, the press-and-hold reorder, the per-frame
+ *   duration (was four);
+ * - **the app bar** — the four actions, ending with the one it opens (was two).
+ *
+ * What did **not** get merged away is the *acting*. A merged step still performs
+ * every gesture its old steps did, in sequence: the drawing step still undoes and
+ * redoes its own stroke, the timeline step still duplicates, nudges, adds and
+ * drags a frame to the front, and the settings steps still make the repeat row
+ * vanish and come back. That is the tour's whole advantage over a paragraph, and
+ * shortening it means dropping *narration*, never demonstration.
+ *
+ * The finger therefore leaves the hole sometimes — to reach a swatch, a tool, a
+ * frame button — and that is deliberate: the spotlight sits where the **result**
+ * appears, which for all three of those is the surface being changed rather than
+ * the button doing the changing.
+ *
+ * The detail — what `playOnce` means, what the format carries, how to import
+ * somebody else's design — belongs in the README and in the design-format
+ * document; a tour that tried to carry it would be the wall of text this replaced.
+ *
+ * Two of the steps point at things the tour deliberately does not operate: the
+ * floating preview, whose expand is its own state and cannot be driven from a
+ * sandbox whose touches are swallowed, and the assistant, whose sheet needs a
+ * network and a session. Both say so at their step; neither has a stand-in.
  */
 internal val DEMO_STEPS: List<DemoStep> = listOf(
     DemoStep(
@@ -512,92 +614,64 @@ internal val DEMO_STEPS: List<DemoStep> = listOf(
         tap(DemoTarget.FAB)
     },
     DemoStep(
-        caption = R.string.demo_cap_name,
-        stage = DemoStage.DIALOG,
-        target = DemoTarget.DIALOG_NAME,
-    ) {
-        hide()
-    },
-    DemoStep(
-        caption = R.string.demo_cap_kind,
+        // One step for the whole dialog. The hole is on the kind row because that
+        // is the only answer here that cannot be changed later; the name and the
+        // device rows are named in the caption and left to speak for themselves,
+        // which between them is two steps this tour no longer spends.
+        caption = R.string.demo_cap_new,
         stage = DemoStage.DIALOG,
         target = DemoTarget.DIALOG_KIND,
     ) { sandbox ->
-        beat(400)
+        beat(500)
         // The real segmented button, so the check-mark wipes in and pushes the
         // label aside exactly as it does under a real finger.
         tap(DemoTarget.DIALOG_KIND, index = 1)
         sandbox.dynamic = true
-    },
-    DemoStep(
-        caption = R.string.demo_cap_device,
-        stage = DemoStage.DIALOG,
-        target = DemoTarget.DIALOG_DEVICE,
-    ) {
-        beat(700)
+        beat(600)
         tap(DemoTarget.DIALOG_CREATE)
     },
     DemoStep(
-        caption = R.string.demo_cap_palette,
-        stage = DemoStage.EDITOR,
-        target = DemoTarget.PALETTE,
-    ) { sandbox ->
-        beat(400)
-        tap(DemoTarget.PALETTE, index = 1)
-        sandbox.state.brushIndex = 1
-        beat(400)
-        tap(DemoTarget.PALETTE, index = 2)
-        sandbox.state.brushIndex = 2
-    },
-    DemoStep(
-        caption = R.string.demo_cap_paint,
+        // The canvas and everything under it: was palette, paint and tools.
+        // The hole stays on the canvas throughout, because the canvas is where
+        // all three show their result — the shade the swatch selected is the
+        // shade the stroke paints, and the stroke is what undo takes away.
+        caption = R.string.demo_cap_draw,
         stage = DemoStage.EDITOR,
         target = DemoTarget.CANVAS,
     ) { sandbox ->
         beat(300)
+        tap(DemoTarget.PALETTE, index = 1)
+        sandbox.state.brushIndex = 1
+        beat(260)
+        tap(DemoTarget.PALETTE, index = 2)
+        sandbox.state.brushIndex = 2
         paintStroke(sandbox, SMILE)
-    },
-    DemoStep(
-        caption = R.string.demo_cap_undo,
-        stage = DemoStage.EDITOR,
-        target = DemoTarget.TOOLS,
-    ) { sandbox ->
-        beat(400)
+        // The one thing about the tool row that cannot be read off it: undo is a
+        // WHOLE STROKE. Seven cells vanish at once and come back, which is the
+        // sentence in the caption being demonstrated rather than repeated.
         tap(DemoTarget.TOOLS, index = 0)
         sandbox.state.undo()
-        beat(700)
+        beat(600)
         tap(DemoTarget.TOOLS, index = 1)
         sandbox.state.redo()
     },
     DemoStep(
-        caption = R.string.demo_cap_duplicate,
-        stage = DemoStage.EDITOR,
-        target = DemoTarget.FRAME_ACTIONS,
-        targetIndex = 1,
-    ) { sandbox ->
-        beat(400)
-        tap(DemoTarget.FRAME_ACTIONS, index = 1)
-        sandbox.state.duplicateFrame()
-        beat(400)
-        // The nudge that makes a duplicate worth having: the copy is not the
-        // frame before it any more.
-        paintStroke(sandbox, BLINK)
-    },
-    DemoStep(
-        caption = R.string.demo_cap_add,
-        stage = DemoStage.EDITOR,
-        target = DemoTarget.FRAME_ACTIONS,
-        targetIndex = 0,
-    ) { sandbox ->
-        beat(400)
-        tap(DemoTarget.FRAME_ACTIONS, index = 0)
-        sandbox.state.addFrame()
-    },
-    DemoStep(
-        caption = R.string.demo_cap_reorder,
+        // The whole timeline: was duplicate, add, reorder and duration. Every one
+        // of those gestures still happens, in this order, under one caption — the
+        // strip is the spotlight because the strip is where each of them lands.
+        caption = R.string.demo_cap_frames,
         stage = DemoStage.EDITOR,
         target = DemoTarget.FRAME,
     ) { sandbox ->
+        beat(300)
+        tap(DemoTarget.FRAME_ACTIONS, index = 1)
+        sandbox.state.duplicateFrame()
+        beat(240)
+        // The nudge that makes a duplicate worth having: the copy is not the
+        // frame before it any more.
+        paintStroke(sandbox, BLINK)
+        tap(DemoTarget.FRAME_ACTIONS, index = 0)
+        sandbox.state.addFrame()
         beat(400)
         val from = sandbox.state.frames.lastIndex
         holdOn(DemoTarget.FRAME, index = from)
@@ -605,29 +679,55 @@ internal val DEMO_STEPS: List<DemoStep> = listOf(
         centerOf(DemoTarget.FRAME, index = 0)?.let { glideTo(it, ms = 700) }
         // The move itself is the real one, so the strip re-lays out on the
         // theme's spatial spring and the thumbnails slide the way they do under
-        // a real drag.
+        // a real drag. This is the one gesture in the editor with no visual
+        // affordance at all, which is why it survived the merge intact.
         sandbox.state.moveFrame(from, 0)
         release()
+        beat(300)
+        tap(DemoTarget.DURATION, index = 1)
+        sandbox.state.setSelectedDuration(
+            stepDuration(sandbox.state.selected.durationMs, up = true),
+        )
     },
     DemoStep(
-        caption = R.string.demo_cap_duration,
+        caption = R.string.demo_cap_preview,
         stage = DemoStage.EDITOR,
-        target = DemoTarget.DURATION,
-    ) { sandbox ->
-        beat(400)
-        repeat(2) {
-            tap(DemoTarget.DURATION, index = 1)
-            sandbox.state.setSelectedDuration(
-                stepDuration(sandbox.state.selected.durationMs, up = true),
-            )
-        }
-    },
-    DemoStep(
-        caption = R.string.demo_cap_settings,
-        stage = DemoStage.EDITOR,
-        target = DemoTarget.SETTINGS_ACTION,
+        target = DemoTarget.LIVE_PREVIEW,
     ) {
-        beat(500)
+        // Deliberately AFTER the timeline step, and the reason is that the widget
+        // only runs on a design with more than one frame: pointed at any earlier
+        // it would be a still disc while the caption called it an animation. By
+        // here the tour has drawn three frames and set a duration, so what is
+        // inside the spotlight is those three frames cycling at those timings —
+        // the caption is checkable by looking at it.
+        //
+        // Pointed at, never tapped, by the same rule as the play action: the
+        // tour's touch-swallowing layer means a ghost finger on the disc could not
+        // actually expand it, and the widget owns that state itself. A finger
+        // tapping a control that visibly does nothing teaches the wrong thing
+        // about the control, so the caption carries the gesture instead.
+        hide()
+    },
+    DemoStep(
+        caption = R.string.demo_cap_top_bar,
+        stage = DemoStage.EDITOR,
+        target = DemoTarget.TOP_BAR,
+    ) {
+        // One step for the whole bar — see [DemoTarget.TOP_BAR]. It used to be
+        // three, one per icon, plus a step of its own for settings; consecutive
+        // spotlights on adjacent buttons is where this tour got long enough to be
+        // skipped, and a skipped tutorial teaches nothing at all.
+        //
+        // It ENDS by opening Design settings, which is why the settings step is
+        // gone: the sliders are the fourth icon in this same row, so the hole is
+        // already around the button and the caption is already naming it. The
+        // card itself arrives with the next step, exactly as it did when a
+        // separate step did the pressing.
+        //
+        // The other three are not pressed. See [DemoTarget.TOP_BAR] for why none
+        // of them can be, which is a different reason for each of them and the
+        // same outcome for all.
+        beat(1200)
         tap(DemoTarget.SETTINGS_ACTION)
     },
     DemoStep(
@@ -675,15 +775,6 @@ internal val DEMO_STEPS: List<DemoStep> = listOf(
         // Pointed at, never pressed: pressing it would create the second variant
         // and put a switcher on screen that the tour has just finished explaining
         // this design does not have.
-        hide()
-    },
-    DemoStep(
-        caption = R.string.demo_cap_show,
-        stage = DemoStage.EDITOR,
-        target = DemoTarget.SHOW_ACTION,
-    ) {
-        // Pointed at, never pressed. The action it names selects a design and
-        // takes over the matrix, and a tour must not do either.
         hide()
     },
     DemoStep(

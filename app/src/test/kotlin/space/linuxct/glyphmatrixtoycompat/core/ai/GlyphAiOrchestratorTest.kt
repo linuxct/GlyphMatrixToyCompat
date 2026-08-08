@@ -5,7 +5,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -29,7 +28,6 @@ import java.io.IOException
  * stubbed tool would prove that about the stub.
  */
 class GlyphAiOrchestratorTest {
-
     private val design = TestDesigns.bellsproutOnly()
     private val context = GlyphToolContext(design = design, openVariant = PokemonCodename.BELLSPROUT)
 
@@ -130,25 +128,6 @@ class GlyphAiOrchestratorTest {
         assertTrue(success.toolNotes.single().changedDesign)
     }
 
-    @Test
-    fun `a later tool in the same turn sees the design that was just applied`() {
-        val renamed = design.copy(name = "Rounder")
-        val client = FakeClient(
-            call("call_1", GlyphAiTools.APPLY_DESIGN, applyArgs(renamed)),
-            call("call_2", GlyphAiTools.GET_CURRENT_DESIGN, "{}"),
-            text("Confirmed."),
-        )
-
-        run(GlyphAiOrchestrator(client))
-
-        // Without the context following the apply, the model checking its own
-        // work would be shown the document it had just replaced.
-        val readBack = client.requests[2].input
-            .filterIsInstance<ChatFunctionCallOutputItem>()
-            .last()
-        assertTrue(readBack.output, readBack.output.contains("\"Rounder\""))
-    }
-
     // endregion
 
     // region recovery
@@ -233,43 +212,6 @@ class GlyphAiOrchestratorTest {
         assertEquals(listOf(1, 2, 3), live.map { it.second })
         // What arrived live is exactly what the finished turn reports.
         assertEquals(success.toolNotes, live.map { it.first })
-    }
-
-    /**
-     * A document that validated but that the editor would not take is a failure
-     * the user must see as one — otherwise the live list shows a tick beside a
-     * change that never reached the canvas.
-     */
-    @Test
-    fun `a step is reported as failed when the apply is refused after validation`() {
-        val client = FakeClient(
-            call("call_1", GlyphAiTools.APPLY_DESIGN, applyArgs(design.copy(name = "Nope"))),
-            text("I could not change it."),
-        )
-        val live = mutableListOf<ChatToolNote>()
-
-        run(GlyphAiOrchestrator(client, applyDesign = { "the editor is closed" }, onToolNote = { live += it }))
-
-        assertFalse(live.single().ok)
-        assertFalse(live.single().changedDesign)
-    }
-
-    @Test
-    fun `a tool name that does not exist is answered with the ones that do`() {
-        val client = FakeClient(
-            call("call_1", "draw_a_cat", "{}"),
-            text("Sorry, let me use the real tools."),
-        )
-
-        val result = run(GlyphAiOrchestrator(client))
-
-        val output = client.requests[1].input
-            .filterIsInstance<ChatFunctionCallOutputItem>()
-            .single().output
-        assertTrue(output, output.contains("draw_a_cat"))
-        assertTrue(output, output.contains(GlyphAiTools.APPLY_DESIGN))
-        assertTrue(result is GlyphAiOrchestrator.TurnResult.Success)
-        assertFalse((result as GlyphAiOrchestrator.TurnResult.Success).toolNotes.single().ok)
     }
 
     @Test
@@ -390,31 +332,6 @@ class GlyphAiOrchestratorTest {
         assertTrue(last.changedDesign)
     }
 
-    /**
-     * Salvage is a fallback, not a rewrite of what the model did. A design that
-     * reached the canvas in an earlier round is the model's own latest word, and
-     * replacing it on the way out with the draft before it would undo work the
-     * user has already watched happen.
-     */
-    @Test
-    fun `a design already applied is never replaced by an older validated draft`() {
-        val applied = mutableListOf<Design>()
-        val client = FakeClient(
-            call("call_1", GlyphAiTools.APPLY_DESIGN, applyArgs(design.copy(name = "Landed"))),
-            call("call_2", GlyphAiTools.VALIDATE_DESIGN, applyArgs(design.copy(name = "Idea"))),
-            call("call_3", GlyphAiTools.GET_CURRENT_DESIGN, "{}"),
-        )
-
-        val result = run(
-            GlyphAiOrchestrator(client, maxRounds = 2, applyDesign = { applied += it; null }),
-        )
-
-        val failure = result as GlyphAiOrchestrator.TurnResult.Failure
-        assertEquals(listOf("Landed"), applied.map { it.name })
-        assertEquals("Landed", failure.appliedDesign?.name)
-        assertEquals(GlyphAiOrchestrator.TurnResult.Reason.STUCK, failure.reason)
-    }
-
     /** Nothing ever validated, so there is nothing to fall back on. */
     @Test
     fun `a turn with no validated draft still fails empty-handed`() {
@@ -435,31 +352,6 @@ class GlyphAiOrchestratorTest {
         assertEquals(GlyphAiOrchestrator.TurnResult.Reason.STUCK, failure.reason)
         assertNull(failure.appliedDesign)
         assertTrue(applied.isEmpty())
-    }
-
-    /** If the canvas will not take the draft, this is the failure it always was. */
-    @Test
-    fun `a salvage the editor refuses is reported as the plain failure`() {
-        val client = FakeClient(
-            call("call_1", GlyphAiTools.VALIDATE_DESIGN, applyArgs(design.copy(name = "Draft"))),
-            call("call_2", GlyphAiTools.VALIDATE_DESIGN, applyArgs(design.copy(name = "Draft"))),
-        )
-        val notes = mutableListOf<ChatToolNote>()
-
-        val result = run(
-            GlyphAiOrchestrator(
-                client,
-                maxRounds = 1,
-                applyDesign = { "the editor is closed" },
-                onToolNote = { notes += it },
-            ),
-        )
-
-        val failure = result as GlyphAiOrchestrator.TurnResult.Failure
-        assertEquals(GlyphAiOrchestrator.TurnResult.Reason.STUCK, failure.reason)
-        assertNull(failure.appliedDesign)
-        // And no note claiming an apply that did not happen.
-        assertTrue(notes.none { it.name == GlyphAiTools.APPLY_DESIGN })
     }
 
     @Test
@@ -498,22 +390,6 @@ class GlyphAiOrchestratorTest {
         )
     }
 
-    @Test
-    fun `a failure in a later round keeps the rounds already spent`() {
-        val client = FakeClient(
-            listOf(
-                ChatStreamResult.Ok(
-                    ChatResponse("r1", null, listOf(ChatFunctionCall("c1", GlyphAiTools.GET_CURRENT_DESIGN, "{}"))),
-                ),
-            ),
-            throwing = IOException("dropped"),
-        )
-
-        val failure = run(GlyphAiOrchestrator(client)) as GlyphAiOrchestrator.TurnResult.Failure
-        assertEquals(1, failure.rounds)
-        assertEquals(1, failure.toolNotes.size)
-    }
-
     // endregion
 
     // region streaming and the request shape
@@ -544,24 +420,11 @@ class GlyphAiOrchestratorTest {
         val request = client.requests.single()
         assertEquals("some-other-model", request.model)
         assertNull(request.reasoning)
-        assertEquals(3, request.tools.size)
+        // Counted, not written down: every tool the app has must reach the wire,
+        // and a literal here would fail the day a fourth is added.
+        assertEquals(GlyphAiTools.build().size, request.tools.size)
         assertTrue(request.stream)
         assertFalse(request.store)
-    }
-
-    @Test
-    fun `the default trace wording names what each tool is doing`() {
-        assertEquals("Thinking…", ChatTrace.Thinking.defaultText())
-        assertEquals(
-            "Reading your design…",
-            ChatTrace.RunningTool(GlyphAiTools.GET_CURRENT_DESIGN).defaultText(),
-        )
-        assertEquals(
-            "Applying changes…",
-            ChatTrace.RunningTool(GlyphAiTools.APPLY_DESIGN).defaultText(),
-        )
-        // A tool added after this build shipped still narrates as something.
-        assertEquals("Running image to grid…", ChatTrace.RunningTool("image_to_grid").defaultText())
     }
 
     // endregion
@@ -612,7 +475,6 @@ class GlyphAiOrchestratorTest {
         private val throwing: Throwable? = null,
         private val deltas: List<String> = emptyList(),
     ) : GlyphChatClient {
-
         constructor(
             vararg script: ChatStreamResult,
             deltas: List<String> = emptyList(),

@@ -8,7 +8,9 @@ import android.net.Uri
 import android.util.Base64
 import space.linuxct.glyphmatrixtoycompat.core.DebugLog
 import space.linuxct.glyphmatrixtoycompat.core.ai.ChatWire
+import space.linuxct.glyphmatrixtoycompat.core.ai.ImageQuantiser
 import space.linuxct.glyphmatrixtoycompat.core.ai.ImageScale
+import space.linuxct.glyphmatrixtoycompat.core.ai.SourceImage
 import java.io.ByteArrayOutputStream
 
 /**
@@ -27,6 +29,22 @@ class AttachedImage(
     /** `data:image/jpeg;base64,…`, as [ChatWire.imageDataUrl] builds it. */
     val dataUrl: String,
     val thumbnail: Bitmap?,
+    /**
+     * The same picture as brightness, for `image_to_grid`.
+     *
+     * **This is the seam.** Everything about turning a photo into art — the
+     * framing, the contrast, the threshold, the disc mask, the palette — is
+     * [space.linuxct.glyphmatrixtoycompat.core.ai.ImageQuantiser], which is pure
+     * Kotlin and unit-tested. The only part that needs Android is getting at the
+     * pixels, and that happens here, once, on the bitmap this function has
+     * already decoded and oriented for the wire. What crosses into `core/` is
+     * two integers and an `IntArray`.
+     *
+     * Null if the pixels could not be read. The attachment still sends: the
+     * model can look at the photo either way, it simply cannot ask the app to
+     * convert it.
+     */
+    val source: SourceImage?,
 )
 
 /**
@@ -76,7 +94,12 @@ internal fun readAttachment(context: Context, uri: Uri, id: Long): AttachedImage
             Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
         }
         val thumb = thumbnailOf(sized)
-        AttachedImage(id = id, dataUrl = ChatWire.imageDataUrl(base64), thumbnail = thumb)
+        AttachedImage(
+            id = id,
+            dataUrl = ChatWire.imageDataUrl(base64),
+            thumbnail = thumb,
+            source = luminanceOf(sized),
+        )
     }
 } catch (e: Exception) {
     DebugLog.w(TAG, "could not attach an image: ${e.javaClass.simpleName}: ${e.message}")
@@ -151,6 +174,56 @@ private fun scaleToCap(bitmap: Bitmap): Bitmap {
     if (!ImageScale.needsScaling(bitmap.width, bitmap.height)) return bitmap
     val (w, h) = ImageScale.targetSize(bitmap.width, bitmap.height)
     return Bitmap.createScaledBitmap(bitmap, w, h, true)
+}
+
+/**
+ * [bitmap] as brightness, small enough to keep for the length of a turn, or null
+ * if its pixels cannot be read.
+ *
+ * ## Why it is reduced first, and why that costs nothing
+ *
+ * The picture is on its way to being 137 dots. One cell of a 13x13 panel is
+ * already averaging about fourteen pixels square at [ImageQuantiser.SOURCE_EDGE],
+ * which is far past the point where more resolution changes the answer — while
+ * keeping the full 1024 px version as an `IntArray` would be 4 MB per photo, and
+ * four may be attached at once. The bilinear step down is safe here for the same
+ * reason: whatever it loses, the box average in [ImageQuantiser.sample] would
+ * have averaged away.
+ *
+ * ## Rec. 601, not the green channel
+ *
+ * The eye is far more sensitive to green than to blue, so a straight mean of the
+ * three channels makes a blue sky read as bright as a green field and a red logo
+ * disappear. These are the standard luma weights, in integers, because this runs
+ * over ~37 000 pixels while the user is still typing.
+ *
+ * Nothing here throws, for the same reason as the rest of this file: losing the
+ * conversion must not lose the photo, and losing the photo must not lose the
+ * conversation.
+ */
+private fun luminanceOf(bitmap: Bitmap): SourceImage? = try {
+    val (w, h) = ImageScale.targetSize(bitmap.width, bitmap.height, ImageQuantiser.SOURCE_EDGE)
+    val small = if (w == bitmap.width && h == bitmap.height) {
+        bitmap
+    } else {
+        Bitmap.createScaledBitmap(bitmap, w, h, true)
+    }
+    val pixels = IntArray(w * h)
+    small.getPixels(pixels, 0, w, 0, 0, w, h)
+    val luminance = IntArray(pixels.size)
+    for (i in pixels.indices) {
+        val p = pixels[i]
+        val r = (p shr 16) and 0xFF
+        val g = (p shr 8) and 0xFF
+        val b = p and 0xFF
+        luminance[i] = (77 * r + 151 * g + 28 * b) shr 8
+    }
+    SourceImage(width = w, height = h, luminance = luminance)
+} catch (e: Exception) {
+    DebugLog.w(TAG, "could not measure an attachment's brightness: ${e.message}")
+    null
+} catch (e: OutOfMemoryError) {
+    null
 }
 
 /** A chip-sized copy, or null if it cannot be made — the chip degrades, not the send. */

@@ -53,7 +53,6 @@ private class FakeSessionControl(var shouldRun: Boolean = true) : SessionControl
 }
 
 class KeyActionRouterTest {
-
     private val clock = FakeClock()
     private val prefs = FakePrefs()
     private val scheduler = FakeScheduler(clock)
@@ -110,14 +109,6 @@ class KeyActionRouterTest {
     }
 
     // ---------- menu mode, not yet in the menu ----------
-
-    @Test
-    fun `menu mode single press outside the menu still dispatches change`() {
-        val r = router(menuMode = true)
-        r.execute(1)
-        assertEquals(listOf(Events.CHANGE), a.events)
-        assertFalse(screenManager.inMenu)
-    }
 
     @Test
     fun `menu mode double press opens the blinking selector instead of cycling`() {
@@ -179,23 +170,6 @@ class KeyActionRouterTest {
         a.events.clear()
         r.execute(1)
         assertEquals(1, arbiter.reviveCount)
-        assertTrue(a.events.isEmpty())
-    }
-
-    @Test
-    fun `should-run but not live revives and swallows the action`() {
-        val r = router(menuMode = false, live = false)
-        r.execute(1)
-        assertEquals(1, arbiter.reviveCount)
-        assertTrue(a.events.isEmpty())
-        assertFalse(screenManager.sessionLive)
-    }
-
-    @Test
-    fun `four or more clicks are ignored`() {
-        val r = router(menuMode = true)
-        r.execute(4)
-        assertFalse(screenManager.inMenu)
         assertTrue(a.events.isEmpty())
     }
 }

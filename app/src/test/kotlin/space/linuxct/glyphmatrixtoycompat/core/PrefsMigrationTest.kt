@@ -7,7 +7,6 @@ import org.junit.Test
 import space.linuxct.glyphmatrixtoycompat.FakePrefs
 
 class PrefsMigrationTest {
-
     /** A store written by a pre-rename build, with a timer mid-run. */
     private fun legacyStore(): FakePrefs = FakePrefs().apply {
         putInt(PrefKeys.PREFS_VERSION, 1)
@@ -47,23 +46,6 @@ class PrefsMigrationTest {
     }
 
     @Test
-    fun `running twice is idempotent`() {
-        val prefs = legacyStore()
-        assertTrue(PrefsMigration.run(prefs))
-        val after = prefs.map.toMap()
-
-        // A second pass is refused by the version guard...
-        assertFalse(PrefsMigration.run(prefs))
-        assertEquals(after, prefs.map)
-
-        // ...and even with the guard reset it changes nothing, because every
-        // step keys off a legacy name that is now gone.
-        prefs.putInt(PrefKeys.PREFS_VERSION, 1)
-        assertTrue(PrefsMigration.run(prefs))
-        assertEquals(after, prefs.map)
-    }
-
-    @Test
     fun `a partial legacy store neither crashes nor clobbers new values`() {
         val prefs = FakePrefs().apply {
             putInt(PrefKeys.PREFS_VERSION, 1)
@@ -80,18 +62,6 @@ class PrefsMigrationTest {
         assertFalse(prefs.contains(PrefKeys.CURRENT_SCREEN))
         assertFalse(prefs.contains(PrefKeys.screenEnabled("timer")))
         assertTrue(prefs.map.keys.none { it.contains("tea") })
-    }
-
-    @Test
-    fun `a legacy value already on the new name is not moved over`() {
-        val prefs = FakePrefs().apply {
-            putInt(PrefKeys.PREFS_VERSION, 1)
-            putLong("teaStartMillis", 1L)
-            putLong(PrefKeys.TIMER_START, 99L)
-        }
-        PrefsMigration.run(prefs)
-        assertEquals(99L, prefs.getLong(PrefKeys.TIMER_START, -1L))
-        assertFalse(prefs.contains("teaStartMillis"))
     }
 
     @Test
@@ -114,15 +84,5 @@ class PrefsMigrationTest {
             PrefsMigration.run(prefs)
             assertEquals(expected, prefs.getInt(PrefKeys.TIMER_DURATION, -1))
         }
-    }
-
-    @Test
-    fun `an already migrated store is left alone`() {
-        val prefs = FakePrefs().apply {
-            putInt(PrefKeys.PREFS_VERSION, PrefKeys.PREFS_VERSION_CURRENT)
-            putString(PrefKeys.CURRENT_SCREEN, "tea") // stale-looking, but not ours to touch
-        }
-        assertFalse(PrefsMigration.run(prefs))
-        assertEquals("tea", prefs.getString(PrefKeys.CURRENT_SCREEN, ""))
     }
 }

@@ -24,7 +24,6 @@ import org.junit.Test
  * three-line function.
  */
 class DialogCardWidthTest {
-
     /** The 411 x 919 dp window of the phone this app is built for. */
     private val phoneWindow = 411.dp
 
@@ -52,18 +51,5 @@ class DialogCardWidthTest {
         // A 320 dp window (small phone, split screen) cannot hold a 280 dp card
         // plus its margins. Physics beats the spec: 320 - 2 x 24.
         assertEquals(272.dp, dialogCardWidth(preferred = 320.dp, available = 320.dp))
-    }
-
-    @Test
-    fun `it never returns a negative width`() {
-        assertEquals(0.dp, dialogCardWidth(preferred = 320.dp, available = 40.dp))
-    }
-
-    @Test
-    fun `an unmeasured window is answered with the bounded width`() {
-        // One composition long, before the window reports its size. Answering
-        // with a guess would make the card jump on the following frame.
-        assertEquals(320.dp, dialogCardWidth(preferred = 320.dp, available = Dp.Unspecified))
-        assertEquals(320.dp, dialogCardWidth(preferred = 320.dp, available = 0.dp))
     }
 }

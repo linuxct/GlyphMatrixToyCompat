@@ -1,6 +1,8 @@
 package space.linuxct.glyphmatrixtoycompat.core
 
 import space.linuxct.glyphmatrixtoycompat.core.ai.ChatWire
+import space.linuxct.glyphmatrixtoycompat.core.ai.GlyphAiOrchestrator
+import space.linuxct.glyphmatrixtoycompat.core.ai.ReasoningEffort
 
 /**
  * Minimal settings store abstraction. The Android implementation wraps
@@ -171,6 +173,66 @@ object PrefKeys {
     const val AI_MODEL = "aiModel"
     const val AI_MODEL_DEF = ChatWire.MODEL
 
+    /**
+     * How many tool rounds the design assistant may take before a turn is cut
+     * short and salvaged.
+     *
+     * Configurable because the built-in eight is a budget, not a safety limit,
+     * and it is the wrong budget for the task the user actually has: a request
+     * like "animate this across twenty frames" spends rounds reading, writing and
+     * re-reading the canvas, and running out mid-way produces a half-drawn design
+     * and a turn that has to explain itself. The ceiling still exists — a model
+     * that has stopped converging will loop until something stops it, and every
+     * round costs a request — so this widens the budget rather than removing it.
+     *
+     * Clamped on read by [aiMaxRounds] rather than trusted, because it is a
+     * stored integer and the only thing standing between a corrupt value and an
+     * unbounded loop is the code that reads it.
+     */
+    const val AI_MAX_ROUNDS = "aiMaxRounds"
+    const val AI_MAX_ROUNDS_DEF = GlyphAiOrchestrator.DEFAULT_MAX_ROUNDS
+    const val AI_MAX_ROUNDS_MIN = 4
+    const val AI_MAX_ROUNDS_MAX = 40
+
+    /**
+     * The granularity the UI offers: 4, 8, 12 … 40, ten positions rather than
+     * thirty-seven.
+     *
+     * A presentation constant that lives here because the range does. One detent
+     * per round drew a rail of 35 tick marks — unreadable as anything but noise,
+     * and it implied a precision this number does not have: nobody knows that
+     * their animation needs 23 rounds rather than 24. Four is the coarsest step
+     * that still divides both bounds and the default, so every endpoint the code
+     * cares about is a position the slider can actually land on.
+     *
+     * Not enforced on read. A value between the detents is perfectly valid and
+     * [aiMaxRounds] will honour it — this governs what the slider offers, not
+     * what the setting accepts, so an older stored value or a future control with
+     * finer granularity is not invalidated by it.
+     */
+    const val AI_MAX_ROUNDS_STEP = 4
+
+    /**
+     * How hard the design assistant is asked to think before it answers, as the
+     * lowercase token that goes on the wire.
+     *
+     * The token rather than the enum's name, and rather than an ordinal: this is
+     * the exact string the request carries, so what is stored is what is sent and
+     * there is no table in the middle to get out of step. An ordinal would also
+     * silently re-point at a different level the first time the list is reordered.
+     *
+     * The default is [ChatWire.DEFAULT_REASONING_EFFORT] itself, not a second copy
+     * of the literal — same reasoning as [AI_MODEL_DEF] — so a store with nothing
+     * in it behaves exactly as this app did before the setting existed.
+     *
+     * Read through [aiReasoningEffort], which maps an unknown token back to a
+     * known level. Not all six levels are known to be accepted by the backend;
+     * see [space.linuxct.glyphmatrixtoycompat.core.ai.ReasoningEffort] for which
+     * are documented, which are plausible and which are guesses.
+     */
+    const val AI_REASONING_EFFORT = "aiReasoningEffort"
+    const val AI_REASONING_EFFORT_DEF = ChatWire.DEFAULT_REASONING_EFFORT
+
     const val AMBIENT_BACKGROUND = "ambientBackground"
     const val AMBIENT_BACKGROUND_DEF = 0
 
@@ -232,3 +294,38 @@ object PrefKeys {
     const val CREATE_TOUR_PROMPTED = "createTourPrompted"
     const val CREATE_TOUR_PROMPTED_DEF = false
 }
+
+/**
+ * The assistant's tool-round budget, clamped into [PrefKeys.AI_MAX_ROUNDS_MIN] …
+ * [PrefKeys.AI_MAX_ROUNDS_MAX].
+ *
+ * A function rather than a raw `getInt` at the call site, and the clamp is the
+ * reason: the stored value is an integer the user typed, and the thing it
+ * controls is the only bound on a loop that issues a network request per
+ * iteration. A zero or a negative — from a corrupt store, or from an editing
+ * state that briefly reads as empty — would end the turn before it began; an
+ * absurdly large one turns a misbehaving model into a long, expensive spin. So
+ * the ceiling is enforced where it is read, not where it is written, because
+ * that is the only place that cannot be bypassed.
+ */
+fun Prefs.aiMaxRounds(): Int =
+    getInt(PrefKeys.AI_MAX_ROUNDS, PrefKeys.AI_MAX_ROUNDS_DEF)
+        .coerceIn(PrefKeys.AI_MAX_ROUNDS_MIN, PrefKeys.AI_MAX_ROUNDS_MAX)
+
+/**
+ * The assistant's reasoning effort, as a level that can always be displayed.
+ *
+ * The same shape as [aiMaxRounds] and for the same reason: the guard belongs at
+ * the read, because that is the only place it cannot be bypassed. The failure it
+ * guards against is different, though — this is a *string*, so the danger is not
+ * an out-of-range number but a token nothing recognises: one written by a build
+ * that offered a level this one does not, or edited by hand. Degrading it to
+ * [ReasoningEffort.DEFAULT] means the settings row can always draw itself, which
+ * is what makes the setting recoverable from the UI rather than only by clearing
+ * app data.
+ *
+ * It is deliberately NOT a write-back. Reading does not repair the store, so a
+ * value this build does not know survives an upgrade that reintroduces it.
+ */
+fun Prefs.aiReasoningEffort(): ReasoningEffort =
+    ReasoningEffort.fromWire(getString(PrefKeys.AI_REASONING_EFFORT, PrefKeys.AI_REASONING_EFFORT_DEF))

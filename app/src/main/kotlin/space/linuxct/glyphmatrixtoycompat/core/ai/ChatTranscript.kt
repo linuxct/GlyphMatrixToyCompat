@@ -107,6 +107,15 @@ data class ChatMessage(
     val imageCount: Int = 0,
     /** True when this assistant turn is a failure notice rather than a reply. */
     val error: Boolean = false,
+    /**
+     * True for a reply that was still arriving when the record of it was written
+     * — a *checkpoint*, not a finished turn. See [ChatTranscript.withPartial].
+     *
+     * It only ever survives to be read back if the process died mid-turn: every
+     * ending a turn can reach replaces it, either with the finished reply or with
+     * the transcript as it was before the turn began.
+     */
+    val partial: Boolean = false,
 )
 
 /** The whole conversation about one design. */
@@ -121,6 +130,92 @@ data class ChatTranscript(
     /** This transcript with [message] appended, trimmed to [ChatTranscriptCodec.MAX_MESSAGES]. */
     fun plus(message: ChatMessage): ChatTranscript =
         copy(messages = (messages + message).takeLast(ChatTranscriptCodec.MAX_MESSAGES))
+
+    /**
+     * This transcript with [message] as its trailing **checkpoint**: appended if
+     * there is no checkpoint on the end already, and replacing it if there is.
+     *
+     * ## What this is for
+     *
+     * A turn writes nothing until it finishes, which is right for a conversation
+     * and wrong for a process that can be killed. A turn against a reasoning
+     * model runs for minutes; if the process goes while it is running, everything
+     * that arrived — the reply so far, and every tool call that completed — is
+     * gone, and reopening the design shows the user's own message with no answer
+     * under it and no explanation.
+     *
+     * So the turn periodically writes what it has as a [ChatMessage.partial]
+     * message. It is a *checkpoint file*, not a conversation: it is replaced on
+     * every write rather than accumulating, and the very next thing a live turn
+     * does is overwrite it — with the finished reply, or (for a failure, or a
+     * turn the user stopped) with the transcript as it was before, which is what
+     * this app has always stored for a turn that produced no answer.
+     *
+     * Idempotent, so a turn may checkpoint as often as it likes without the
+     * thread growing a message per checkpoint.
+     *
+     * ## Why the format version does not move for this
+     *
+     * [ChatMessage.partial] is additive and defaulted, so a file written by this
+     * build still decodes on the build before it. Stamping
+     * [CHAT_FORMAT_VERSION] 2 would be *technically* tidier and materially worse:
+     * `decode` declines a transcript from a newer build outright, so a user who
+     * moved back a version would lose every conversation they have, in exchange
+     * for the older build otherwise showing one interrupted reply as though it
+     * had finished. The version gate exists for changes that cannot be read
+     * without understanding them; this one can.
+     */
+    fun withPartial(message: ChatMessage): ChatTranscript =
+        withoutPartial().plus(message)
+
+    /**
+     * This transcript with [message] appended **as a correction**, or null when
+     * there is no conversation here to correct.
+     *
+     * ## The rule, and why it is a function rather than an `if`
+     *
+     * `ai/GlyphAiSession` states one half of this already: *a turn that changed
+     * something must be explainable afterwards*. This is the other half, and it
+     * is the sharper one — **a turn that SAID it changed something and then did
+     * not must be corrected.** A deferred apply is told to the model as a success
+     * while it is only *recorded*, so "Done — I drew you a cat" is committed to
+     * the thread at the time; if the record is later dropped (the user had edited
+     * the design themselves, it aged out, the design could not be found) the
+     * thread is left asserting something that never happened. An absence is a
+     * gap; that is an active falsehood, and it is worse.
+     *
+     * ## Why null rather than a transcript with one message in it
+     *
+     * The correction is only ever *appended to a claim*. There are two ways to
+     * arrive here with nothing to append to, and in both of them writing would be
+     * wrong rather than merely useless:
+     *
+     * - **The design was deleted.** `DesignStore.delete` takes the conversation
+     *   with it, so there is no file — and a correction written now would create
+     *   one, under an id no design holds, which is precisely the orphan
+     *   `ChatStore`'s sweep exists to destroy. A resurrected transcript could then
+     *   be inherited by the next design allocated that id.
+     * - **The user reset the chat.** They deleted the sentence that was wrong.
+     *   Putting a correction to it back on an empty thread would be the app
+     *   answering a question nobody is still asking.
+     *
+     * A trailing checkpoint is deliberately *not* dropped, unlike in
+     * [withPartial]: it is the record of what the assistant was saying when the
+     * process died, which may well be the claim being corrected, and the
+     * correction reads as a reply to it.
+     */
+    fun withCorrection(message: ChatMessage): ChatTranscript? =
+        if (messages.isEmpty()) null else plus(message)
+
+    /**
+     * This transcript with a trailing checkpoint dropped — the shape the
+     * conversation has once the turn that wrote it has ended.
+     *
+     * Only the *last* message is considered, because only the last one can be a
+     * checkpoint: a checkpoint is replaced before anything is appended after it.
+     */
+    fun withoutPartial(): ChatTranscript =
+        if (messages.lastOrNull()?.partial == true) copy(messages = messages.dropLast(1)) else this
 
     /**
      * The last [count] turns as Responses API input items — the conversation the

@@ -11,23 +11,14 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import space.linuxct.glyphmatrixtoycompat.Core
 import space.linuxct.glyphmatrixtoycompat.core.DebugLog
-import space.linuxct.glyphmatrixtoycompat.core.PrefKeys
 import space.linuxct.glyphmatrixtoycompat.core.ai.ChatMessage
-import space.linuxct.glyphmatrixtoycompat.core.ai.ChatMessageItem
-import space.linuxct.glyphmatrixtoycompat.core.ai.ChatRole
 import space.linuxct.glyphmatrixtoycompat.core.ai.ChatToolNote
 import space.linuxct.glyphmatrixtoycompat.core.ai.ChatTrace
-import space.linuxct.glyphmatrixtoycompat.core.ai.ChatTranscript
-import space.linuxct.glyphmatrixtoycompat.core.ai.ChatWire
 import space.linuxct.glyphmatrixtoycompat.core.ai.GlyphAiOrchestrator
-import space.linuxct.glyphmatrixtoycompat.core.ai.GlyphAiPrompt
-import space.linuxct.glyphmatrixtoycompat.core.ai.GlyphChatClient
 import space.linuxct.glyphmatrixtoycompat.core.ai.GlyphToolContext
 import space.linuxct.glyphmatrixtoycompat.core.design.Design
 import java.io.IOException
@@ -141,7 +132,12 @@ data class ChatFailure(
  *
  * [messages] is the persisted history; [streaming] is the reply currently
  * arriving, which is deliberately *not* a message yet — it becomes one when the
- * turn finishes, so nothing half-written is ever written to disk.
+ * turn finishes, so a half-written reply is never part of the conversation.
+ *
+ * It *is* checkpointed to disk while it arrives, which is a different thing: see
+ * `ChatTranscript.withPartial`. The checkpoint is a crash record that the next
+ * write replaces, not a message, and it is never merged into [messages] by a live
+ * turn — the screen is already showing this field.
  */
 data class GlyphChatState(
     /** The design this conversation belongs to; blank before the first open. */
@@ -161,8 +157,9 @@ data class GlyphChatState(
      * spent drawing, failing validation and redrawing four times looks
      * indistinguishable from a hang. This list is what the user watches instead:
      * one line per attempt, with [ChatToolNote.ok] saying whether it stuck. It
-     * lives in the ViewModel rather than in the modal so it survives a rotation
-     * mid-turn, and it is cleared when the turn ends — at which point the same
+     * lives in [GlyphAiSession] rather than in the modal so it survives a
+     * rotation — and now the editor closing — mid-turn, and it is cleared when
+     * the turn ends — at which point the same
      * calls reappear under the finished message as [ChatMessage.tools], so
      * nothing is actually lost by clearing it.
      */
@@ -256,6 +253,16 @@ internal fun GlyphChatState.cleared(): GlyphChatState =
  * [onCleared] cancels that scope before the body of this class would get to run,
  * and the one case where the port MUST be released is the editor being destroyed
  * mid-login.
+ *
+ * ## What is NOT here any more
+ *
+ * The conversation and the turn. They used to live in [viewModelScope], which
+ * meant `finish()` → [onCleared] → `turn?.cancel()`: leaving the editor destroyed
+ * whatever the assistant was doing, deterministically. They are now in the
+ * application-scoped [GlyphAiSession] and this class is a *view* onto it — it
+ * forwards the calls and republishes [chat], so nothing above it had to change.
+ * The sign-in stays, because it is genuinely a screen's business: it opens a
+ * dialog, it is cancelled by closing that dialog, and it has never outlived one.
  */
 class GlyphAiViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -269,44 +276,23 @@ class GlyphAiViewModel(app: Application) : AndroidViewModel(app) {
     private val consent: AiConsentStorage = AiConsentStore(app)
 
     /**
-     * The conversation store, **lazily**, and that is load-bearing rather than
-     * tidy — see [ChatStore]'s own KDoc. Nothing may force this during
+     * The turn and the conversation, **lazily**, and that is load-bearing rather
+     * than tidy — see [GlyphAiSession.of]. Nothing may force this during
      * construction: this ViewModel is only ever built from an Activity, long
      * after unlock, but the rule that keeps Direct Boot working is "chat storage
      * is touched when the user opens the chat", and it is kept here too.
      */
-    private val chats: ChatStore by lazy { ChatStore(app) { Core.designStore.storedIds() } }
-
-    /** Lazily, so a signed-out user never builds one. */
-    private val client: GlyphChatClient by lazy { GlyphAiClient(tokens) }
+    private val session: GlyphAiSession by lazy { GlyphAiSession.of(app) }
 
     private val _state = MutableStateFlow(
         GlyphAiAuthState(signedIn = tokens.isSignedIn, consented = consent.accepted),
     )
     val state: StateFlow<GlyphAiAuthState> = _state.asStateFlow()
 
-    private val _chat = MutableStateFlow(GlyphChatState())
-    val chat: StateFlow<GlyphChatState> = _chat.asStateFlow()
+    /** The conversation, straight from the session. Nothing is mirrored here. */
+    val chat: StateFlow<GlyphChatState> get() = session.chat
 
     private var job: Job? = null
-
-    /** The turn in flight, if any. One at a time; the composer is disabled meanwhile. */
-    private var turn: Job? = null
-
-    /**
-     * The conversation of record. [GlyphChatState.messages] mirrors it for the
-     * UI; this is what is written to disk and what is replayed to the model.
-     */
-    private var transcript = ChatTranscript()
-
-    /** Set by the editor while it is on screen. See [GlyphEditorBridge]. */
-    private var editor: GlyphEditorBridge? = null
-
-    /** The document as it was before the most recent accepted apply. */
-    private var revertSnapshot: Design? = null
-
-    /** What [retry] would send again. */
-    private var lastTurn: PendingTurn? = null
 
     private var nextAttachmentId = 0L
 
@@ -413,10 +399,11 @@ class GlyphAiViewModel(app: Application) : AndroidViewModel(app) {
      *
      * Replacing an existing registration is normal, not an error: that is exactly
      * what a rotation does, and a turn in flight will find the new one.
+     *
+     * It is also how a design that the assistant finished while the editor was
+     * closed reaches the canvas — see [GlyphAiSession.setEditor].
      */
-    fun setEditor(bridge: GlyphEditorBridge) {
-        editor = bridge
-    }
+    fun setEditor(bridge: GlyphEditorBridge) = session.setEditor(bridge)
 
     /**
      * Withdraws [bridge], but **only if it is still the registered one**.
@@ -425,9 +412,7 @@ class GlyphAiViewModel(app: Application) : AndroidViewModel(app) {
      * incoming one has registered, so an unconditional clear would remove the
      * live editor and leave the assistant unable to reach the canvas.
      */
-    fun clearEditor(bridge: GlyphEditorBridge) {
-        if (editor === bridge) editor = null
-    }
+    fun clearEditor(bridge: GlyphEditorBridge) = session.clearEditor(bridge)
 
     // ---- the conversation ----
 
@@ -436,60 +421,29 @@ class GlyphAiViewModel(app: Application) : AndroidViewModel(app) {
      *
      * Called from the chat modal's first composition — **never from anything
      * `Core.init` touches**. This is the first thing in the process that forces
-     * [chats], and forcing it creates a credential-protected directory, which
-     * cannot be done before the first unlock; see [ChatStore].
+     * chat storage, and forcing it creates a credential-protected directory,
+     * which cannot be done before the first unlock; see [ChatStore].
      *
      * A transcript that will not read is not an error the user is told about:
      * [ChatStore.load] returns null for a truncated file, a future format or a
      * design id that could not name a file, and the thread simply starts empty.
      */
-    fun openChat(designId: String) {
-        val current = _chat.value
-        if (current.designId == designId && current.restored) return
-        _chat.value = GlyphChatState(designId = designId)
-        viewModelScope.launch {
-            val loaded = withContext(Dispatchers.IO) {
-                if (designId.isBlank()) null else chats.load(designId)
-            }
-            transcript = loaded?.copy(designId = designId) ?: ChatTranscript(designId = designId)
-            _chat.update { it.copy(restored = true, messages = transcript.messages) }
-        }
-    }
+    fun openChat(designId: String) = session.openChat(designId)
 
     /**
      * Clears the conversation about the design being edited: the transcript on
      * disk, and everything the sheet is showing.
      *
      * **The design is not touched, and that is the point of the action.** Nothing
-     * here goes near [editor] or [revertSnapshot]: a reset forgets what was said,
-     * it is not an undo of what was drawn, and the two are separate on purpose —
-     * see [cleared] for why the revert banner outlives this.
+     * here goes near the editor or the revert snapshot: a reset forgets what was
+     * said, it is not an undo of what was drawn, and the two are separate on
+     * purpose — see [cleared] for why the revert banner outlives this.
      *
      * Returns false when the conversation may not be cleared right now — see
-     * [canReset], which the menu item is disabled by, so a false here is the
-     * belt to that dialog's braces rather than something a user can provoke.
-     *
-     * The file is removed rather than rewritten empty: a design nobody has talked
-     * to has no transcript, and one somebody talked to and then reset is in
-     * exactly that state. `NonCancellable`, and not a child of the turn, because
-     * a conversation the user asked to be rid of must not come back on the next
-     * open just because the editor closed on the same frame.
+     * [canReset], which the menu item is disabled by, so a false here is the belt
+     * to that dialog's braces rather than something a user can provoke.
      */
-    fun resetChat(): Boolean {
-        val state = _chat.value
-        if (!state.canReset()) return false
-        val designId = state.designId
-        transcript = ChatTranscript(designId = designId)
-        // Otherwise the failure card's "Try again" — dismissed by the line below,
-        // but only from the screen — could resend a message that is no longer in
-        // any transcript, and the model would answer a turn with no history.
-        lastTurn = null
-        _chat.value = state.cleared()
-        if (designId.isNotBlank()) {
-            viewModelScope.launch(Dispatchers.IO + NonCancellable) { chats.delete(designId) }
-        }
-        return true
-    }
+    fun resetChat(): Boolean = session.resetChat()
 
     /**
      * Reads a picked image and holds it ready to send.
@@ -497,37 +451,28 @@ class GlyphAiViewModel(app: Application) : AndroidViewModel(app) {
      * The decode and the JPEG re-encode happen here rather than at send time so
      * that an unreadable image is reported while the user is still composing, and
      * so the send itself is a request and nothing else. See [readAttachment].
+     *
+     * This half stays in the ViewModel: it needs a `ContentResolver`, it is over
+     * the moment the picker returns, and nothing about it has to outlive the
+     * screen that opened the picker.
      */
     fun attach(uri: Uri) {
-        if (_chat.value.attachments.size >= MAX_ATTACHMENTS) return
+        if (session.attachmentsFull()) return
         val id = nextAttachmentId++
         val context = getApplication<Application>()
         viewModelScope.launch {
             val image = withContext(Dispatchers.IO) { readAttachment(context, uri, id) }
-            if (image == null) {
-                _chat.update { it.copy(attachFailed = true) }
-            } else {
-                _chat.update {
-                    if (it.attachments.size >= MAX_ATTACHMENTS) it
-                    else it.copy(attachments = it.attachments + image)
-                }
-            }
+            if (image == null) session.attachFailed() else session.attached(image)
         }
     }
 
-    fun removeAttachment(id: Long) {
-        _chat.update { it.copy(attachments = it.attachments.filterNot { image -> image.id == id }) }
-    }
+    fun removeAttachment(id: Long) = session.removeAttachment(id)
 
     /** Acknowledges the "couldn't attach that" notice. */
-    fun clearAttachError() {
-        _chat.update { it.copy(attachFailed = false) }
-    }
+    fun clearAttachError() = session.clearAttachError()
 
     /** Dismisses the failure card without retrying. */
-    fun dismissFailure() {
-        _chat.update { it.copy(failure = null) }
-    }
+    fun dismissFailure() = session.dismissFailure()
 
     /**
      * Sends [text] with whatever is attached, and runs the turn. **False means
@@ -539,19 +484,7 @@ class GlyphAiViewModel(app: Application) : AndroidViewModel(app) {
      * answer rather than swallowing it is what stops the sentence being cleared
      * out of the box it was typed in when nothing left with it.
      */
-    fun send(text: String): Boolean {
-        val state = _chat.value
-        val trimmed = text.trim()
-        if (trimmed.isEmpty() && state.attachments.isEmpty()) return false
-        if (state.sending) return false
-        return startTurn(
-            PendingTurn(
-                text = trimmed,
-                imageDataUrls = state.attachments.map { it.dataUrl },
-            ),
-            record = true,
-        )
-    }
+    fun send(text: String): Boolean = session.send(text)
 
     /**
      * Sends the last turn again.
@@ -561,11 +494,7 @@ class GlyphAiViewModel(app: Application) : AndroidViewModel(app) {
      * the orchestrator takes it as the new message and a turn carrying the same
      * user text twice reads to the model as somebody repeating themselves.
      */
-    fun retry() {
-        val pending = lastTurn ?: return
-        if (_chat.value.sending) return
-        startTurn(pending, record = false)
-    }
+    fun retry() = session.retry()
 
     /**
      * Abandons the turn in flight.
@@ -575,25 +504,11 @@ class GlyphAiViewModel(app: Application) : AndroidViewModel(app) {
      * back, and the response, if it ever arrives, is dropped on a cancelled
      * coroutine. Anything the turn already applied stays applied, and stays
      * revertible.
-     */
-    fun stopTurn() {
-        turn?.cancel()
-        turn = null
-        _chat.update { it.turnEnded() }
-    }
-
-    /**
-     * The state a turn leaves behind: nothing in flight, and no half-narrated
-     * progress.
      *
-     * One function for all three endings — answered, failed, abandoned — because
-     * the fields that must be reset together grew from two to five, and a turn
-     * that cleared its trace but left its step list showing would keep narrating
-     * work that finished minutes ago. The steps are not lost by this: a turn that
-     * answered puts the same calls under its message as [ChatMessage.tools].
+     * Still the composer's button, and now the **only** thing that abandons a
+     * turn: leaving the editor no longer does.
      */
-    private fun GlyphChatState.turnEnded(): GlyphChatState =
-        copy(sending = false, streaming = "", trace = null, steps = emptyList(), startedAtMs = 0L)
+    fun stopTurn() = session.stopTurn()
 
     /**
      * Puts the design back as it was before the assistant's most recent change.
@@ -601,206 +516,29 @@ class GlyphAiViewModel(app: Application) : AndroidViewModel(app) {
      * One step, not a stack. A whole-document swap cannot be expressed as the
      * editor's per-frame undo (`TimelineEntry`), so this is a snapshot of the
      * entire [Design] taken immediately before each accepted apply — and keeping
-     * every such snapshot for the life of the activity would be keeping a
-     * megabyte of arbok frames per turn for an affordance that is only ever used
-     * on the change the user just watched happen.
+     * every such snapshot for the life of the process would be keeping a megabyte
+     * of arbok frames per turn for an affordance that is only ever used on the
+     * change the user just watched happen.
      */
-    fun revertLastChange() {
-        val snapshot = revertSnapshot ?: return
-        val bridge = editor ?: return
-        if (bridge.apply(snapshot) is GlyphApplyResult.Applied) {
-            revertSnapshot = null
-            _chat.update { it.copy(canRevert = false) }
-        }
-    }
+    fun revertLastChange() = session.revertLastChange()
 
     /**
-     * One turn, start to finish.
+     * The editor is going away.
      *
-     * ## Everything here runs on the main thread, deliberately
+     * **The turn is deliberately not cancelled here.** It used to be, and that
+     * one line was the whole of the "leaving the editor loses the assistant's
+     * work" bug: `finish()` reaches this, and a user who asked for a drawing and
+     * then went to answer a message lost it every single time. The turn lives in
+     * [GlyphAiSession] now, on a scope this cannot reach. [stopTurn] — the
+     * composer's stop button — is the way to abandon one.
      *
-     * [viewModelScope] dispatches on Main, and the two things that must happen
-     * there are the ones this coroutine does directly: reading the editor's live
-     * frame buffers ([GlyphEditorBridge.snapshot], via [GlyphToolContext]) and
-     * writing a design back to them. The network is not one of them —
-     * [GlyphAiClient.respond] moves itself to IO — and text deltas arrive on that
-     * IO thread, which is safe because a [MutableStateFlow] update is atomic from
-     * any thread and Compose collects on Main.
-     *
-     * The tools in between (JSON, ASCII previews of up to 16 frames per panel)
-     * are main-thread work, and are on the order of a millisecond; putting them
-     * on another thread would mean reading a frame buffer a finger might still be
-     * painting into.
+     * The sign-in *is* cancelled, because it is this screen's: it exists for a
+     * dialog that is going away with it, and leaving port 1455 bound with nobody
+     * listening would break the next attempt.
      */
-    private fun startTurn(pending: PendingTurn, record: Boolean): Boolean {
-        if (turn?.isActive == true) return false
-        val bridge = editor ?: run {
-            // Unreachable in practice — the chat is composed inside the editor
-            // that registers the bridge — but a turn with nothing to read the
-            // canvas from would have no design to talk about at all.
-            DebugLog.w("GlyphAi", "no editor is registered; nothing was sent")
-            return false
-        }
-        val context = bridge.snapshot()
-        // Captured BEFORE the new message is appended: the orchestrator takes the
-        // new turn separately, and history that already contained it would send
-        // it twice.
-        val history = (if (record) transcript else transcript.withoutTrailingUser()).asInput()
-        if (record) {
-            appendMessage(
-                ChatMessage(
-                    role = ChatRole.USER,
-                    text = pending.text,
-                    atMs = System.currentTimeMillis(),
-                    imageCount = pending.imageDataUrls.size,
-                ),
-            )
-        }
-        lastTurn = pending
-        _chat.update {
-            it.copy(
-                sending = true,
-                streaming = "",
-                trace = ChatTrace.Thinking,
-                steps = emptyList(),
-                startedAtMs = System.currentTimeMillis(),
-                failure = null,
-                // The images have gone into the request; leaving the chips in the
-                // composer would invite sending them again with the next message.
-                attachments = emptyList(),
-            )
-        }
-
-        turn = viewModelScope.launch {
-            val orchestrator = GlyphAiOrchestrator(
-                client = client,
-                // Read HERE, per turn, rather than once when this ViewModel was
-                // built: the setting exists to rescue a broken model id, and a
-                // fix that only took effect after a restart would be a fix the
-                // user has no reason to believe worked. Resolving is
-                // [ChatWire]'s job — `core/` owns the "blank means the default"
-                // rule, this side only owns the prefs read.
-                model = ChatWire.resolveModel(
-                    Core.prefs.getString(PrefKeys.AI_MODEL, PrefKeys.AI_MODEL_DEF),
-                ),
-                applyDesign = ::applyFromModel,
-                onTrace = ::onTrace,
-                onToolNote = ::onToolNote,
-            )
-            val result = orchestrator.runTurn(
-                instructions = GlyphAiPrompt.build(context.design),
-                history = history,
-                message = ChatMessageItem.user(pending.text, pending.imageDataUrls),
-                context = context,
-                onTextDelta = { delta -> _chat.update { it.copy(streaming = it.streaming + delta) } },
-            )
-            when (result) {
-                is GlyphAiOrchestrator.TurnResult.Success -> {
-                    appendMessage(
-                        ChatMessage(
-                            role = ChatRole.ASSISTANT,
-                            text = result.text,
-                            atMs = System.currentTimeMillis(),
-                            tools = result.toolNotes,
-                        ),
-                    )
-                    _chat.update { it.turnEnded() }
-                }
-
-                is GlyphAiOrchestrator.TurnResult.Failure -> {
-                    // Deliberately NOT written to the transcript. A failed turn is
-                    // not something the assistant said, and replaying "the service
-                    // returned 400" as history teaches the model that this is a
-                    // thing it says. The card is transient and offers the two
-                    // actions that exist: try again, or copy the detail.
-                    DebugLog.w(
-                        "GlyphAi",
-                        "turn failed (${result.reason}) after ${result.rounds} round(s): ${result.detail}",
-                    )
-                    _chat.update {
-                        it.turnEnded().copy(failure = ChatFailure(result.reason, result.detail))
-                    }
-                }
-            }
-        }
-        return true
-    }
-
-    /**
-     * The orchestrator's apply hook.
-     *
-     * Reads [editor] afresh rather than closing over the bridge the turn started
-     * with, so a design produced after a rotation lands on the editor that is
-     * actually on screen. Returning a sentence rather than null makes the *model*
-     * see a failed tool call — that string is not user-facing copy.
-     */
-    private fun applyFromModel(design: Design): String? {
-        val bridge = editor ?: return "The design editor is no longer open, so nothing was changed."
-        return when (val outcome = bridge.apply(design)) {
-            is GlyphApplyResult.Applied -> {
-                revertSnapshot = outcome.previous
-                _chat.update { it.copy(canRevert = true) }
-                null
-            }
-
-            is GlyphApplyResult.Refused -> outcome.reason
-        }
-    }
-
-    /**
-     * Narrates a step.
-     *
-     * Streamed text is cleared when a tool starts, because a model that thinks
-     * out loud before calling a tool has already produced text that is *not* the
-     * answer; leaving it in place would have the final reply appended to a
-     * preamble the user was never meant to read as the reply.
-     */
-    private fun onTrace(trace: ChatTrace) {
-        _chat.update {
-            when (trace) {
-                is ChatTrace.RunningTool -> it.copy(trace = trace, streaming = "")
-                else -> it.copy(trace = trace)
-            }
-        }
-    }
-
-    /**
-     * Records a finished step, so the user can watch the turn work.
-     *
-     * Append-only for the length of the turn, and never trimmed: the case this
-     * exists for is the model failing validation several times over, and a list
-     * that dropped the earlier attempts would hide exactly the thing worth
-     * seeing. A turn cannot produce more than
-     * [GlyphAiOrchestrator.DEFAULT_MAX_ROUNDS] rounds' worth, so it is bounded
-     * without needing to be capped here.
-     */
-    private fun onToolNote(note: ChatToolNote) {
-        _chat.update { it.copy(steps = it.steps + note) }
-    }
-
-    /** Appends to the conversation of record and writes it out. */
-    private fun appendMessage(message: ChatMessage) {
-        transcript = transcript.plus(message)
-        _chat.update { it.copy(messages = transcript.messages) }
-        val snapshot = transcript
-        if (snapshot.designId.isBlank()) return
-        // Not a child of viewModelScope's job: a message that reached the screen
-        // must reach the disk even if the editor is closing on the same frame.
-        viewModelScope.launch(Dispatchers.IO + NonCancellable) { chats.save(snapshot) }
-    }
-
-    /** This transcript without a trailing user turn; see [retry]. */
-    private fun ChatTranscript.withoutTrailingUser(): ChatTranscript =
-        if (messages.lastOrNull()?.role == ChatRole.USER) copy(messages = messages.dropLast(1)) else this
-
-    /** A turn that has been composed, and can be composed again by [retry]. */
-    private data class PendingTurn(val text: String, val imageDataUrls: List<String>)
-
     override fun onCleared() {
         job?.cancel()
         job = null
-        turn?.cancel()
-        turn = null
         releaseCallbackPort()
         super.onCleared()
     }
@@ -860,17 +598,6 @@ class GlyphAiViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         const val LOOPBACK = "127.0.0.1"
         const val POKE_TIMEOUT_MS = 1_000
-
-        /**
-         * How many images may ride on one message.
-         *
-         * Each is up to 1024 px of JPEG as base64 — a few hundred kilobytes of
-         * request body — and the model is being asked to turn them into a 13x13
-         * drawing. Four is already more reference than that task can use, and the
-         * cap is what stops a long-press multi-select from building a ten-megabyte
-         * request on a phone connection.
-         */
-        const val MAX_ATTACHMENTS = 4
 
         /**
          * Read out of [OAUTH_REDIRECT_URI] rather than written down again: the

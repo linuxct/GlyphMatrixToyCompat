@@ -57,10 +57,6 @@ object TestDesigns {
         mapOf(PokemonCodename.BELLSPROUT.codename to frames(PokemonCodename.BELLSPROUT)),
     )
 
-    fun arbokOnly(): Design = design(
-        mapOf(PokemonCodename.ARBOK.codename to frames(PokemonCodename.ARBOK)),
-    )
-
     fun bothVariants(): Design = design(
         mapOf(
             PokemonCodename.BELLSPROUT.codename to frames(PokemonCodename.BELLSPROUT),

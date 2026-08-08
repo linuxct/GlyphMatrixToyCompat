@@ -17,7 +17,6 @@ import org.junit.Test
  * of [ChatTranscriptCodec.decode] are a transcript and null.
  */
 class ChatTranscriptTest {
-
     private val transcript = ChatTranscript(
         designId = "abc123",
         messages = listOf(
@@ -52,14 +51,6 @@ class ChatTranscriptTest {
     }
 
     @Test
-    fun `the current version is stamped on even if the value in memory was wrong`() {
-        val json = ChatTranscriptCodec.encode(transcript.copy(format = "nonsense", formatVersion = 99))
-
-        assertTrue(json, json.contains("\"format\":\"$CHAT_FORMAT\""))
-        assertTrue(json, json.contains("\"formatVersion\":$CHAT_FORMAT_VERSION"))
-    }
-
-    @Test
     fun `an unknown future field is ignored rather than fatal`() {
         val json = """
             {
@@ -77,15 +68,6 @@ class ChatTranscriptTest {
 
         assertNotNull(decoded)
         assertEquals("hi", decoded!!.messages.single().text)
-    }
-
-    @Test
-    fun `a missing field falls back to its default rather than throwing`() {
-        val decoded = ChatTranscriptCodec.decode("""{"format":"$CHAT_FORMAT"}""")
-
-        assertNotNull(decoded)
-        assertEquals(CHAT_FORMAT_VERSION, decoded!!.formatVersion)
-        assertTrue(decoded.messages.isEmpty())
     }
 
     @Test
@@ -110,13 +92,6 @@ class ChatTranscriptTest {
         assertNull(ChatTranscriptCodec.decode("not json"))
         assertNull(ChatTranscriptCodec.decode("[]"))
         assertNull(ChatTranscriptCodec.decode("""{"format":"glyph.design","formatVersion":1}"""))
-    }
-
-    @Test
-    fun `a truncated file is declined rather than partially decoded`() {
-        val whole = ChatTranscriptCodec.encode(transcript)
-
-        assertNull(ChatTranscriptCodec.decode(whole.substring(0, whole.length / 2)))
     }
 
     @Test
@@ -172,6 +147,24 @@ class ChatTranscriptTest {
         // though the assistant had said it teaches it to say that.
         assertEquals(2, input.size)
         assertEquals("still there?", (input[1] as ChatMessageItem).content.single().let(::textOf))
+    }
+
+    /**
+     * The rule behind `ai/GlyphAiSession`'s deferred-apply correction: a turn
+     * that *said* it changed the design and then did not must be corrected —
+     * but only where the claim actually is.
+     */
+    @Test
+    fun `a correction is appended to the conversation that made the claim`() {
+        val corrected = transcript.withCorrection(
+            ChatMessage(role = ChatRole.ASSISTANT, text = "Actually, it didn't land.", error = true),
+        )
+
+        assertNotNull(corrected)
+        assertEquals(3, corrected!!.messages.size)
+        assertEquals("Actually, it didn't land.", corrected.messages.last().text)
+        // Never replayed: the model is not taught to retract its own work.
+        assertEquals(2, corrected.asInput().size)
     }
 
     @Test

@@ -22,9 +22,31 @@ import space.linuxct.glyphmatrixtoycompat.core.DebugLog
 import java.io.File
 
 /**
- * Nothing-styled theme, strictly MONOCHROME: black, white and grays only —
- * no hue anywhere. Attention states rely on contrast (full-strength ink vs
- * muted grays), and Nothing's own headline typeface is used for page titles.
+ * Nothing-styled theme, MONOCHROME with three enumerated exceptions: black, white
+ * and grays everywhere, and **almost no hue in anything that carries meaning** —
+ * state, selection, errors and emphasis are contrast (full-strength ink vs muted
+ * grays), never colour. Nothing's own headline typeface is used for page titles.
+ *
+ * The three exceptions are named, bounded, and are the whole list:
+ *
+ * 1. **The Create tab's `+` FAB**, painted in Nothing's brand red and blue — the
+ *    one place the product signs its name. See [NothingLiquidRed] and
+ *    `ui/LiquidFab.kt`.
+ * 2. **The recording dot** on the device illustration
+ *    (`ui/design/GlyphCanvas.kt`'s `RECORDING_DOT_COLOR`), which is not an accent
+ *    at all but a picture of a red square that exists on the back of the phone.
+ * 3. **The setup-attention badge** on the navigation bar's Settings chip
+ *    ([NavPillColors.badgeContainer], drawn by `MainActivity`'s `AttentionBadge`)
+ *    — a 16 dp red disc with a white `!` in it, shown only while the Initial
+ *    setup checklist has an outstanding item. Requested explicitly, and the only
+ *    one of the three where hue does carry meaning. It is bounded by being tiny,
+ *    by being conditional, and by the mark: the `!` is what says "attention", so
+ *    the badge still works read out by TalkBack, in greyscale, and to a
+ *    colour-blind user. Colour is never the only signal.
+ *
+ * None of the three is a palette. There is no accent role in either scheme below,
+ * nothing else may borrow those colours, and a fourth exception is a change to
+ * this rule rather than an application of it.
  *
  * Both schemes mirror Nothing OS Settings: a light lavender-gray page with
  * white cards, and a pure-black page with #191C20 cards in dark mode (values
@@ -177,21 +199,63 @@ data class NavPillColors(
     val selectedContainer: Color,
     val selectedContent: Color,
     /**
-     * The `+` FAB's fill: a distinct MID-grey in both schemes.
+     * The `+` FAB's base: **Nothing's blue**, the same in both schemes, and one
+     * of the theme's three enumerated exceptions to the monochrome rule (see the
+     * file KDoc, and [NothingLiquidBlue] for why a brand colour does not vary
+     * with the scheme).
      *
-     * It cannot be [container]. The pill is near-black in *both* themes (#2E2E33
-     * light, #26292E dark — roughly L\* 19 and L\* 17), so a FAB in the pill's
-     * own colour would read as a bulge on the capsule rather than a second
-     * object, in either mode. Both values below sit ~15-20 L\* above their pill,
-     * which is enough separation to see a gap between the two shapes without
-     * turning the button into a bright disc on a black page.
+     * It is a *base*, not the whole button: what is actually seen is the liquid
+     * red/blue shader `LiquidFabFill` draws over it. This value still matters for
+     * three things — the elevation shadow, which behaves as it always has only
+     * because the `Surface` under the shader stays opaque; the anti-aliased rim
+     * of the circle; and the frame or two before the first shader draw.
      *
-     * Greys only. This theme is strictly monochrome; a tinted FAB would be the
-     * only hue in the app.
+     * It cannot be [container], for the reason it never could: the pill is
+     * near-black in *both* themes (#2E2E33 light, #26292E dark — roughly L\* 19
+     * and L\* 17), so a FAB in the pill's own colour reads as a bulge on the
+     * capsule rather than as a second object. The liquid answers that with hue
+     * and with movement rather than with lightness, and its red is tuned to the
+     * lightness the greys this replaced had — see [NothingLiquidRed].
      */
     val fabContainer: Color,
-    /** Ink on [fabContainer]; ≥ 6:1 against it in both schemes. */
+    /**
+     * Ink on the FAB: near-white in both schemes, and ≥ 6:1 against **every**
+     * colour the liquid fill can produce, not merely against [fabContainer] —
+     * the fill moves, so the worst case is its lightest possible pixel. That is
+     * the pure red end at 6.7:1, which `NothingBrandTest` walks the ramp to
+     * confirm.
+     */
     val fabContent: Color,
+    /**
+     * The attention badge's disc: **[NothingRed], the brand value unmodified**,
+     * and the third of the theme's enumerated exceptions (see the file KDoc).
+     *
+     * The brand red rather than [NothingLiquidRed] (which is deliberately
+     * darkened to the lightness of the grey FAB it replaced, and would read as
+     * maroon at 16 dp) and rather than `RECORDING_DOT_COLOR` — that one is a
+     * picture of hardware by its own KDoc's argument, and borrowing it for a UI
+     * accent is exactly what that KDoc forbids. It also loses on the only number
+     * that decides this: white on `#D71921` is **5.18:1**, white on `#E0392C` is
+     * 4.38:1.
+     *
+     * The same value in both schemes, for the reason [fabContainer] is: a brand
+     * colour does not change because the page behind it went dark. It does not
+     * have to adapt, either — the disc is opaque, so the mark's contrast never
+     * depends on what is underneath, and the disc's own separation is 2.6:1
+     * against the near-black pill and 4.6:1 against the selected chip's
+     * near-white fill.
+     */
+    val badgeContainer: Color,
+    /**
+     * The `!` inside the badge: pure white, at **5.18:1** on [badgeContainer] —
+     * past WCAG AA for text and well past the 3:1 a graphical object needs, in
+     * both schemes, because the disc under it is opaque and identical in both.
+     *
+     * Not the schemes' near-whites: those are tinted for reading long text on a
+     * page, and this is a 2 dp stroke on a saturated red where every point of
+     * contrast is worth having.
+     */
+    val badgeContent: Color,
 )
 
 /** Light mode: dark pill, light icons, light selected chip with a dark icon. */
@@ -200,11 +264,13 @@ private val LightNavPill = NavPillColors(
     content = Color(0xFFF2F2FA).copy(alpha = 0.75f),
     selectedContainer = Color(0xFFF2F2FA),
     selectedContent = Color(0xFF2E2E33),
-    // The light scheme's own `secondary` grey (#5A5A62), reused rather than
-    // invented: L* ~39 against the pill's ~19, and it is already the tone this
-    // palette uses for "present but not ink".
-    fabContainer = Color(0xFF5A5A62),
+    // Nothing's blue, not a grey. The FAB is the theme's branded exception and is
+    // the SAME in both schemes; see [NavPillColors.fabContainer].
+    fabContainer = NothingLiquidBlue,
     fabContent = Color(0xFFF2F2FA),
+    // Identical in both schemes; see [NavPillColors.badgeContainer].
+    badgeContainer = NothingRed,
+    badgeContent = Color.White,
 )
 
 /**
@@ -217,12 +283,16 @@ private val DarkNavPill = NavPillColors(
     content = DarkInkDim,
     selectedContainer = Color(0xFFDDDEE4),
     selectedContent = DarkCard,
-    // One step below the scheme's `outline` (#5A5D63), in the same sampled
-    // cool-neutral family: L* ~34 against the pill's ~17. Deliberately NOT as
-    // light as the SELECTED chip (#DDDEE4) — the selected chip is the loudest
-    // thing in the nav area and must stay so; the FAB is the second loudest.
-    fabContainer = Color(0xFF4E5157),
+    // The same brand blue as the light scheme, for the same reason. The selected
+    // chip (#DDDEE4) is still the loudest thing in the nav area and must stay so:
+    // the liquid's red tops out at L* 36, below the grey this replaced and well
+    // below the chip, so the FAB gains hue without gaining rank.
+    fabContainer = NothingLiquidBlue,
     fabContent = DarkInk,
+    // The same disc and the same white as the light scheme. The badge is opaque
+    // and small, so it does not need the scheme's softened ink to stop glaring.
+    badgeContainer = NothingRed,
+    badgeContent = Color.White,
 )
 
 private val LocalNavPillColors = staticCompositionLocalOf { LightNavPill }

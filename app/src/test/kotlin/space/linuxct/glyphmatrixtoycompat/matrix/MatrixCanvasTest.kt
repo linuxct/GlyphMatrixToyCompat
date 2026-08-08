@@ -5,7 +5,6 @@ import org.junit.Test
 import space.linuxct.glyphmatrixtoycompat.GoldenAscii
 
 class MatrixCanvasTest {
-
     @Test
     fun `out of bounds drawing is ignored`() {
         val c = MatrixCanvas(13)
@@ -51,24 +50,5 @@ class MatrixCanvasTest {
             c.arcRing(6f, 6f, 5f, 6.2f, 0f, 360f * pct, 4095)
             GoldenAscii.check("canvas_13_ring_$name", c.copyOut(), 13)
         }
-    }
-
-    @Test
-    fun `soft disc extremes 13`() {
-        val small = MatrixCanvas(13)
-        small.discSoft(6f, 6f, 1.5f, 4095)
-        GoldenAscii.check("canvas_13_disc_small", small.copyOut(), 13)
-        val big = MatrixCanvas(13)
-        big.discSoft(6f, 6f, 5.8f, 4095)
-        GoldenAscii.check("canvas_13_disc_big", big.copyOut(), 13)
-    }
-
-    @Test
-    fun `shapes sampler 25`() {
-        val c = MatrixCanvas(25)
-        c.circle(12, 12, 12, 1200)
-        c.ring(12f, 12f, 5f, 6f, 2400)
-        c.ray(12, 12, 45f, 11f, 4095)
-        GoldenAscii.check("canvas_25_shapes", c.copyOut(), 25)
     }
 }

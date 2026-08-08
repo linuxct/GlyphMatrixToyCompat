@@ -29,11 +29,11 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material3.FilledIconToggleButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -789,7 +789,7 @@ private fun FrameActionRow(state: EditorState, onChanged: () -> Unit) {
                 modifier = Modifier.demoTarget(DemoTarget.DURATION, 0),
                 enabled = duration > DesignCodec.MIN_DURATION_MS,
             ) {
-                Icon(Icons.Default.Remove, contentDescription = stringResource(R.string.editor_duration_shorter))
+                Icon(Icons.Outlined.Remove, contentDescription = stringResource(R.string.editor_duration_shorter))
             }
             // Fixed width so stepping through the ladder does not shuffle the
             // buttons either side of it as the text gets longer.
@@ -804,7 +804,7 @@ private fun FrameActionRow(state: EditorState, onChanged: () -> Unit) {
                 modifier = Modifier.demoTarget(DemoTarget.DURATION, 1),
                 enabled = duration < DesignCodec.MAX_DURATION_MS,
             ) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.editor_duration_longer))
+                Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.editor_duration_longer))
             }
         }
         Spacer(Modifier.weight(1f))
@@ -814,14 +814,14 @@ private fun FrameActionRow(state: EditorState, onChanged: () -> Unit) {
                 modifier = Modifier.demoTarget(DemoTarget.FRAME_ACTIONS, 0),
                 enabled = !state.atFrameLimit,
             ) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.editor_frame_add))
+                Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.editor_frame_add))
             }
             IconButton(
                 onClick = { if (state.duplicateFrame()) onChanged() },
                 modifier = Modifier.demoTarget(DemoTarget.FRAME_ACTIONS, 1),
                 enabled = !state.atFrameLimit,
             ) {
-                Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.editor_frame_duplicate))
+                Icon(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.editor_frame_duplicate))
             }
             // Disabled on the last frame rather than converting the design to
             // static — see EditorState.deleteFrame for why.
@@ -830,7 +830,7 @@ private fun FrameActionRow(state: EditorState, onChanged: () -> Unit) {
                 modifier = Modifier.demoTarget(DemoTarget.FRAME_ACTIONS, 2),
                 enabled = state.frames.size > 1,
             ) {
-                Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.editor_frame_delete))
+                Icon(Icons.Outlined.DeleteOutline, contentDescription = stringResource(R.string.editor_frame_delete))
             }
         }
     }
@@ -1148,7 +1148,7 @@ private fun LoopIndicator(loop: Boolean) {
     ) {
         Box(contentAlignment = Alignment.Center) {
             // The only description in the row. See [LoopRow] on what is announced.
-            Icon(Icons.Default.Repeat, contentDescription = stringResource(R.string.editor_loop))
+            Icon(Icons.Outlined.Repeat, contentDescription = stringResource(R.string.editor_loop))
         }
     }
 }

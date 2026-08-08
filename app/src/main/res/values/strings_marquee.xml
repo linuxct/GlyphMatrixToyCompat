@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The editor's scrolling-text tool.
+
+  A file of its own rather than more of strings.xml: Android merges every file in
+  values/, so these are ordinary R.string entries, and keeping one feature's copy
+  together means two people editing two features do not edit the same file.
+-->
+<resources>
+
+    <!-- The tool-row button, and the title of what it opens. -->
+    <string name="marquee_tool">Scrolling text</string>
+    <string name="marquee_title">Scrolling text</string>
+    <string name="marquee_field">Text to scroll</string>
+    <string name="marquee_hint">It scrolls right to left, in the app\'s own letterforms. Capitals and lower case are both drawn.</string>
+
+    <!-- What the phrase will cost: frames and the time it takes to play once. -->
+    <plurals name="marquee_ready">
+        <item quantity="one">%1$d frame, %2$s end to end</item>
+        <item quantity="other">%1$d frames, %2$s end to end</item>
+    </plurals>
+
+    <!-- The face has no letterform for these. The list is every offender at once,
+         so the phrase can be fixed in one go rather than one character per try. -->
+    <string name="marquee_unsupported">This alphabet cannot draw %1$s.</string>
+
+    <!-- The generator's own refusal, with its own numbers. Both ways out are
+         offered as buttons below it, so neither is advice the user has to act on
+         by hand. -->
+    <plurals name="marquee_too_long">
+        <item quantity="one">That is %1$d frame and a design holds %2$d.</item>
+        <item quantity="other">That is %1$d frames and a design holds %2$d.</item>
+    </plurals>
+    <string name="marquee_trim">Shorten to “%1$s”</string>
+    <string name="marquee_faster">Scroll it faster</string>
+
+    <string name="marquee_generate">Generate</string>
+
+    <!-- What generating costs the artwork already on this panel, shown beside the
+         frame count rather than behind a confirmation step: the replacement is
+         undoable now, so a dialog asking twice would be repeating a warning that
+         is no longer true. See MarqueeDialog's KDoc. -->
+    <plurals name="marquee_replaces">
+        <item quantity="one">It replaces this panel\'s %1$d drawn frame. Undo brings it back.</item>
+        <item quantity="other">It replaces this panel\'s %1$d drawn frames. Undo brings them back.</item>
+    </plurals>
+    <string name="marquee_cancel">Cancel</string>
+
+</resources>

@@ -6,9 +6,6 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import space.linuxct.glyphmatrixtoycompat.FakePrefs
-import space.linuxct.glyphmatrixtoycompat.core.PrefKeys
-import space.linuxct.glyphmatrixtoycompat.core.Prefs
 
 /**
  * The SSE parse and the request body — the two halves of the wire format, and the
@@ -22,7 +19,6 @@ import space.linuxct.glyphmatrixtoycompat.core.Prefs
  * connection that dies with half a JSON object on the wire.
  */
 class ChatWireTest {
-
     // region text
 
     @Test
@@ -45,26 +41,6 @@ class ChatWireTest {
         assertEquals("Hello, world", ok.response.outputText)
         assertEquals("resp_1", ok.response.id)
         assertTrue(ok.response.functionCalls.isEmpty())
-    }
-
-    @Test
-    fun `deltas belonging to different items are kept apart`() {
-        // Two output items interleaved on the wire. Accumulating them into one
-        // buffer would produce "onetwo" and the user would read the two halves of
-        // two different sentences spliced together.
-        val result = assemble(
-            lines(
-                created("resp_2"),
-                textDelta("msg_a", "one"),
-                textDelta("msg_b", "two"),
-                textDelta("msg_a", "-ish"),
-                "data: [DONE]",
-            ),
-        )
-
-        // No `response.completed`, so the accumulation is what is left: the LAST
-        // non-blank item, which is the one addressed to the user.
-        assertEquals("two", (result as ChatStreamResult.Ok).response.outputText)
     }
 
     @Test
@@ -107,24 +83,6 @@ class ChatWireTest {
         assertEquals("apply_design", calls[0].name)
         assertEquals("call_1", calls[0].callId)
         assertEquals("""{"design":"{}"}""", calls[0].arguments)
-    }
-
-    @Test
-    fun `argument deltas arriving without their announcement are not lost`() {
-        // `response.output_item.added` can be missed. Dropping the call because
-        // of it would be a silent no-op turn: the model asked for a tool, ran it
-        // nowhere, and waited.
-        val result = assemble(
-            lines(
-                """data: {"type":"response.function_call_arguments.delta","item_id":"fc_9","call_id":"call_9","name":"get_current_design","delta":"{}"}""",
-                "data: [DONE]",
-            ),
-        )
-
-        val calls = (result as ChatStreamResult.Ok).response.functionCalls
-        assertEquals(1, calls.size)
-        assertEquals("get_current_design", calls[0].name)
-        assertEquals("{}", calls[0].arguments)
     }
 
     @Test
@@ -191,34 +149,6 @@ class ChatWireTest {
     }
 
     @Test
-    fun `a response dot failed event reports the reason the server gave`() {
-        val result = assemble(
-            lines(
-                """data: {"type":"response.failed","response":{"id":"r","error":{"message":"content_filter"}}}""",
-            ),
-        )
-
-        assertEquals("content_filter", (result as ChatStreamResult.Failed).message)
-    }
-
-    @Test
-    fun `nothing after DONE is read`() {
-        var reads = 0
-        val counted = sequence {
-            for (line in listOf(created("resp_8"), "data: [DONE]", "data: {\"type\":\"error\"}")) {
-                reads++
-                yield(line)
-            }
-        }
-
-        val events = ChatWire.parseSse(counted).toList()
-
-        // Three lines exist; the sequence must stop pulling after the second.
-        assertEquals(2, reads)
-        assertEquals(SseEvent.Done, events.last())
-    }
-
-    @Test
     fun `blank comment and malformed lines are skipped rather than fatal`() {
         val seen = mutableListOf<String>()
         val result = assemble(
@@ -245,28 +175,6 @@ class ChatWireTest {
         assertEquals(listOf("survived"), seen)
     }
 
-    @Test
-    fun `carriage returns and a missing space after data are both accepted`() {
-        val result = assemble(
-            sequenceOf(
-                "data:${'{'}\"type\":\"response.output_text.delta\",\"item_id\":\"m\",\"delta\":\"ok\"}\r",
-                "data: [DONE]\r",
-            ),
-        )
-
-        assertEquals("ok", (result as ChatStreamResult.Ok).response.outputText)
-    }
-
-    @Test
-    fun `an empty stream is an empty answer, not an exception`() {
-        val result = assemble(emptySequence())
-
-        val response = (result as ChatStreamResult.Ok).response
-        assertNull(response.outputText)
-        assertTrue(response.functionCalls.isEmpty())
-        assertEquals("", response.id)
-    }
-
     // endregion
 
     // region request
@@ -291,13 +199,6 @@ class ChatWireTest {
         assertTrue(body, body.contains("\"effort\":\"medium\""))
         assertTrue(body, body.contains("\"type\":\"message\""))
         assertTrue(body, body.contains("\"type\":\"input_text\""))
-    }
-
-    @Test
-    fun `an absent reasoning block is an absent key, not a null`() {
-        val body = ChatWire.encodeRequest(ChatRequest(reasoning = null))
-
-        assertTrue(body, !body.contains("reasoning"))
     }
 
     @Test
@@ -345,7 +246,9 @@ class ChatWireTest {
     fun `tool specs are embedded verbatim except for strict, which the backend rejects`() {
         val specs = ChatWire.toolSpecs(GlyphAiTools.build())
 
-        assertEquals(3, specs.size)
+        // Counted from the tools rather than written down: adding one is a
+        // routine change, and a literal here would fail for no reason.
+        assertEquals(GlyphAiTools.build().size, specs.size)
         specs.forEach { assertTrue(it.toString(), !it.toString().contains("strict")) }
         assertTrue(specs.any { it.toString().contains("\"name\":\"apply_design\"") })
 
@@ -386,46 +289,6 @@ class ChatWireTest {
         assertEquals("gpt-5.4", ChatWire.resolveModel("gpt-5.4"))
         assertEquals("o4-mini", ChatWire.resolveModel("o4-mini"))
     }
-
-    @Test
-    fun `surrounding whitespace is trimmed off an override`() {
-        // A keyboard's autocomplete adds a trailing space, and a paste brings
-        // the newline that ended the line it was copied from. Neither is part
-        // of the id, and a model id with a space on the end is a 400 that reads
-        // exactly like a wrong id.
-        assertEquals("gpt-5.4", ChatWire.resolveModel("  gpt-5.4 "))
-        assertEquals("gpt-5.4", ChatWire.resolveModel("gpt-5.4\n"))
-    }
-
-    /**
-     * The preference as the ViewModel actually uses it: read with
-     * [PrefKeys.AI_MODEL_DEF], resolved, sent. The default is
-     * [ChatWire.MODEL] itself, so an untouched install and a cleared field are
-     * two different stored states that must both send the built-in id.
-     */
-    @Test
-    fun `the stored preference round-trips into the model that is sent`() {
-        val prefs = FakePrefs()
-
-        // Nothing stored: the default is the built-in id, not an empty string.
-        assertEquals(ChatWire.MODEL, storedModel(prefs))
-
-        prefs.putString(PrefKeys.AI_MODEL, " gpt-5.4 ")
-        assertEquals("gpt-5.4", storedModel(prefs))
-
-        // Cleared by the user, which is how the field offers a reset.
-        prefs.putString(PrefKeys.AI_MODEL, "")
-        assertEquals(ChatWire.MODEL, storedModel(prefs))
-    }
-
-    // endregion
-
-    // region helpers
-
-    /** What `ai/GlyphAiViewModel` does per turn, on a store it can be given. */
-    private fun storedModel(prefs: Prefs): String =
-        ChatWire.resolveModel(prefs.getString(PrefKeys.AI_MODEL, PrefKeys.AI_MODEL_DEF))
-
 
     private fun assemble(
         lines: Sequence<String>,

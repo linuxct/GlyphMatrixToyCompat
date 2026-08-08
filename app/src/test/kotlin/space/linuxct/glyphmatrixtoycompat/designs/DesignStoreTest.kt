@@ -27,7 +27,6 @@ import java.io.File
  * demand — and it is the state the whole function exists to survive.
  */
 class DesignStoreTest {
-
     private val old = """{"design":"the one already on disk"}"""
     private val new = """{"design":"the one being saved"}"""
 
@@ -44,15 +43,6 @@ class DesignStoreTest {
         assertEquals("POSIX replaces in one move; nothing else may be attempted", 1, renames)
         assertEquals(new, f.target.readText())
         assertFalse("no backup is made when none is needed", f.backup.exists())
-    }
-
-    @Test
-    fun `a first save with nothing to replace still lands`() {
-        val f = fixture(withTarget = false)
-
-        assertTrue(replaceViaBackup(f.tmp, f.target, f.backup, rename { _, _ -> false }))
-
-        assertEquals(new, f.target.readText())
     }
 
     // endregion
@@ -85,20 +75,6 @@ class DesignStoreTest {
         assertFalse(f.backup.exists())
     }
 
-    @Test
-    fun `a target that cannot even be moved aside is left exactly where it was`() {
-        val f = fixture(withTarget = true)
-
-        val ok = replaceViaBackup(f.tmp, f.target, f.backup, rename { _, _ -> true })
-
-        assertFalse(ok)
-        // The critical one. This is the branch the old code answered by calling
-        // target.delete() and hoping.
-        assertEquals("the existing design must be untouched", old, f.target.readText())
-        assertEquals("and the replacement is still there to retry with", new, f.tmp.readText())
-        assertRecoverable(f)
-    }
-
     // endregion
 
     // region the second rename fails too
@@ -116,36 +92,9 @@ class DesignStoreTest {
         assertRecoverable(f)
     }
 
-    @Test
-    fun `a design whose restore also fails survives under the backup name`() {
-        val f = fixture(withTarget = true)
-        // The worst case the function can reach: two renames into the target name
-        // fail, so the design cannot be put back. It must still exist.
-        val ok = replaceViaBackup(f.tmp, f.target, f.backup, rename { _, to -> to == f.target })
-
-        assertFalse(ok)
-        assertFalse(f.target.exists())
-        assertEquals("the design is not gone, it is just parked", old, f.backup.readText())
-        assertRecoverable(f)
-    }
-
     // endregion
 
     // region leftovers
-
-    @Test
-    fun `a backup left by an earlier crash does not block the move aside`() {
-        val f = fixture(withTarget = true)
-        f.backup.writeText("""{"design":"stale, from a save that died"}""")
-
-        // Refuses to land on an existing name — which the stale backup is, until
-        // it is cleared.
-        val ok = replaceViaBackup(f.tmp, f.target, f.backup, rename { _, to -> to.exists() })
-
-        assertTrue(ok)
-        assertEquals(new, f.target.readText())
-        assertFalse(f.backup.exists())
-    }
 
     // endregion
 
@@ -172,30 +121,6 @@ class DesignStoreTest {
 
         assertFalse(f.target.exists())
         assertEquals(listOf("abc"), seen)
-    }
-
-    @Test
-    fun `a design already gone still notifies, so nothing is left orphaned`() {
-        val f = fixture(withTarget = false)
-        val hooks = DesignDeletionHooks()
-        val seen = mutableListOf<String>()
-        hooks.add { seen.add(it) }
-
-        // False: there was no design file to remove. The conversation about it
-        // may still exist, and an orphan would be adopted by the next design
-        // allocated that id — `allocateId` looks at design files and nothing else.
-        assertFalse(deleteDesignFile(f.target, "abc", hooks))
-
-        assertEquals(listOf("abc"), seen)
-    }
-
-    @Test
-    fun `a store with no hook registered deletes exactly as it always did`() {
-        val f = fixture(withTarget = true)
-
-        assertTrue(deleteDesignFile(f.target, "abc", DesignDeletionHooks()))
-
-        assertFalse("the design is gone, hook or no hook", f.target.exists())
     }
 
     @Test

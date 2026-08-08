@@ -1,6 +1,5 @@
 package space.linuxct.glyphmatrixtoycompat.ai
 
-import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -48,21 +47,99 @@ fun createOAuthFlow(): OAuthFlow {
     val challenge = codeChallenge(verifier)
     val state     = newState()
 
-    val url = Uri.parse(AUTHORIZE_URL).buildUpon()
-        .appendQueryParameter("response_type",              "code")
-        .appendQueryParameter("client_id",                  CLIENT_ID)
-        .appendQueryParameter("redirect_uri",               OAUTH_REDIRECT_URI)
-        .appendQueryParameter("scope",                      SCOPE)
-        .appendQueryParameter("code_challenge",             challenge)
-        .appendQueryParameter("code_challenge_method",      "S256")
-        .appendQueryParameter("state",                      state)
-        .appendQueryParameter(d(intArrayOf(55, 58, 1, 42, 49, 53, 59, 48, 1, 63, 58, 58, 1, 49, 44, 57, 63, 48, 55, 36, 63, 42, 55, 49, 48, 45)), "true")
-        .appendQueryParameter(d(intArrayOf(61, 49, 58, 59, 38, 1, 61, 50, 55, 1, 45, 55, 51, 46, 50, 55, 56, 55, 59, 58, 1, 56, 50, 49, 41)), "true")
-        .appendQueryParameter(d(intArrayOf(49, 44, 55, 57, 55, 48, 63, 42, 49, 44)), d(intArrayOf(61, 49, 58, 59, 38, 1, 61, 50, 55, 1, 44, 45)))
-        .build().toString()
+    val url = authorizeUrl(
+        "response_type"              to "code",
+        "client_id"                  to CLIENT_ID,
+        "redirect_uri"               to OAUTH_REDIRECT_URI,
+        "scope"                      to SCOPE,
+        "code_challenge"             to challenge,
+        "code_challenge_method"      to "S256",
+        "state"                      to state,
+        d(intArrayOf(55, 58, 1, 42, 49, 53, 59, 48, 1, 63, 58, 58, 1, 49, 44, 57, 63, 48, 55, 36, 63, 42, 55, 49, 48, 45)) to "true",
+        d(intArrayOf(61, 49, 58, 59, 38, 1, 61, 50, 55, 1, 45, 55, 51, 46, 50, 55, 56, 55, 59, 58, 1, 56, 50, 49, 41)) to "true",
+        d(intArrayOf(49, 44, 55, 57, 55, 48, 63, 42, 49, 44)) to d(intArrayOf(61, 49, 58, 59, 38, 1, 61, 50, 55, 1, 44, 45)),
+    )
 
     return OAuthFlow(url = url, state = state, verifier = verifier)
 }
+
+/**
+ * [AUTHORIZE_URL] with [params] appended as its query, in the order given.
+ *
+ * ## Why this is not `Uri.Builder` any more
+ *
+ * It was — `Uri.parse(AUTHORIZE_URL).buildUpon().appendQueryParameter(…)` — and
+ * every method on `android.net.Uri` throws `"not mocked"` under plain JUnit, so
+ * the authorize URL could only be tested by putting a hand-written `Uri` on the
+ * test classpath, in `android.net`, shadowing the platform class for *every*
+ * test in the module. That stub is gone and this is what replaced it: the same
+ * string, assembled by code that has no Android in it and can simply be called.
+ *
+ * ## It emits exactly what the builder emitted
+ *
+ * `Uri.Builder` on a hierarchical URL with no query of its own writes
+ * `base` + `?` + `k=v` joined by `&`, each half through `Uri.encode(s, null)` —
+ * which is [uriEncode] here, character for character. That equality is the whole
+ * point: this URL is a live OAuth request, and a percent-encoding that drifts by
+ * one character is a sign-in that fails on a device with nothing to see in a
+ * stack trace. `URLEncoder` is **not** the same function and is not used for it;
+ * see [uriEncode].
+ */
+private fun authorizeUrl(vararg params: Pair<String, String>): String =
+    params.joinToString(
+        separator = "&",
+        prefix = AUTHORIZE_URL + if (AUTHORIZE_URL.contains('?')) "&" else "?",
+    ) { (key, value) -> "${uriEncode(key)}=${uriEncode(value)}" }
+
+/**
+ * `android.net.Uri.encode(s, null)`: percent-encoding with AOSP's own unreserved
+ * set, UTF-8 bytes, upper-case hex.
+ *
+ * ## Not `URLEncoder`, and this is the part that has to be right
+ *
+ * `java.net.URLEncoder` implements `application/x-www-form-urlencoded`, which is
+ * a *different* escaping to the one a URI query uses, and the two disagree in
+ * both directions:
+ *
+ * - a space is `+` to `URLEncoder` and `%20` here — and the scope this URL
+ *   carries is a space-separated list, so that difference is on every request;
+ * - `!`, `~`, `'`, `(` and `)` are escaped by `URLEncoder` and left alone here.
+ *
+ * [formEncode] keeps using `URLEncoder`, correctly: the token POST really is a
+ * form body. This is the query half, and it follows the platform's rule.
+ *
+ * The allowed set is AOSP's `Uri.isAllowed` with a null `allow`: unreserved
+ * characters per RFC 2396 (`A-Z a-z 0-9 _ - ! . ~ ' ( ) *`). Runs of disallowed
+ * characters are converted to bytes together rather than one at a time, so a
+ * surrogate pair becomes one four-byte sequence instead of two broken halves.
+ */
+private fun uriEncode(value: String): String {
+    val out = StringBuilder(value.length)
+    var i = 0
+    while (i < value.length) {
+        if (isUriAllowed(value[i])) {
+            out.append(value[i])
+            i++
+            continue
+        }
+        var end = i
+        while (end < value.length && !isUriAllowed(value[end])) end++
+        for (byte in value.substring(i, end).toByteArray(Charsets.UTF_8)) {
+            val b = byte.toInt()
+            out.append('%').append(HEX_DIGITS[(b shr 4) and 0xF]).append(HEX_DIGITS[b and 0xF])
+        }
+        i = end
+    }
+    return out.toString()
+}
+
+private fun isUriAllowed(c: Char): Boolean =
+    c in 'A'..'Z' || c in 'a'..'z' || c in '0'..'9' || c in URI_UNRESERVED
+
+/** AOSP's own list, in AOSP's own order. See [uriEncode]. */
+private const val URI_UNRESERVED = "_-!.~'()*"
+
+private const val HEX_DIGITS = "0123456789ABCDEF"
 
 suspend fun exchangeAuthorizationCode(code: String, verifier: String): OAuthTokens =
     requestToken(

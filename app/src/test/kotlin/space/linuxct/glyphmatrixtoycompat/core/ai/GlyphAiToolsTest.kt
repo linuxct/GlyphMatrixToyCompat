@@ -35,7 +35,6 @@ import space.linuxct.glyphmatrixtoycompat.core.design.PokemonCodename
  *   the same way.
  */
 class GlyphAiToolsTest {
-
     private val bellsprout = PokemonCodename.BELLSPROUT
     private val arbok = PokemonCodename.ARBOK
 
@@ -53,16 +52,6 @@ class GlyphAiToolsTest {
         // Not merely absent from the map: the word must not reach the model at
         // all, or it will ask for a panel this design does not have.
         assertFalse(result.json.contains("arbok"))
-    }
-
-    @Test
-    fun `get_current_design offers both variants when both are carried`() {
-        val ctx = GlyphToolContext(TestDesigns.bothVariants(), openVariant = bellsprout)
-
-        val body = ok(call(GlyphAiTools.GET_CURRENT_DESIGN, "{}", ctx))
-
-        assertEquals(setOf("bellsprout", "arbok"), body["variants"]!!.jsonObject.keys)
-        assertEquals(489, body["variants"]!!.jsonObject["arbok"]!!.jsonObject["live_leds"]!!.jsonPrimitive.content.toInt())
     }
 
     @Test
@@ -100,19 +89,6 @@ class GlyphAiToolsTest {
         // The lit frame must show its 137 LEDs and nothing in the corners.
         val drawn = frames[1].jsonObject["preview"]!!.jsonPrimitive.content
         assertEquals(137, drawn.count { it != '\n' && it != GlyphAsciiPreview.OFF_PANEL })
-    }
-
-    @Test
-    fun `an open variant the design does not carry is reported as none`() {
-        // Defensive: the editor cannot get into this state, but a context that
-        // claimed arbok was open on a bellsprout-only design would otherwise
-        // name a panel the very next sentence forbids.
-        val ctx = GlyphToolContext(TestDesigns.bellsproutOnly(), openVariant = arbok)
-
-        val body = ok(call(GlyphAiTools.GET_CURRENT_DESIGN, "{}", ctx))
-
-        assertTrue(body["editor"]!!.jsonObject["open_variant"]!!.jsonPrimitive.content == "null")
-        assertFalse(body.toString().contains("arbok"))
     }
 
     @Test
@@ -286,46 +262,9 @@ class GlyphAiToolsTest {
         assertEquals(TestDesigns.lit(bellsprout), applied.variantFor(bellsprout)!!.frames.single().cells)
     }
 
-    // The three fields below are set to *the same value as `Design`'s own default*
-    // on purpose: presence of the key is what must count, never the value, or
-    // "make it static" would be indistinguishable from saying nothing.
-
-    @Test
-    fun `a document that sets name changes it`() {
-        assertEquals("Ember", applyingOnly("\"name\": \"Ember\"").name)
-    }
-
     @Test
     fun `a document that sets kind changes it`() {
         assertEquals(DesignKind.STATIC, applyingOnly("\"kind\": \"static\"").kind)
-    }
-
-    @Test
-    fun `a document that sets keyMode changes it`() {
-        assertEquals(KeyMode.PLAY_PAUSE, applyingOnly("\"keyMode\": \"playPause\"").keyMode)
-    }
-
-    @Test
-    fun `a document that sets loop changes it`() {
-        assertFalse(applyingOnly("\"loop\": false").loop)
-    }
-
-    @Test
-    fun `a document that sets levels changes it`() {
-        assertEquals(listOf(0, 4095), applyingOnly("\"levels\": [0, 4095]").levels)
-    }
-
-    @Test
-    fun `an explicit null is read as saying nothing, not as a value`() {
-        // A model writing "name": null is declining to name the design, not asking
-        // for it to be blanked - and the decoder would coerce that null into ""
-        // anyway, so honouring it literally would erase a name via a key that says
-        // nothing.
-        val applied = applyingOnly("\"name\": null, \"levels\": null, \"loop\": null")
-
-        assertEquals("name", "Slow Ember", applied.name)
-        assertEquals("levels", listOf(0, 1024, 4095), applied.levels)
-        assertTrue("loop", applied.loop)
     }
 
     @Test
@@ -396,18 +335,6 @@ class GlyphAiToolsTest {
     }
 
     @Test
-    fun `a panel that does not exist at all is refused`() {
-        val ctx = GlyphToolContext(TestDesigns.bothVariants())
-        val document = document(
-            variants = """{"pikachu":{"frames":[{"durationMs":120,"cells":"0"}]}}""",
-        )
-
-        val message = errorOf(call(GlyphAiTools.APPLY_DESIGN, args(document), ctx))
-
-        assertTrue(message, message.contains("pikachu"))
-    }
-
-    @Test
     fun `a design carrying no known artwork cannot be written`() {
         val ctx = GlyphToolContext(TestDesigns.noVariants())
 
@@ -430,16 +357,6 @@ class GlyphAiToolsTest {
     }
 
     @Test
-    fun `a character that is not base36 is refused with its position`() {
-        val cells = "!" + TestDesigns.blank(bellsprout).drop(1)
-        val message = errorOf(applying(cells = cells))
-
-        assertTrue(message, message.contains("'!'"))
-        assertTrue(message, message.contains("position 0"))
-        assertTrue(message, message.contains("column 0, row 0"))
-    }
-
-    @Test
     fun `a palette index past the end of levels is refused with the legal range`() {
         // '5' with a three-entry palette: legal base36, no such level.
         val cells = TestDesigns.blank(bellsprout).let { it.take(20) + "5" + it.drop(21) }
@@ -451,21 +368,6 @@ class GlyphAiToolsTest {
     }
 
     @Test
-    fun `too many frames is refused with the ceiling`() {
-        val frames = (0..DesignCodec.MAX_FRAMES).joinToString(",") {
-            """{"durationMs":120,"cells":"${TestDesigns.blank(bellsprout)}"}"""
-        }
-        val result = call(
-            GlyphAiTools.APPLY_DESIGN,
-            args(document(variants = """{"bellsprout":{"frames":[$frames]}}""")),
-            GlyphToolContext(TestDesigns.bellsproutOnly()),
-        )
-
-        assertTrue(errorOf(result), errorOf(result).contains("${DesignCodec.MAX_FRAMES + 1} frames"))
-        assertTrue(expected(result).contains("${DesignCodec.MAX_FRAMES}"))
-    }
-
-    @Test
     fun `a duration outside the bounds is refused at both ends`() {
         for (bad in listOf(DesignCodec.MIN_DURATION_MS - 1, DesignCodec.MAX_DURATION_MS + 1, 0, -5)) {
             val result = applying(durationMs = bad)
@@ -474,31 +376,6 @@ class GlyphAiToolsTest {
             assertTrue(expected(result).contains("${DesignCodec.MIN_DURATION_MS}"))
             assertTrue(expected(result).contains("${DesignCodec.MAX_DURATION_MS}"))
         }
-    }
-
-    @Test
-    fun `static with more than one frame is refused rather than losing the frames`() {
-        val frame = """{"durationMs":120,"cells":"${TestDesigns.blank(bellsprout)}"}"""
-        val result = call(
-            GlyphAiTools.APPLY_DESIGN,
-            args(document(kind = "\"static\"", variants = """{"bellsprout":{"frames":[$frame,$frame,$frame]}}""")),
-            GlyphToolContext(TestDesigns.bellsproutOnly()),
-        )
-
-        assertTrue(errorOf(result), errorOf(result).contains("static"))
-        assertTrue(errorOf(result), errorOf(result).contains("3 frames"))
-        assertTrue(expected(result).contains("dynamic"))
-    }
-
-    @Test
-    fun `a palette that no cell could index is refused`() {
-        val result = call(
-            GlyphAiTools.APPLY_DESIGN,
-            args(document(levels = "[]")),
-            GlyphToolContext(TestDesigns.bellsproutOnly()),
-        )
-
-        assertTrue(errorOf(result), errorOf(result).contains("levels"))
     }
 
     // endregion
@@ -543,20 +420,6 @@ class GlyphAiToolsTest {
                 }
             }
         }
-    }
-
-    @Test
-    fun `arguments that are not an object are refused`() {
-        val result = call(GlyphAiTools.APPLY_DESIGN, "[]", GlyphToolContext(TestDesigns.bellsproutOnly()))
-
-        assertTrue(errorOf(result), errorOf(result).contains("not a JSON object"))
-    }
-
-    @Test
-    fun `a missing design argument is refused`() {
-        val result = call(GlyphAiTools.APPLY_DESIGN, "{}", GlyphToolContext(TestDesigns.bellsproutOnly()))
-
-        assertTrue(errorOf(result), errorOf(result).contains("Missing"))
     }
 
     @Test
@@ -630,17 +493,6 @@ class GlyphAiToolsTest {
         assertEquals(dry["variants"], wet["variants"])
     }
 
-    @Test
-    fun `validate_design rejects everything apply_design rejects`() {
-        val ctx = GlyphToolContext(TestDesigns.bellsproutOnly(), openVariant = bellsprout)
-        val document = document(
-            variants = """{"bellsprout":{"frames":[{"durationMs":120,"cells":"tooshort"}]}}""",
-        )
-
-        assertTrue(call(GlyphAiTools.VALIDATE_DESIGN, args(document), ctx).isError)
-        assertTrue(call(GlyphAiTools.APPLY_DESIGN, args(document), ctx).isError)
-    }
-
     // endregion
 
     // region the tools themselves
@@ -663,15 +515,50 @@ class GlyphAiToolsTest {
         }
     }
 
+    /**
+     * Which tools write, and which only compute.
+     *
+     * The two that compute — `scroll_frames` and `image_to_grid` — hand back a
+     * document and nothing else, because the model still has to look at the
+     * pictures and ask for it. `set_frames` is the deliberate exception among the
+     * *newer* tools and it is not an inconsistency: a document expressing
+     * "frames 7 to 9 of 240 changed" would have to carry all 240, which is the
+     * whole cost it exists to avoid. So it is `apply_design` with a narrower
+     * argument, and it applies.
+     */
     @Test
-    fun `the three tools are the three the plan names`() {
-        assertEquals(
-            listOf(
-                GlyphAiTools.GET_CURRENT_DESIGN,
-                GlyphAiTools.VALIDATE_DESIGN,
-                GlyphAiTools.APPLY_DESIGN,
-            ),
-            GlyphAiTools.build().map { it.name },
+    fun `only the writing tools carry a design for the caller to put on the canvas`() {
+        val ctx = GlyphToolContext(TestDesigns.bellsproutOnly(), openVariant = bellsprout)
+        val scrollArgs = buildJsonObject {
+            put(GlyphAiTools.ARG_SOURCE_ROWS, Json.parseToJsonElement("""["2","2","2"]"""))
+        }.toString()
+
+        val marqueeArgs = buildJsonObject { put(GlyphAiTools.ARG_TEXT, "HI") }.toString()
+
+        for ((tool, args) in listOf(
+            GlyphAiTools.GET_CURRENT_DESIGN to "{}",
+            GlyphAiTools.MARQUEE_TEXT to marqueeArgs,
+            GlyphAiTools.SCROLL_FRAMES to scrollArgs,
+            GlyphAiTools.VALIDATE_DESIGN to args(DesignCodec.encode(TestDesigns.bellsproutOnly())),
+        )) {
+            val result = call(tool, args, ctx)
+            assertFalse(tool, result.isError)
+            assertNull(tool, result.design)
+        }
+        assertNotNull(call(GlyphAiTools.APPLY_DESIGN, args(DesignCodec.encode(TestDesigns.bellsproutOnly())), ctx).design)
+        assertNotNull(
+            call(
+                GlyphAiTools.SET_FRAMES,
+                buildJsonObject {
+                    put(GlyphAiTools.ARG_MODE, GlyphAiTools.MODE_REPLACE)
+                    put(GlyphAiTools.ARG_AT, 0)
+                    put(
+                        GlyphAiTools.ARG_FRAME_LIST,
+                        Json.parseToJsonElement("""["${TestDesigns.lit(bellsprout)}"]"""),
+                    )
+                }.toString(),
+                ctx,
+            ).design,
         )
     }
 

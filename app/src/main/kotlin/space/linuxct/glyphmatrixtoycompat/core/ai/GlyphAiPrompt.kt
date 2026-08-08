@@ -3,8 +3,11 @@ package space.linuxct.glyphmatrixtoycompat.core.ai
 import space.linuxct.glyphmatrixtoycompat.core.design.DEFAULT_LEVELS
 import space.linuxct.glyphmatrixtoycompat.core.design.Design
 import space.linuxct.glyphmatrixtoycompat.core.design.DesignCodec
+import space.linuxct.glyphmatrixtoycompat.core.design.DesignFrame
 import space.linuxct.glyphmatrixtoycompat.core.design.DesignFrames
 import space.linuxct.glyphmatrixtoycompat.core.design.DesignKind
+import space.linuxct.glyphmatrixtoycompat.core.design.MarqueeFont
+import space.linuxct.glyphmatrixtoycompat.core.design.MarqueeText
 import space.linuxct.glyphmatrixtoycompat.core.design.PokemonCodename
 import space.linuxct.glyphmatrixtoycompat.matrix.PanelMask
 
@@ -636,7 +639,15 @@ object GlyphAiPrompt {
            edits they have not saved.
         2. Build the complete document. apply_design replaces the whole design, so send every
            frame you want to keep, not just the ones you changed. A variant you leave out is
-           left exactly as it was.
+           left exactly as it was. Two jobs here are NOT yours to do by hand: if the design
+           SCROLLS, call ${GlyphAiTools.SCROLL_FRAMES}; if the user attached a picture and wants
+           it ON the panel, call ${GlyphAiTools.IMAGE_TO_GRID}. Both hand back a document to pass
+           straight on. See the animation section and the section on references.
+        2b. Changing only SOME frames of an animation that already exists? Use
+           ${GlyphAiTools.SET_FRAMES} instead of step 2. Re-sending 240 frames to change one is
+           slow, and every character you retype is a chance to break a frame that was already
+           right. ${GlyphAiTools.SET_FRAMES} applies immediately, like apply_design, and touches
+           nothing outside the range you name.
         3. Call validate_design first when you are unsure. It runs every check apply_design
            runs and changes nothing, and it returns the same preview - so it is a free look at
            what you are about to make.
@@ -664,6 +675,30 @@ object GlyphAiPrompt {
      */
     const val REFERENCE_NOT_TARGET: String =
         "A PHOTO, A LOGO OR A SCREENSHOT IS A REFERENCE, NOT A TARGET."
+
+    /**
+     * That the app will do the downscaling, in one line a test holds.
+     *
+     * ## Why this comes first and [REFERENCE_NOT_TARGET] second
+     *
+     * They look as though they disagree and they do not. "Distil, do not
+     * reproduce" is about the *drawing*; this is about the one measurement
+     * nobody in this conversation can take. The model can see an attached photo
+     * perfectly well — what it cannot do is say what that photo averages to at
+     * cell (7, 4), and it was being asked to, 169 times per attempt, with no way
+     * to check any of them. That is the same class of work `scroll_frames`
+     * exists to remove, and it produced the same symptom: an image of a plain
+     * "10" that took eight attempts and then six more.
+     *
+     * So the literal conversion is a tool call, and it is named first because it
+     * is *cheap and informative*: one call shows what this panel actually makes
+     * of the picture. Then the judgement in [REFERENCE_NOT_TARGET] applies to
+     * something real rather than to something imagined — keep it if it reads,
+     * and draw the essence by hand if it does not.
+     */
+    const val IMAGE_TOOL_FIRST: String =
+        "IF THE USER ATTACHES A PICTURE THEY WANT ON THE PANEL, CALL ${GlyphAiTools.IMAGE_TO_GRID} " +
+            "FIRST. DO NOT TRANSCRIBE A PHOTOGRAPH BY HAND."
 
     /**
      * That a passing check is a statement about legality and nothing else.
@@ -713,14 +748,30 @@ object GlyphAiPrompt {
         WHEN A DRAFT DOES NOT WORK: SIMPLIFY, THEN LAND IT
         ========================================================================
 
+        $IMAGE_TOOL_FIRST
+        You can see the picture the user attached; what you cannot do is say what it
+        averages to at cell (7, 4), and writing a whole frame of base36 characters from a
+        photograph by eye is guesswork you have no way to check.
+        ${GlyphAiTools.IMAGE_TO_GRID} does that measurement: it scales the whole image to fit
+        the panel, averages it down to one value per cell, masks it to the disc and quantises
+        it to this design's levels. It changes nothing, so it costs one call to SEE what this
+        panel makes of the picture - and its "threshold", "contrast" and "invert" knobs are
+        how you fix a result that came back as a blob or as an empty panel. An attachment
+        travels with the message it was sent on: if there is none on the message you are
+        answering, say so and ask for it. Never draw a photo you were shown in an earlier turn
+        from memory.
+
         $REFERENCE_NOT_TARGET
         This panel is a small grid of monochrome dots with no colour, no anti-aliasing and
         no room for detail, and there is no version of a photograph that fits on it. What
         you owe the user is the recognisable ESSENCE at this resolution - the silhouette
-        that still reads at arm's length - not a faithful copy. So simplify aggressively in
-        your FIRST attempt instead of drawing the detail and whittling it down: start from
-        the two or three shapes somebody would use to describe the picture out loud, and
-        draw those.
+        that still reads at arm's length - not a faithful copy. So read what
+        ${GlyphAiTools.IMAGE_TO_GRID} handed back and DECIDE: if the converted picture reads
+        as the thing it is meant to be, that is your answer, apply it. If it came back as a
+        grey smear - which is what a busy or distant photograph becomes at this size - stop
+        converting and draw instead - and simplify aggressively in your FIRST attempt rather
+        than drawing the detail and whittling it down: start from the two or three shapes
+        somebody would use to describe the picture out loud, and draw those.
 
         $VALID_IS_NOT_GOOD
         Read the preview it hands back and decide once: if the drawing reads as the thing
@@ -754,6 +805,27 @@ object GlyphAiPrompt {
     """.trimIndent()
 
     /**
+     * That the app will do the windowing, in one line a test holds.
+     *
+     * ## Why this outranks the method below it
+     *
+     * [ONE_WIDE_BITMAP] is the right construction and it did help. What it cannot
+     * do is *execute* itself: a 19-frame scroll of a 5-row glyph is around sixteen
+     * thousand characters that must all agree, written by a reader that has no way
+     * to check them and no error signal if they do not. Guidance can pick the
+     * method; it cannot make the model reliable at carrying it out.
+     *
+     * `scroll_frames` carries it out instead. The model supplies the one thing it
+     * is good at — a single still picture of the whole message — and the app cuts
+     * every frame out of it. So the tool is named first, and the hand method that
+     * follows is kept as the fallback and as the explanation of what the tool
+     * does, not as the instruction.
+     */
+    const val SCROLL_TOOL_FIRST: String =
+        "FOR ANY SCROLLING TEXT OR MOVING PICTURE, CALL ${GlyphAiTools.SCROLL_FRAMES}. " +
+            "DO NOT WINDOW IT BY HAND."
+
+    /**
      * The method for scrolling text, in one line a test holds.
      *
      * ## The evidence this exists for
@@ -772,6 +844,12 @@ object GlyphAiPrompt {
      * bitmap, then take a panel-width window of it at successive offsets. One
      * number changes per frame, and the rows cannot disagree because there is
      * only one offset for all of them.
+     *
+     * That construction is now also a tool — see [SCROLL_TOOL_FIRST] — so this
+     * survives as the fallback and as the description of what `scroll_frames`
+     * does. It is still worth stating: a model that understands the window reads
+     * the tool's output correctly, and a model that does not will hand-nudge rows
+     * the moment the tool does not quite fit what it wants.
      */
     const val ONE_WIDE_BITMAP: String =
         "BUILD THE WHOLE MESSAGE ONCE AS ONE WIDE BITMAP, THEN CUT EVERY FRAME OUT OF IT."
@@ -779,6 +857,67 @@ object GlyphAiPrompt {
     /** The invariant [ONE_WIDE_BITMAP] enforces, stated on its own so it is checkable. */
     const val SAME_SHIFT_EVERY_ROW: String =
         "EVERY ROW OF A FRAME MOVES BY THE SAME AMOUNT, OR THE PICTURE TEARS."
+
+    /**
+     * That words get the tool that owns the letterforms, in one line a test
+     * holds.
+     *
+     * [SCROLL_TOOL_FIRST] moved the *windowing* out of the model's hands and
+     * left the drawing with it, which was the right split for a moving picture
+     * and half of one for text. The half it left behind produces a failure
+     * nothing catches: not a torn letter — those are impossible now — but a
+     * merely *bad* one. An `S` that reads as a `5`, a `G` with no crossbar, a
+     * `W` two columns too narrow to be a `W`. Every preview shows it faithfully
+     * and it still ships, because it is not wrong enough to look wrong one frame
+     * at a time.
+     *
+     * A nine-row alphabet is not a judgement the model should be re-deriving per
+     * request. It is settled, so it lives in `MarqueeFont` and the model supplies
+     * the phrase. This line is what stops the model reaching for the more
+     * general tool out of habit.
+     */
+    const val MARQUEE_TOOL_FOR_WORDS: String =
+        "FOR SCROLLING WORDS, CALL ${GlyphAiTools.MARQUEE_TEXT}. DO NOT DRAW THE LETTERS YOURSELF."
+
+    /**
+     * That the letters are meant to fill the panel, in one line a test holds.
+     *
+     * The five-row band is the safest place to put art and it is not where a
+     * marquee wants to be: it spends 60 % of the panel's height buying an
+     * immunity to clipping at the two columns nobody reads a letter in. The
+     * clipping is the *effect* — Nothing's own big-letter marquee does exactly
+     * this — and a model that does not know that will read the previews, see a
+     * letter cut by the rim and "fix" it by making everything smaller.
+     */
+    const val CLIPPING_IS_THE_POINT: String =
+        "BIG LETTERS ARE CLIPPED BY THE RIM AS THEY ENTER AND LEAVE. THAT IS THE EFFECT, NOT A FAULT."
+
+    /** The phrase the marquee section is worked through. Short, and all letters. */
+    const val MARQUEE_EXAMPLE_TEXT: String = "GLYPH"
+
+    /**
+     * [MARQUEE_EXAMPLE_TEXT] as `MarqueeFont` lays it out — the picture the
+     * prompt shows, generated rather than typed.
+     *
+     * The point of showing it at all is that the model should know what it is
+     * asking for before it asks: nine rows tall, proportional, and legible at a
+     * size where the model's own guess at a letterform would not be. A picture
+     * typed into this file by hand would be a picture of a font that does not
+     * exist the moment anybody adjusts a glyph.
+     */
+    val MARQUEE_EXAMPLE_PICTURE: List<String> = MarqueeFont.picture(MARQUEE_EXAMPLE_TEXT)
+
+    /** How wide [MARQUEE_EXAMPLE_TEXT] lays out, in columns. */
+    val MARQUEE_EXAMPLE_WIDTH: Int = MarqueeFont.stripWidth(MARQUEE_EXAMPLE_TEXT)
+
+    /**
+     * The frames the example actually produces on [codename] — used by the
+     * prompt for its frame count and by `GlyphAiPromptTest` to put the example
+     * through the real [DesignCodec], so a prompt that quotes a number this app
+     * would refuse fails the build rather than the conversation.
+     */
+    fun marqueeExampleFrames(codename: PokemonCodename): List<DesignFrame> =
+        MarqueeText.frames(MARQUEE_EXAMPLE_TEXT, codename.size, paletteIndex = EXAMPLE_LEVELS.size - 1)
 
     /**
      * That a marquee has an arithmetic length, in one line a test holds.
@@ -877,6 +1016,10 @@ object GlyphAiPrompt {
      * arbok, and a frame count is text like any other.
      */
     private fun animationSection(carried: List<PokemonCodename>): String = buildString {
+        append(ANIMATION_HEADER)
+        append("\n\n")
+        append(marqueeTextSection(carried))
+        append("\n\n")
         append(ANIMATION_INTRO)
         append("\n\n")
         // Appended whole rather than interpolated, for the reason discSection
@@ -898,9 +1041,102 @@ object GlyphAiPrompt {
         append(MARQUEE_BUDGET_TAIL)
         append("\n\n")
         append(ANIMATION_CHECKS)
+        append("\n\n")
+        append(SET_FRAMES_SECTION)
     }
 
-    private val ANIMATION_INTRO = """
+    /**
+     * Scrolling **words**, which is a different job from scrolling a picture and
+     * now has a different tool.
+     *
+     * ## Why it comes first, before `scroll_frames`
+     *
+     * Almost every marquee anybody asks for is words. Reaching the general tool
+     * first means drawing an alphabet first, and the alphabet is the part that
+     * comes back subtly wrong — see [MARQUEE_TOOL_FOR_WORDS] for the failure this
+     * is aimed at. So the specialised tool is met first and the general one is
+     * introduced immediately after as what to use when the thing moving is *not*
+     * words.
+     *
+     * ## Why the picture is generated
+     *
+     * The section shows what `GLYPH` actually looks like in this face, and the
+     * numbers it quotes — the width in columns, the frame count on each carried
+     * panel, how long that runs for — come from `MarqueeFont` and `MarqueeText`
+     * rather than from this file. A prompt that quoted a frame count the tool
+     * would not produce would be teaching the model to argue with the tool, and
+     * `GlyphAiPromptTest` puts the example through the real [DesignCodec] so it
+     * cannot quietly become one this app refuses.
+     *
+     * Per-panel arithmetic is generated from [carried] for the reason the whole
+     * prompt is: a bellsprout-only conversation must never see the word arbok.
+     */
+    private fun marqueeTextSection(carried: List<PokemonCodename>): String = buildString {
+        append(MARQUEE_TEXT_HEAD)
+        append("\n\n")
+        // Appended whole rather than interpolated: trimIndent() measures AFTER
+        // interpolation, so a multi-line block dropped into an indented template
+        // flattens the prose around it, and this one's columns have to line up.
+        append(MARQUEE_EXAMPLE_PICTURE.joinToString("\n").prependIndent("      "))
+        append("\n\n")
+        append(MARQUEE_TEXT_BODY)
+        for (codename in carried) {
+            val frames = marqueeExampleFrames(codename)
+            val ms = frames.size * MarqueeText.DEFAULT_DURATION_MS
+            append("\n      ")
+            append("on ${codename.codename} the letters are ")
+            append("${MarqueeFont.HEIGHT * MarqueeText.scaleFor(codename.size)} of ${codename.size} rows tall, ")
+            append("and \"$MARQUEE_EXAMPLE_TEXT\" is ${frames.size} frames - ${ms} ms end to end.")
+        }
+        append("\n\n")
+        append(MARQUEE_TEXT_TAIL)
+    }
+
+    private val MARQUEE_TEXT_HEAD = """
+        ---- Scrolling WORDS: call ${GlyphAiTools.MARQUEE_TEXT} ----
+
+        $MARQUEE_TOOL_FOR_WORDS
+
+              ${GlyphAiTools.MARQUEE_TEXT}(${GlyphAiTools.ARG_TEXT}, ${GlyphAiTools.ARG_VARIANT}, ${GlyphAiTools.ARG_SCALE}, ${GlyphAiTools.ARG_STEP}, ${GlyphAiTools.ARG_DURATION_MS}, ${GlyphAiTools.ARG_PALETTE_INDEX})
+
+        You give it the phrase and nothing else. It has a ${MarqueeFont.HEIGHT}-row proportional alphabet built in -
+        A-Z, a-z, 0-9, a space and every printable ASCII symbol - so you never write a letterform, and
+        the letters come out as tall as the panel can carry instead of the five rows a hand-drawn
+        scroll settles for. This is "$MARQUEE_EXAMPLE_TEXT" in that face, ${MARQUEE_EXAMPLE_WIDTH} columns wide:
+    """.trimIndent()
+
+    private val MARQUEE_TEXT_BODY = """
+        Both cases are drawn, so type the phrase the way it should read; the lower case has its
+        own x-height and real descenders, and a capital's foot hangs one row below the lower-case
+        baseline because the capitals fill the band. Accents are dropped ("café" scrolls as cafe).
+        Anything the face cannot draw is refused BY NAME, so you never have to guess at coverage.
+
+        $CLIPPING_IS_THE_POINT
+        The disc's outermost columns are only five rows tall, so the top and bottom of a letter
+        are cut away as it arrives and as it leaves, and it is whole across the middle of the
+        panel where it is actually read. Do not shrink the letters to stop that happening. The
+        numbers for this design:
+    """.trimIndent()
+
+    private val MARQUEE_TEXT_TAIL = """
+        Every argument but ${GlyphAiTools.ARG_TEXT} may be null, and null is usually right: the defaults centre the
+        band, move one letter-cell per frame, run the full traverse with no blank frame at either
+        end, and light the letters at the brightest level this design has. Raise ${GlyphAiTools.ARG_DURATION_MS}
+        to slow it down.
+
+        About 40 characters fit inside the ${DesignCodec.MAX_FRAMES}-frame limit. A longer phrase is REFUSED, and the
+        refusal hands back the longest prefix of your own text that does fit AND the ${GlyphAiTools.ARG_STEP} that
+        would fit the whole thing - so answer it with one of those two rather than by guessing at
+        a shorter phrase.
+
+        It changes NOTHING. Read "strip" first - the whole phrase as one ${MarqueeFont.HEIGHT}-row picture, which is
+        where a misspelling or a word you did not mean is actually visible - then send its
+        "${GlyphAiTools.KEY_APPLY_THIS}" document to ${GlyphAiTools.APPLY_DESIGN} EXACTLY as it came back. That document sets kind to
+        dynamic and loop to true and writes ONE panel's frames; keyMode, levels, name and any
+        other panel are left exactly as they are.
+    """.trimIndent()
+
+    private val ANIMATION_HEADER = """
         ========================================================================
         ANIMATION: FRAMES THAT STILL BELONG TO THE SAME PICTURE
         ========================================================================
@@ -908,8 +1144,37 @@ object GlyphAiPrompt {
         An animation is ONE picture over time, not a pile of separately drawn pictures. Nearly
         everything that goes wrong here is a frame that stopped agreeing with its neighbours,
         and none of it is visible in the JSON you wrote - all of it is obvious in the previews.
+    """.trimIndent()
 
-        ---- Scrolling text: the only method that works ----
+    private val ANIMATION_INTRO = """
+        ---- Scrolling a PICTURE: call ${GlyphAiTools.SCROLL_FRAMES} ----
+
+        $SCROLL_TOOL_FIRST
+
+        You draw ONE still picture - the whole message, once, as a rectangle - and the app cuts
+        every frame out of it. Drawing the picture is the half you are good at. The other half
+        is thousands of characters that must all agree with each other, with nothing to check
+        them against, and it is the half that comes back with the letter torn in two.
+
+              ${GlyphAiTools.SCROLL_FRAMES}(${GlyphAiTools.ARG_SOURCE_ROWS}, ${GlyphAiTools.ARG_VARIANT}, ${GlyphAiTools.ARG_TOP_ROW}, ${GlyphAiTools.ARG_START_COLUMN}, ${GlyphAiTools.ARG_STEP}, ${GlyphAiTools.ARG_FRAMES}, ${GlyphAiTools.ARG_DURATION_MS})
+
+        - ${GlyphAiTools.ARG_SOURCE_ROWS} is the message as ONE bitmap: equal-length strings, one per row, in
+          the same base36 encoding as cells, as wide as the whole message needs to be. It is the
+          only argument you have to think about.
+        - Every other argument may be null, and null is usually right. The defaults put the art
+          in the band of rows that never clips, move one column per frame, start with the
+          message's leading column already on the panel, and run the full traverse.
+        - It changes NOTHING. Read the pictures it hands back, then send its "${GlyphAiTools.KEY_APPLY_THIS}" document
+          to ${GlyphAiTools.APPLY_DESIGN} EXACTLY as it came back. Do not retype the cells - copying 3 000
+          characters of base36 by hand is how an element's brightness changes halfway through.
+
+        Four things stop being possible once the app does the windowing: a glyph cannot shear,
+        because there is one offset for the whole frame; frame 0 cannot come out blank, because
+        the default start puts the leading column on the panel; a palette index cannot drift,
+        because every cell is copied out of your own bitmap; and the frame count cannot be
+        wrong, because it is computed instead of guessed.
+
+        ---- The same method by hand, for when the tool does not fit ----
 
         $ONE_WIDE_BITMAP
 
@@ -931,7 +1196,8 @@ object GlyphAiPrompt {
         on the row below it is a sheared letter, and hand-shifting is how it happens.
 
         Worked example - "HI" laid out as one bitmap, ${MARQUEE_HEIGHT} rows tall and ${MARQUEE_WIDTH}
-        columns wide (${(MARQUEE_WIDTH - 1) / 2} for the H, one blank column, ${(MARQUEE_WIDTH - 1) / 2} for the I). Column 0 is on the left:
+        columns wide (${(MARQUEE_WIDTH - 1) / 2} for the H, one blank column, ${(MARQUEE_WIDTH - 1) / 2} for the I). Column 0 is on the left, and this
+        is exactly what goes into ${GlyphAiTools.SCROLL_FRAMES}' ${GlyphAiTools.ARG_SOURCE_ROWS}:
     """.trimIndent()
 
     private val MARQUEE_METHOD_TAIL = """
@@ -941,6 +1207,9 @@ object GlyphAiPrompt {
         Keep the glyphs inside the band of rows that is live across every column (the panel
         section above names it): art inside that band can sit at ANY horizontal offset without
         losing a cell to the disc, which is what makes a scroll safe.
+
+        Those last two sentences are exactly what ${GlyphAiTools.SCROLL_FRAMES} does when you leave
+        ${GlyphAiTools.ARG_START_COLUMN} and ${GlyphAiTools.ARG_TOP_ROW} null, which is the reason to leave them null.
     """.trimIndent()
 
     private val MARQUEE_BUDGET_PROSE = """
@@ -956,12 +1225,12 @@ object GlyphAiPrompt {
 
     private val MARQUEE_BUDGET_TAIL = """
         A handful of frames is not a marquee - it is a message that appears, twitches and
-        stops. If the full count is more than you want to write, scroll a SHORTER message, or
-        move two columns per frame instead of one, which halves the count and still reads. Do
-        NOT simply write fewer frames: a scroll cut short does not look like a shorter scroll,
-        it looks broken. The ladder above says "fewer frames" about distinct POSES; it never
-        means truncating a scroll. There is room for either: up to ${DesignCodec.MAX_FRAMES} frames
-        per variant.
+        stops. If the full count is more than you want, scroll a SHORTER message, or
+        move two columns per frame instead of one, which halves the count and still reads -
+        that is ${GlyphAiTools.ARG_STEP} 2. Do NOT simply write fewer frames: a scroll cut short does not
+        look like a shorter scroll, it looks broken. The ladder says "fewer frames"
+        about distinct POSES; it never means truncating a scroll. There is room for either:
+        up to ${DesignCodec.MAX_FRAMES} frames per variant.
     """.trimIndent()
 
     private val ANIMATION_CHECKS = """
@@ -971,7 +1240,8 @@ object GlyphAiPrompt {
         A frame with nothing lit is a beat of darkness in the loop, and a blank frame 0 means
         the design opens by showing the user an empty panel. If your first frame came out
         blank, the window started one step too early: move it until the leading column is on
-        the panel. The same goes for the end of a loop that repeats.
+        the panel, or leave ${GlyphAiTools.SCROLL_FRAMES}' ${GlyphAiTools.ARG_START_COLUMN} null and it will not happen at
+        all. The same goes for the end of a loop that repeats.
 
         ---- Brightness holds still ----
 
@@ -998,8 +1268,8 @@ object GlyphAiPrompt {
         ---- Then check it, by comparing the frames ----
 
         $COMPARE_THE_FRAMES
-        validate_design renders every frame, so an animation comes back as a stack of pictures.
-        Read them AGAINST EACH OTHER rather than one at a time:
+        ${GlyphAiTools.SCROLL_FRAMES} and validate_design both render every frame, so an animation comes
+        back as a stack of pictures. Read them AGAINST EACH OTHER rather than one at a time:
 
         - Is any frame blank that should not be? Frame 0 especially.
         - Pick one feature - the left upright of the H, the dot of an 'i' - and follow it
@@ -1010,6 +1280,51 @@ object GlyphAiPrompt {
 
         A sheared glyph, a blank frame and a flicker are all plain to see there and completely
         invisible in the base36 you just wrote.
+    """.trimIndent()
+
+    /**
+     * That a partial edit is a partial send, in one line a test holds.
+     *
+     * `apply_design` is the right primitive and it is also a trap on a long
+     * animation: a 240-frame `arbok` design is around 150 kB of base36, so
+     * "make frame 7 brighter" was a request to retype every frame. Slow and
+     * expensive, and worse than that — 239 of those frames were already correct,
+     * and each one retyped is a fresh chance to drop a character in art nobody
+     * was even looking at. `set_frames` writes a window and reads nothing
+     * outside it, so "leave the rest alone" stops being an instruction the model
+     * has to carry out perfectly.
+     */
+    const val SET_FRAMES_FOR_PART: String =
+        "TO CHANGE PART OF AN ANIMATION THAT ALREADY EXISTS, CALL ${GlyphAiTools.SET_FRAMES}. " +
+            "DO NOT RE-SEND EVERY FRAME."
+
+    /**
+     * How to edit frames without rewriting a design. Last in the animation
+     * section, because it only makes sense once frames exist.
+     */
+    private val SET_FRAMES_SECTION = """
+        ---- Changing some frames and not others ----
+
+        $SET_FRAMES_FOR_PART
+
+              ${GlyphAiTools.SET_FRAMES}(${GlyphAiTools.ARG_VARIANT}, ${GlyphAiTools.ARG_MODE}, ${GlyphAiTools.ARG_AT}, ${GlyphAiTools.ARG_COUNT}, ${GlyphAiTools.ARG_FRAME_LIST})
+
+        - ${GlyphAiTools.ARG_MODE} "${GlyphAiTools.MODE_REPLACE}" swaps the frames starting at ${GlyphAiTools.ARG_AT} for the ones you send,
+          one for one. "${GlyphAiTools.MODE_INSERT}" adds yours BEFORE the frame at ${GlyphAiTools.ARG_AT} and removes nothing
+          (${GlyphAiTools.ARG_AT} equal to the frame count appends at the end). "${GlyphAiTools.MODE_DELETE}" removes
+          ${GlyphAiTools.ARG_COUNT} frames from ${GlyphAiTools.ARG_AT}.
+        - Frame indices count from 0, exactly as get_current_design reports them.
+        - It APPLIES IMMEDIATELY, like apply_design, and is checked by the same rules. What it
+          hands back is a picture of every frame it wrote AND of the frame either side, so you
+          can see that the animation still joins up across the change.
+        - Everything outside that range is untouched, byte for byte. That is the point: you are
+          not re-sending frames that were already right, so you cannot break one.
+
+        Use apply_design for the whole design - a new drawing, a different palette, a change to
+        name, kind, keyMode or loop. Use ${GlyphAiTools.SET_FRAMES} when the design already exists and you
+        are changing frames within it. A design that is "static" and gains a second frame is
+        switched to "dynamic" for you, and the result says so; tell the user, because it changes
+        how the design plays.
     """.trimIndent()
 
     /**

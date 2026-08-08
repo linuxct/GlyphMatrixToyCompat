@@ -245,6 +245,11 @@ tabs behind a floating pill navigation bar:
   location, exact alarms; each row deep-links to the right place) followed by **App
   settings**: key capture master toggle, Menu mode, 12-hour clock, Glyph brightness, your
   creator name (stamped on designs you make), and the update checker (see below).
+  The checklist is collapsed once it is all check marks and **opens itself** when any item
+  is still outstanding — the same condition that puts a red **!** badge on the Settings chip
+  in the nav bar, so an unfinished setup is visible from any tab. One predicate feeds both,
+  and both clear the moment you grant the permission and come back; collapsing the section
+  by hand keeps it collapsed for as long as the screen is open.
 - **Tutorials** — short guides for the trickier parts:
   - **Essential Key tutorial** — an animated, fully Compose-drawn walkthrough (no image
     assets): a phone lying face-down with its camera island, Glyph Matrix and Essential Key,
@@ -265,8 +270,17 @@ tabs behind a floating pill navigation bar:
 
 Other UI notes:
 
-- **Nothing-styled theme** — strictly monochrome (black / white / grays, no accent colour),
-  sampled from Nothing OS Settings in both modes: a `#F2F2FA` page with pure-white cards in
+- **Nothing-styled theme** — monochrome (black / white / grays) with **three enumerated
+  exceptions and no others**: state, selection, errors and emphasis are contrast rather than
+  hue. The exceptions are the Create tab's **+** button, painted in Nothing's own `#D71921`
+  red and `#110E56` blue; the small red recording dot on the device illustration, which is a
+  picture of a square that exists on the back of the phone rather than an accent the UI uses
+  to say something; and the setup-attention badge — a 16 dp `#D71921` disc with a white **!**
+  in it — that appears on the nav bar's Settings chip while the Initial setup checklist still
+  has an outstanding item. That last one is the only place hue carries meaning, and it is
+  never the only signal: the exclamation mark says it visually, and the chip reads out as
+  "Settings, setup incomplete". The greys are sampled from
+  Nothing OS Settings in both modes: a `#F2F2FA` page with pure-white cards in
   light mode, a pure-black page with `#191C20` cards (and near-black divider hairlines) in
   dark mode. The **NType82-Regular** headline serif is used for the title; that font is not
   bundled but loaded at runtime from the device's `/system/fonts`, so the title matches the
@@ -275,7 +289,11 @@ Other UI notes:
   (Toys / Create / Settings / Tutorial), its own theme colours so it stays a mid-grey pill in
   dark mode instead of a glaring near-white slab. On the Create tab a circular **+** button
   fades in beside the pill — a sibling of it, not a top-bar action — and the pill slides over
-  to make room.
+  to make room. That button is filled with **liquid**: an AGSL shader that warps a field of
+  sines into red and blue lobes that stretch and rejoin, drawn only while the button is on
+  screen and the app is resumed. Its red is Nothing's, darkened in linear light to the
+  lightness the grey button it replaced had, so it gains a hue without becoming the
+  brightest thing in the nav bar.
 - **Quick Settings tile** — a "Capture Essential Key" toggle to turn key capture on/off from
   the notification shade (works on the lock screen too).
 
@@ -417,5 +435,5 @@ app/src/main/kotlin/space/linuxct/glyphmatrixtoycompat/
 └── ui/        Compose UI: tabbed main screen, first-run onboarding (animated glyph-disc
                pages), animated Essential Key tutorial, setup guides, design list +
                import/export, design/ (the pixel editor, canvas and timeline),
-               theme/ (Nothing-styled monochrome, runtime NType82)
+               theme/ (Nothing-styled monochrome + the brand colours, runtime NType82)
 ```

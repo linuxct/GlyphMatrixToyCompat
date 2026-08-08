@@ -5,6 +5,9 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,26 +15,32 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.FileOpen
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.SaveAlt
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Smartphone
+import androidx.compose.material.icons.outlined.FileOpen
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.DriveFileRenameOutline
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Smartphone
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonColors
@@ -41,8 +50,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -50,7 +59,9 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,14 +69,26 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import space.linuxct.glyphmatrixtoycompat.Core
@@ -119,11 +142,27 @@ import java.time.format.FormatStyle
  * held in snapshot state. In particular the FIRST load is asynchronous too: the
  * tab renders its (empty) frame immediately and fills in when the directory has
  * been read, rather than blocking the frame that brings the page on screen.
+ *
+ * ## It is a grid, and [listState] is no longer the scroller
+ *
+ * The designs are laid out in a `LazyVerticalGrid` (three columns on a phone; see
+ * [designGridColumns]), which needs a `LazyGridState` and cannot take the
+ * `LazyListState` `MainScreen` hoists for every page. The grid's own state lives on
+ * [CreateState.gridState] instead — the same hoisting, one object further in, and
+ * the one this file owns.
+ *
+ * [listState] is therefore **unused** and kept only because changing this
+ * signature means changing `MainActivity.kt`. The one thing there that read the
+ * old state — the settled-page collector deciding whether to spring the collapsing
+ * header back open — now reads `createState.gridState`, so a swipe onto a
+ * *scrolled* Create tab leaves the header collapsed as it always did. Anything
+ * else that ever wants this page's scroll position wants that state, not this
+ * parameter, which can only ever answer zero.
  */
 @Composable
 internal fun CreateTab(
     innerPadding: PaddingValues,
-    listState: LazyListState,
+    @Suppress("UNUSED_PARAMETER") listState: LazyListState,
     state: CreateState,
 ) {
     val context = LocalContext.current
@@ -142,9 +181,15 @@ internal fun CreateTab(
     // first ON_RESUME is the one that arrives with the window, which the load
     // above already covers, and skipping it must not itself cost a recomposition.
     val resumes = remember { intArrayOf(0) }
+    // Snapshot state, unlike the counter beside it, because the preview clock
+    // below has to STOP when the app is paused — a grid of looping discs is
+    // exactly the sort of thing that must not keep asking for frames behind a
+    // lock screen.
+    var resumed by remember { mutableStateOf(false) }
     LifecycleResumeEffect(state) {
         if (resumes[0]++ > 0) scope.launch { state.refresh(store) }
-        onPauseOrDispose { }
+        resumed = true
+        onPauseOrDispose { resumed = false }
     }
 
     // Shared copies are the one thing this feature leaves on disk that the user
@@ -229,7 +274,7 @@ internal fun CreateTab(
                         ).show()
                         // The import has the newest modifiedAt, so it sorts to
                         // the top — this is "here is the design you just added".
-                        listState.animateScrollToItem(0)
+                        state.gridState.animateScrollToItem(0)
                     }
                     // DesignCodec's own sentence, verbatim. Collapsing "made with
                     // a newer version of the app" and "not a Glyph design file"
@@ -245,16 +290,66 @@ internal fun CreateTab(
     // design files and greys out everything else.
     val onImport = { importLauncher.launch(arrayOf(DESIGN_MIME)) }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        state = listState,
-        // MANDATORY: the nav pill is an overlay, so without this the last card
-        // sits underneath it and cannot be scrolled clear. Same arithmetic as
-        // every other tab.
+    // ---------- the preview clock ----------
+
+    // ONE clock for the whole grid. See ui/DesignPreview.kt for why that is not
+    // negotiable and for the three other things that keep this cheap.
+    val clock = remember { PreviewClock() }
+
+    /**
+     * Whether this page is actually on screen.
+     *
+     * It has to be asked, because "composed" is not "visible" here: the pager
+     * keeps one page composed either side of the viewport
+     * (`beyondViewportPageCount = 1`), so this whole grid — cells, players and
+     * all — is alive and laid out while the user is reading the Toys tab. Without
+     * this the previews would loop for a page nobody can see.
+     *
+     * Answered from the layout itself rather than from a flag `MainScreen` would
+     * have to set: `boundsInWindow()` is already clipped by every ancestor, and
+     * the pager clips its viewport, so a page parked outside it reports an empty
+     * rectangle. One lambda on one node, run when the grid is placed.
+     */
+    var onScreen by remember { mutableStateOf(false) }
+
+    // The frame loop, and the only one on this tab. It exists exactly while all
+    // three conditions hold — the app is resumed, the page is on screen, and at
+    // least one visible card has more than one frame — and `collectLatest`
+    // cancels it the instant any of them stops being true. A tab of static
+    // designs therefore issues no frames at all, which is the same guarantee the
+    // editor makes about an idle canvas.
+    LaunchedEffect(clock) {
+        snapshotFlow { resumed && onScreen && clock.animating }.collectLatest { run ->
+            if (!run) return@collectLatest
+            while (true) {
+                withFrameMillis { clock.advance(it) }
+            }
+        }
+    }
+
+    // Three on a phone, more on a tablet. See [designGridColumns].
+    val columns = designGridColumns(LocalWindowInfo.current.containerDpSize.width)
+
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(columns),
+        modifier = Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { onScreen = !it.boundsInWindow().isEmpty },
+        state = state.gridState,
+        // Horizontally ZERO, deliberately. The full-width items below — the hint,
+        // the import button, the empty state — carry their own insets and are
+        // shared with other tabs, so a content padding here would double theirs.
+        // The cells inset themselves instead ([designCellPadding]), which is also
+        // the only way to make the outer margin and the gutter differ.
+        //
+        // The bottom is MANDATORY: the nav pill is an overlay, so without it the
+        // last row sits underneath it and cannot be scrolled clear. Same
+        // arithmetic as every other tab.
         contentPadding = PaddingValues(
             top = innerPadding.calculateTopPadding(),
             bottom = innerPadding.calculateBottomPadding() + NAV_PILL_CLEARANCE,
         ),
+        verticalArrangement = Arrangement.spacedBy(DESIGN_GRID_GUTTER),
     ) {
         when {
             // Still reading the directory. Deliberately renders NOTHING rather
@@ -266,7 +361,7 @@ internal fun CreateTab(
             // buys.
             designs == null -> Unit
 
-            designs.isEmpty() -> item(key = "empty") {
+            designs.isEmpty() -> item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
                 CreateEmptyState(
                     onStart = { state.newDesignRequested = true },
                     onImport = onImport,
@@ -274,7 +369,7 @@ internal fun CreateTab(
             }
 
             else -> {
-                item(key = "hint") {
+                item(key = "hint", span = { GridItemSpan(maxLineSpan) }) {
                     Column {
                         HintText(stringResource(R.string.create_hint))
                         // Import has to be reachable from the list itself, not
@@ -286,11 +381,27 @@ internal fun CreateTab(
                 // Already sorted newest-modified first by DesignStore.list(),
                 // which is a plain string sort — the format's timestamps are
                 // ISO-8601 UTC and therefore sort lexicographically.
-                items(designs, key = { it.id }) { design ->
+                //
+                // Indexed because a cell has to know WHICH COLUMN it is in to
+                // inset itself; see [designCellPadding]. The hint above spans a
+                // whole line, so the designs start on a fresh one and the column
+                // is simply the index modulo the count.
+                itemsIndexed(designs, key = { _, design -> design.id }) { index, design ->
                     val copyName =
                         stringResource(R.string.create_copy_suffix, design.name.ifBlank { unnamed })
+                    // Keyed on the id AND the timestamp: a design that comes back
+                    // from the editor with new art, or from a rename with a new
+                    // stamp, must re-sample and re-decode rather than keep
+                    // yesterday's pixels.
+                    val art = remember(design.id, design.modifiedAt) {
+                        designPreviewArt(design, PokemonCodename.ofSize(Core.glyphLink.size))
+                    }
+                    val player = rememberPreviewPlayer(art, clock)
                     DesignCard(
                         design = design,
+                        art = art,
+                        player = player,
+                        onRename = { state.pendingRename = design },
                         // Only the id travels. The editor re-reads the design
                         // itself, so it can never save a copy that went stale
                         // while this list was on screen.
@@ -322,16 +433,24 @@ internal fun CreateTab(
                                 }
                             }
                         },
-                        placement = Modifier.animateItem(
-                            // Same list-motion rules as ToysTab: the slide to a
-                            // new slot is a POSITION change → spatial, while the
-                            // fades are alpha → effects, which must never bounce.
-                            // animateItem()'s own defaults are foundation's, not
-                            // MD3's, so all three are passed explicitly.
-                            fadeInSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
-                            placementSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
-                            fadeOutSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
-                        ),
+                        placement = Modifier
+                            .animateItem(
+                                // Same list-motion rules as ToysTab: the slide to
+                                // a new slot is a POSITION change → spatial, while
+                                // the fades are alpha → effects, which must never
+                                // bounce. animateItem()'s own defaults are
+                                // foundation's, not MD3's, so all three are passed
+                                // explicitly.
+                                fadeInSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
+                                placementSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+                                fadeOutSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
+                            )
+                            .padding(designCellPadding(index % columns, columns)),
+                        // The other half of the same arithmetic: the width this
+                        // column did NOT hand back to the grid is handed to the
+                        // disc's margins instead, so every card is the same
+                        // height. See [designDiscSideInset].
+                        discSideInset = designDiscSideInset(index % columns, columns),
                     )
                 }
             }
@@ -354,10 +473,24 @@ internal fun CreateTab(
                     if (ok) {
                         // The new design sorts to the top (it has the newest
                         // modifiedAt), so this is "show me what I just made".
-                        listState.animateScrollToItem(0)
+                        state.gridState.animateScrollToItem(0)
                     } else {
                         Toast.makeText(context, saveFailed, Toast.LENGTH_SHORT).show()
                     }
+                }
+            },
+        )
+    }
+
+    state.pendingRename?.let { design ->
+        RenameDesignDialog(
+            design = design,
+            onDismiss = { state.pendingRename = null },
+            onRename = { newName ->
+                state.pendingRename = null
+                scope.launch {
+                    val ok = state.rename(store, design.id, newName)
+                    if (!ok) Toast.makeText(context, saveFailed, Toast.LENGTH_SHORT).show()
                 }
             },
         )
@@ -651,6 +784,26 @@ internal class CreateState {
     var designs by mutableStateOf<List<Design>?>(null)
         private set
 
+    /**
+     * The grid's scroll position, hoisted here for exactly the reason the tab's
+     * old `LazyListState` was hoisted into `MainScreen`: the pager destroys a page
+     * that falls out of its window, and a cell-local state would send the tab back
+     * to the top every time the user came back from two tabs away.
+     *
+     * It lives on this object rather than beside `MainScreen`'s other scroll
+     * states because `LazyVerticalGrid` needs a [LazyGridState] and the tab owns
+     * the decision to be a grid at all. The `listState` parameter `CreateTab`
+     * still takes is `MainScreen`'s, and is now unused by the list itself — see
+     * that function.
+     *
+     * Constructed rather than `rememberSaveable`d, which costs this one thing: the
+     * position is carried across a page disposal and a process-wide re-entry to
+     * the tab, but not across a configuration change. The column count changes on
+     * a rotation anyway, so a restored *item index* would land somewhere different
+     * regardless.
+     */
+    val gridState = LazyGridState()
+
     /** Set by the `+` FAB; consumed by `CreateTab`, which owns the dialog. */
     var newDesignRequested by mutableStateOf(false)
 
@@ -671,6 +824,9 @@ internal class CreateState {
 
     /** The design a delete has been asked for but not yet confirmed. */
     var pendingDelete by mutableStateOf<Design?>(null)
+
+    /** The design the rename dialog is open for, or null when it is closed. */
+    var pendingRename by mutableStateOf<Design?>(null)
 
     /** Reads the directory once. Subsequent calls are no-ops. */
     suspend fun loadIfNeeded(store: DesignStore) {
@@ -742,6 +898,37 @@ internal class CreateState {
             modifiedAt = now,
         )
         val saved = withContext(Dispatchers.IO) { saveRespectingAuthor(store, copy) }
+        if (saved) reload(store)
+        return saved
+    }
+
+    /**
+     * Gives a design a new name and nothing else.
+     *
+     * **The stored design is re-read rather than the list's copy being written
+     * back**, which is the same discipline the export path follows and for the
+     * same reason: this list is a cached index, and a design that was edited since
+     * the index was built would otherwise have its artwork rolled back by a
+     * rename. The only fields that change are `name` and `modifiedAt`; `id`,
+     * `createdAt` and `kind` come from the file untouched, and `author` is pinned
+     * by [saveRespectingAuthor] whatever anybody passes.
+     *
+     * `modifiedAt` IS restamped, deliberately. The name is part of the design, the
+     * list is sorted by that field, and a rename that left the design where it was
+     * would be the one edit in this app that does not surface.
+     *
+     * [name] is expected to have been through [renamedName] already; it is capped
+     * again here because the format's limit is the codec's rule, not the dialog's.
+     */
+    suspend fun rename(store: DesignStore, id: String, name: String): Boolean {
+        val saved = withContext(Dispatchers.IO) {
+            val stored = store.load(id) ?: return@withContext false
+            val renamed = stored.copy(
+                name = name.take(DesignCodec.MAX_NAME_LENGTH),
+                modifiedAt = nowIsoUtc(),
+            )
+            saveRespectingAuthor(store, renamed)
+        }
         if (saved) reload(store)
         return saved
     }
@@ -972,68 +1159,275 @@ private fun createdWith(context: Context): String {
     return "GMTC $version".take(DesignCodec.MAX_CREATED_WITH_LENGTH)
 }
 
-// ---------- list ----------
+// ---------- grid ----------
 
 /**
- * One design in the list: what it is called, what it is, and what it is made of.
+ * One cell's own inset, given which column it landed in: the full margin on
+ * whichever side faces the window edge, and half a gutter on any side that faces
+ * another cell.
  *
- * A [Card] with its own `onClick` rather than a `ListItem`, because the
- * supporting text here is two lines of different weight and the trailing
- * overflow has to sit beside both.
+ * Applied by the cells themselves rather than by the grid's `contentPadding` and
+ * `horizontalArrangement`, so that the full-width rows above them — the hint, the
+ * import button, the empty state, all of which carry their own insets and are
+ * shared with other tabs — keep the exact margins they had as a list.
+ *
+ * The numbers, and the correction that stops the resulting difference in cell
+ * widths from becoming a difference in card *heights*, are in `DesignPreview.kt`;
+ * see [designDiscSideInset].
+ */
+private fun designCellPadding(column: Int, columns: Int): PaddingValues = PaddingValues(
+    start = if (column == 0) DESIGN_GRID_OUTER_MARGIN else DESIGN_GRID_GUTTER / 2,
+    end = if (column == columns - 1) DESIGN_GRID_OUTER_MARGIN else DESIGN_GRID_GUTTER / 2,
+)
+
+/**
+ * A design card's corner radius — and, doubled, the diameter of the overflow
+ * button's state layer.
+ *
+ * The two are one number on purpose. A circle of radius r, tangent to both edges
+ * of a corner rounded to r, has its centre exactly on that corner's arc centre and
+ * traces the arc itself: the pressed state layer *is* the card's corner. Written
+ * as two constants they would drift the first time either was adjusted, and the
+ * failure would be a state layer that misses the corner by a couple of dp — the
+ * kind of thing nobody reports and everybody sees. See `DesignCard`.
+ */
+private val DESIGN_CARD_CORNER = 20.dp
+private val DESIGN_CARD_MENU_BUTTON = DESIGN_CARD_CORNER * 2
+
+/**
+ * The overflow's touch target: the minimum, flush with the card's corner so that
+ * all of it lands inside the card, which clips.
+ */
+private val DESIGN_CARD_MENU_TARGET = 48.dp
+
+/**
+ * One design in the grid: **its artwork, moving**, its name, and two lines of
+ * supporting text.
+ *
+ * ## What a three-up card can and cannot say
+ *
+ * The grid is three columns on a phone, which leaves a cell about 106 dp wide on a
+ * 360 dp window. That is the whole design constraint here, and it is not
+ * negotiable by shrinking type: the row this used to be gave the text ~300 dp and
+ * three lines, and none of `designSummary` ("Dynamic · 12 frames · by linuxct") or
+ * `designProvenance` ("Nothing Phone (4a) Pro · Nothing Phone (3) (empty) ·
+ * 31 Jul 2026") fits across a third of a phone without wrapping into a paragraph.
+ * A wall of wrapped grey text under every card would defeat the point of showing
+ * the artwork at all.
+ *
+ * So the card carries four things, in this order of importance:
+ *
+ * 1. **The preview**, which is the reason the grid exists and is deliberately the
+ *    dominant element — a circle the full width of the cell less its inset, so it
+ *    grows with the column count rather than sitting at a fixed size.
+ * 2. **The name**, on ONE line with an ellipsis. Wrapping it would let a long name
+ *    push every card in the row taller for no gain; the full name is a tap away in
+ *    the editor's title, and is read out in full by a screen reader (below).
+ * 3. **How much art is in it** — the frame count, or "no artwork yet" when there is
+ *    none to count. Both are existing strings (`create_frame_count`,
+ *    `create_no_art`) used with their existing wording. See [designMeta].
+ * 4. **Whose it is, or when it last changed** — the one fact that differs between
+ *    two cards that are otherwise the same sentence. See [designCredit].
+ *
+ * Three single-line texts, and no more, because the card's height is fixed by
+ * construction and every one of them is a line that could unfix it; see
+ * [designDiscSideInset], which is the other half of that guarantee.
+ *
+ * ## What was dropped, and why each is affordable
+ *
+ * - **Static / Dynamic** — the preview *is* the answer now. A card that is moving
+ *   is a dynamic design; a card that is still is a static one. It was worth a word
+ *   in a list of text rows and is redundant beside a running animation.
+ * - **The device list and the `(empty)` marker** — the preview covers the case
+ *   that actually confuses people (a design with no art for this phone draws a
+ *   bare disc, and the supporting line then reads "no artwork yet"), and the full
+ *   list is one line in Design settings.
+ * - **The date, on a design that has an author** — the two share line four and the
+ *   author wins it, because a date is recoverable from the sort order and a name
+ *   is not recoverable from anything on screen.
+ *
+ * **Nothing is dropped for a screen reader.** The text block is given
+ * `clearAndSetSemantics` with the name, [designSummary] and [designProvenance]
+ * spoken in full, so the helpers stay live, stay the single source of that wording,
+ * and TalkBack still hears everything the row used to show.
+ *
+ * ## Where the overflow went, and why it is not beside the text
+ *
+ * Top-right of the cell, over the corner a circle inscribed in a square leaves
+ * empty — **not** in the text block below, which is the other place it could
+ * plausibly live and which was measured before it was ruled out.
+ *
+ * The text block is the card less 12 dp of padding either side: 97 dp on an outer
+ * card of the 411 dp phone's three-column grid (121 dp wide), 105 dp in the middle
+ * column. That is already narrow enough to ellipsise a name like "Pokémon Bells…"
+ * at fourteen characters. A 48 dp touch target in that row costs 48 dp of *layout*
+ * width however small the glyph inside it is drawn — `minimumInteractiveComponentSize`
+ * measures, it does not overlap — so even with the end padding cut from 12 dp to 4
+ * the name would be left **57 dp**, about eight characters of `titleSmall`. Losing
+ * 41% of the name to move a button is not a trade this card can make, and it does
+ * not improve on a wider window: the button is a fixed dp and the cell is not.
+ *
+ * ## How the button is built, and why it is not an `IconButton`
+ *
+ * The reason is geometric. `IconButton` is a 40 dp state layer centred in the
+ * 48 dp box `minimumInteractiveComponentSize` reserves for it, so flush in the
+ * card's corner it spends its 4 dp of slack on the corner side and leaves the
+ * glyph 24 dp in from each edge — as close to the disc as the button can put it.
+ * The same two sizes with the state layer pushed *into* the corner leave the glyph
+ * 20 dp in, and 4 dp on each axis is 5.7 dp diagonally: two thirds of the
+ * clearance this card gained. It cannot be had by offsetting an `IconButton`
+ * instead, because the `Card` clips — a target hanging 4 dp over the edge is 44 dp
+ * of live target, not 48, and the touch target is not the thing to spend here.
+ *
+ * So the two jobs are split across two nodes, which is what `Modifier.indication`
+ * exists for. The outer 48 dp box is flush with the card's corner and carries the
+ * click: every one of its 2 304 dp² is inside the card and hittable. The inner
+ * 40 dp box carries the ripple and the glyph, aligned to that corner — and at
+ * 20 dp of radius it is *exactly* the arc of the card's own 20 dp corner, tangent
+ * to both edges, so a press lights that corner up as a quarter-round rather than
+ * as a circle floating near it. That is why both sizes are written as one
+ * constant, [DESIGN_CARD_CORNER], and not as two loose numbers that could drift.
+ *
+ * What the two halves come to, glyph ink to circle edge, at three columns:
+ * **0.4 dp before, 8.5 dp after** on the 411 dp phone — 5.6 dp of that from the
+ * corner and 2.5 dp from the disc's top inset — and 11.6 dp in the middle column,
+ * which insets its disc 22 dp and was never the crowded one. On a 360 dp window
+ * the same two changes take it from -3.0 dp, an actual overlap, to 5.0 dp.
  */
 @Composable
 private fun DesignCard(
     design: Design,
+    art: DesignPreviewArt,
+    player: PreviewPlayer,
     onOpen: () -> Unit,
     onShow: () -> Unit,
+    onRename: () -> Unit,
     onDuplicate: () -> Unit,
     onDelete: () -> Unit,
     onExport: () -> Unit,
     onShare: () -> Unit,
     placement: Modifier,
+    discSideInset: Dp,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    val name = design.name.ifBlank { stringResource(R.string.pref_custom_unnamed) }
+    // All three lines at once, built once per card. See [rememberDesignCardText]:
+    // the two visible ones and the spoken one share a timestamp that costs an
+    // `Instant.parse` and a localised formatter, and they used to be computed
+    // separately on every composition.
+    val text = rememberDesignCardText(design, name)
     Card(
         onClick = onOpen,
         modifier = Modifier
             .fillMaxWidth()
-            .then(placement)
-            .padding(horizontal = 16.dp, vertical = 3.dp),
-        shape = RoundedCornerShape(20.dp),
+            .then(placement),
+        shape = RoundedCornerShape(DESIGN_CARD_CORNER),
         // Tonal elevation is a visual no-op in this theme (surfaceTint equals
         // the card colour on purpose), so lift, if it were ever wanted here,
-        // would have to be shadow. The list is calm; it is not wanted.
+        // would have to be shadow. The grid is calm; it is not wanted.
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Row(
-            modifier = Modifier.padding(start = 20.dp, end = 4.dp, top = 14.dp, bottom = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    design.name.ifBlank { stringResource(R.string.pref_custom_unnamed) },
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    designSummary(design),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    designProvenance(design),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Box {
-                IconButton(onClick = { menuOpen = true }) {
+        Box(Modifier.fillMaxWidth()) {
+            DesignPreviewDisc(
+                art = art,
+                player = player,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    // Inset first, THEN filled and squared: the disc is whatever
+                    // the cell is wide less this margin, so it scales with the
+                    // column count instead of being a number that is right on one
+                    // window and wrong on the next. 68 dp on a 360 dp phone,
+                    // 85 dp on the 411 dp one this app is built for, and larger
+                    // again on anything wider.
+                    //
+                    // [discSideInset] is 18 dp plus this column's correction, and
+                    // is what makes every card in the grid exactly as tall as
+                    // every other; see [designDiscSideInset] for what goes wrong
+                    // without it.
+                    //
+                    // The inset is also half of what keeps the overflow button
+                    // below off the artwork — the top one was 14 dp and is 18,
+                    // which is where 2.5 dp of the card's ~8.5 dp of diagonal
+                    // clearance comes from. The other 5.6 dp is the button
+                    // sitting in the corner rather than 4 dp inside it. Both
+                    // numbers, and the measurement that produced them, are in
+                    // [DESIGN_DISC_TOP_INSET].
+                    .padding(
+                        start = discSideInset,
+                        end = discSideInset,
+                        top = DESIGN_DISC_TOP_INSET,
+                    )
+                    .fillMaxWidth()
+                    .aspectRatio(1f),
+            )
+            // The touch target and the thing the user can see are two different
+            // rectangles here, and they have to be, because they want opposite
+            // things: the target wants to be 48 dp and entirely inside a card that
+            // clips, and the glyph wants to be as far from the disc as the corner
+            // allows. One `IconButton` can only satisfy them by centring the
+            // second in the first, which is the arrangement that put the dots
+            // 0.4 dp off the artwork. See this composable's KDoc for the
+            // arithmetic and for what the split buys.
+            //
+            // One MutableInteractionSource per card, allocated in `remember` and
+            // therefore not on the recomposition path — the same object
+            // `IconButton` would have created lazily inside `clickable`.
+            val menuInteraction = remember { MutableInteractionSource() }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(DESIGN_CARD_MENU_TARGET)
+                    .clickable(
+                        interactionSource = menuInteraction,
+                        // The press is drawn by the smaller box below, not here:
+                        // a bounded ripple on this one would be a 48 dp square.
+                        indication = null,
+                        role = Role.Button,
+                        onClick = { menuOpen = true },
+                    ),
+                // The glyph's 24 dp of icon and the ripple's 40 dp of circle both
+                // ride into the corner; the 8 dp of slack this leaves is on the
+                // disc's side, which is the side that needed it.
+                contentAlignment = Alignment.TopEnd,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(DESIGN_CARD_MENU_BUTTON)
+                        .clip(CircleShape)
+                        // `ripple()` rather than an inherited indication, so this
+                        // still answers [NoRipple] — which the app applies to
+                        // toggles and not to icon buttons, so here it stays on.
+                        .indication(menuInteraction, ripple()),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Icon(
-                        Icons.Default.MoreVert,
+                        Icons.Outlined.MoreVert,
                         contentDescription = stringResource(R.string.create_more),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                    // **16 dp, because 4 dp is a stale token and not a decision.**
+                    //
+                    // `MenuDefaults.shape` resolves to `MenuTokens.ContainerShape`
+                    // = `CornerExtraSmall` = 4 dp, and that token file is stamped
+                    // `VERSION: v0_210` — the pre-expressive baseline. The current
+                    // one ships in the SAME library: `SegmentedMenuTokens`
+                    // (`VERSION: 24.1.2`) puts a menu container at `CornerLarge` =
+                    // 16 dp, and as of material3 1.5.0-alpha23 nothing wires it to
+                    // `DropdownMenu`. So this is not a bigger radius because
+                    // bigger looks nicer; it is the value the spec already holds,
+                    // applied by hand because the default has not caught up.
+                    //
+                    // 4 dp on a 280 dp-wide, 300 dp-tall slab is visually a square
+                    // — which is exactly the "sharp edges" this drew — while every
+                    // other floating surface in this app is 20 dp or more (the
+                    // card behind it, the nav pill, the dialogs). A menu at 4 dp
+                    // does not read as a member of the same set of objects.
+                    shape = MaterialTheme.shapes.large,
+                ) {
                     // First item, above everything: this is the thing a design is
                     // FOR. The editor's app bar is where a first-time user meets
                     // this action (see `DesignEditorActivity`); this is where
@@ -1041,15 +1435,51 @@ private fun DesignCard(
                     // one they are not currently editing.
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.create_show)) },
-                        leadingIcon = { Icon(Icons.Default.Smartphone, contentDescription = null) },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Outlined.Smartphone,
+                                contentDescription = null,
+                                // 20 dp, the size `SegmentedMenuTokens` gives a
+                                // menu item's leading icon and the size
+                                // `MenuDefaults.LeadingIconSize` exposes —
+                                // `DropdownMenuItem` reserves the 24 dp box but
+                                // never sizes what goes in it, so an `Icon` left
+                                // alone draws its own 24 dp default and every
+                                // item in the list runs one step heavy.
+                                modifier = Modifier.size(MenuDefaults.LeadingIconSize),
+                            )
+                        },
                         onClick = {
                             menuOpen = false
                             onShow()
                         },
                     )
+                    // Second, and above Duplicate: renaming is the one edit here
+                    // that is not destructive and not a copy, and it is the answer
+                    // to a name that a three-up card has to ellipsise.
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.create_rename)) },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Outlined.DriveFileRenameOutline,
+                                contentDescription = null,
+                                modifier = Modifier.size(MenuDefaults.LeadingIconSize),
+                            )
+                        },
+                        onClick = {
+                            menuOpen = false
+                            onRename()
+                        },
+                    )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.create_duplicate)) },
-                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Outlined.ContentCopy,
+                                contentDescription = null,
+                                modifier = Modifier.size(MenuDefaults.LeadingIconSize),
+                            )
+                        },
                         onClick = {
                             menuOpen = false
                             onDuplicate()
@@ -1061,7 +1491,13 @@ private fun DesignCard(
                     // the destructive one.
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.create_share)) },
-                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Outlined.Share,
+                                contentDescription = null,
+                                modifier = Modifier.size(MenuDefaults.LeadingIconSize),
+                            )
+                        },
                         onClick = {
                             menuOpen = false
                             onShare()
@@ -1069,7 +1505,19 @@ private fun DesignCard(
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.create_export)) },
-                        leadingIcon = { Icon(Icons.Default.SaveAlt, contentDescription = null) },
+                        // `Download`, not `SaveAlt`. Both are an arrow going
+                        // down, but `SaveAlt` is the legacy set's *alternative*
+                        // save glyph — the arrow drops into a three-sided tray,
+                        // which is the 2014 "save to device" pictogram. The
+                        // current one is a plain arrow onto a baseline, which is
+                        // what every Android surface that writes a file now shows.
+                        leadingIcon = {
+                            Icon(
+                                Icons.Outlined.Download,
+                                contentDescription = null,
+                                modifier = Modifier.size(MenuDefaults.LeadingIconSize),
+                            )
+                        },
                         onClick = {
                             menuOpen = false
                             onExport()
@@ -1077,7 +1525,13 @@ private fun DesignCard(
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.create_delete)) },
-                        leadingIcon = { Icon(Icons.Default.DeleteOutline, contentDescription = null) },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Outlined.DeleteOutline,
+                                contentDescription = null,
+                                modifier = Modifier.size(MenuDefaults.LeadingIconSize),
+                            )
+                        },
                         onClick = {
                             menuOpen = false
                             onDelete()
@@ -1086,21 +1540,222 @@ private fun DesignCard(
                 }
             }
         }
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 12.dp)
+                // One node, one sentence: the two visible lines are an
+                // abbreviation forced by the cell width, and a screen reader has
+                // no cell width. See this composable's KDoc.
+                .clearAndSetSemantics { contentDescription = text.spoken },
+        ) {
+            Text(
+                name,
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text.meta,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text.credit,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
-/** "Dynamic · 12 frames · by linuxct" — what the design IS. */
+// ---------- a card's words ----------
+
+/**
+ * Everything one card says: the two supporting lines it shows, and the sentence a
+ * screen reader hears instead of them.
+ *
+ * The three are one object because they are computed together — see
+ * [designCardText], where the timestamp two of them need is parsed once rather
+ * than twice — and because that makes the memo in [rememberDesignCardText] one
+ * `remember` rather than three.
+ */
+@Immutable
+internal class DesignCardText(
+    /** How much art is in the design, or that there is none. */
+    val meta: String,
+    /** Who made it, or when it last changed. */
+    val credit: String,
+    /** The name, the summary and the provenance, in full, for TalkBack. */
+    val spoken: String,
+)
+
+/**
+ * The handful of strings a card's text is assembled from, already resolved.
+ *
+ * ## Why the lookups are parameters rather than `stringResource` calls
+ *
+ * Every one of the four helpers below used to be `@Composable` purely so that it
+ * could call `stringResource`, which meant the whole block of text had to be
+ * rebuilt inside every composition of every card — and *this* text is expensive in
+ * a way text usually is not: two of the four reach [formatTimestamp], which is an
+ * `Instant.parse` and a localised `DateTimeFormatter`. Fifteen cards composing
+ * during a swipe onto the tab paid thirty of those.
+ *
+ * Taking the strings as data instead does three things at once. The assembly
+ * becomes a pure function, so it can go inside a `remember` and stop running on
+ * recomposition at all. It becomes reachable from a plain JVM test, which is what
+ * lets `DesignCardTextTest` assert that the memoised wording is the wording the
+ * card always had. And the resource *lookups* are hoisted to once per card rather
+ * than once per composition.
+ *
+ * The wording itself is untouched: every field below is the exact resource the
+ * corresponding `stringResource` call used, so there is still one spelling of each
+ * of these facts in the app.
+ */
+internal class DesignCardStrings(
+    val noArt: String,
+    val kindStatic: String,
+    val kindDynamic: String,
+    val frameCount: (Int) -> String,
+    val by: (String) -> String,
+    val variantEmpty: (String) -> String,
+    val deviceName: (PokemonCodename) -> String,
+)
+
+/** The app's own resources behind [DesignCardStrings], resolved once per card. */
 @Composable
-private fun designSummary(design: Design): String {
-    val kind = stringResource(
-        if (design.kind == DesignKind.DYNAMIC) R.string.create_kind_dynamic else R.string.create_kind_static,
+private fun rememberDesignCardStrings(): DesignCardStrings {
+    // The Resources instance is the key as well as the source: a configuration
+    // change hands out a new one, which is what re-resolves the wording. This is
+    // the very local `stringResource` reads, so the memo invalidates exactly when
+    // a `stringResource` call would have recomposed.
+    val resources = LocalResources.current
+    return remember(resources) {
+        DesignCardStrings(
+            noArt = resources.getString(R.string.create_no_art),
+            kindStatic = resources.getString(R.string.create_kind_static),
+            kindDynamic = resources.getString(R.string.create_kind_dynamic),
+            frameCount = { n -> resources.getQuantityString(R.plurals.create_frame_count, n, n) },
+            by = { author -> resources.getString(R.string.create_by, author) },
+            variantEmpty = { name -> resources.getString(R.string.create_variant_empty, name) },
+            deviceName = { codename -> resources.getString(codename.displayNameRes()) },
+        )
+    }
+}
+
+/**
+ * One card's [DesignCardText], built once and kept until the design changes.
+ *
+ * **Keyed on the id, the timestamp and the displayed name**, which is the key the
+ * card's artwork already uses one screen up (see the grid's `itemsIndexed`): a
+ * design that comes back from the editor, or from a rename, carries a new
+ * `modifiedAt`, and anything else that could change these words — the author, the
+ * kind, the frame counts — can only change through an edit that stamps it. The
+ * name is in the key as well because a blank one falls back to a localised string
+ * rather than to anything the design carries.
+ */
+@Composable
+private fun rememberDesignCardText(design: Design, name: String): DesignCardText {
+    val strings = rememberDesignCardStrings()
+    return remember(design.id, design.modifiedAt, name, strings) {
+        designCardText(design, name, strings)
+    }
+}
+
+/**
+ * All three of a card's strings, from a design and the resolved wording.
+ *
+ * Pure, and the one place the card's words are assembled. The **timestamp is
+ * formatted once** here and shared between the credit line and the provenance
+ * sentence; computed separately, as they were, a card with no author paid for two
+ * `Instant.parse` calls and two localised formats to print the same date twice.
+ */
+internal fun designCardText(design: Design, name: String, strings: DesignCardStrings): DesignCardText {
+    val frames = designFrameCount(design)
+    val date = formatTimestamp(design.modifiedAt)
+    return DesignCardText(
+        meta = designMeta(frames, strings),
+        credit = designCredit(design, date, strings),
+        // Everything the cell had to leave out, kept whole for anybody who is not
+        // reading it. Built from the very same helpers the row used, so there is
+        // no second spelling of a design's summary to drift.
+        spoken = name + META_SEPARATOR + designSummary(design, frames, strings) +
+            META_SEPARATOR + designProvenance(design, date, strings),
     )
-    // The frame count of the RICHEST variant, not of this device's: a design
-    // drawn on a Phone (3) and opened here should still say how much art is in
-    // it, rather than reporting the zero frames of a variant nobody has filled.
-    val frames = design.variants.values.maxOfOrNull { it.frames.size } ?: 0
-    val parts = mutableListOf(kind, pluralStringResource(R.plurals.create_frame_count, frames, frames))
-    if (design.author.isNotBlank()) parts += stringResource(R.string.create_by, design.author)
+}
+
+/**
+ * How much art is in a design: the frame count of the **richest** variant.
+ *
+ * A design drawn on a Phone (3) and opened here should still say how much art is
+ * in it, rather than reporting the zero frames of a variant nobody has filled.
+ * Zero everywhere is the case where the card is showing an empty disc.
+ */
+internal fun designFrameCount(design: Design): Int =
+    design.variants.values.maxOfOrNull { it.frames.size } ?: 0
+
+/**
+ * The one line of supporting text a three-up cell has room for: how much art is
+ * in this design, or that there is none.
+ *
+ * The frame count is the RICHEST variant's, exactly as [designSummary] reports it
+ * and for the same reason — see [designFrameCount]. Zero everywhere is the case
+ * where the card is showing an empty disc, and `create_no_art` is the sentence
+ * this app already uses for it.
+ */
+private fun designMeta(frames: Int, strings: DesignCardStrings): String =
+    if (frames == 0) strings.noArt else strings.frameCount(frames)
+
+/**
+ * The card's second supporting line: **who made it, or when it last changed**.
+ *
+ * ## Why there is a second line at all
+ *
+ * The first pass at this card carried the name and the frame count and nothing
+ * else, on the argument that a three-up cell has room for one line and the author
+ * was never what anybody scanned a grid for. The first person to use it disagreed:
+ * beside a wall of small discs, "Dynamic · 46 frames" is the same sentence on every
+ * card, and the thing that tells two of them apart — who sent you this one, or when
+ * you last touched it — had been dropped. A card with no distinguishing fact on it
+ * is not a calmer card, it is a less useful one.
+ *
+ * ## What it says
+ *
+ * - **The author, when the design has one** — `create_by`, the very string
+ *   [designSummary] ends with, so "by linuxct" is spelled one way in this app. It
+ *   is only ever set on an imported or duplicated design, which is exactly the case
+ *   where it is the most useful fact on the card: it is what distinguishes a design
+ *   somebody sent you from one you drew.
+ * - **The modified date otherwise** — [formatTimestamp], the same localised medium
+ *   date [designProvenance] ends with. The grid is sorted by it, so it is not new
+ *   information so much as a *scale*: "3 Jul" against "yesterday's date" says how
+ *   far down the list you have scrolled, which position alone cannot.
+ *
+ * One line, `maxLines = 1`, ellipsised, like the two above it — the card's height
+ * is fixed by construction ([designDiscSideInset]) and this must not be what
+ * unfixes it. And nothing here is new wording: both halves are helpers the row
+ * layout already used, so there is still exactly one spelling of each of these
+ * facts in the app.
+ *
+ * [date] is passed in rather than formatted here so that the one card that needs
+ * this date twice — in this line and in the spoken provenance — parses it once;
+ * see [designCardText].
+ */
+private fun designCredit(design: Design, date: String, strings: DesignCardStrings): String =
+    if (design.author.isNotBlank()) strings.by(design.author) else date
+
+/** "Dynamic · 12 frames · by linuxct" — what the design IS. */
+private fun designSummary(design: Design, frames: Int, strings: DesignCardStrings): String {
+    val kind = if (design.kind == DesignKind.DYNAMIC) strings.kindDynamic else strings.kindStatic
+    // The frame count is the RICHEST variant's, not this device's — see
+    // [designFrameCount].
+    val parts = mutableListOf(kind, strings.frameCount(frames))
+    if (design.author.isNotBlank()) parts += strings.by(design.author)
     return parts.joinToString(META_SEPARATOR)
 }
 
@@ -1119,19 +1774,14 @@ private fun designSummary(design: Design): String {
  * for that device" and "that device will show the placeholder", which is not
  * something the presence of a key alone can tell you.
  */
-@Composable
-private fun designProvenance(design: Design): String {
+private fun designProvenance(design: Design, date: String, strings: DesignCardStrings): String {
     val present = PokemonCodename.entries.mapNotNull { codename ->
         val variant = design.variantFor(codename) ?: return@mapNotNull null
-        val name = stringResource(codename.displayNameRes())
-        if (variant.frames.isEmpty()) {
-            stringResource(R.string.create_variant_empty, name)
-        } else {
-            name
-        }
+        val name = strings.deviceName(codename)
+        if (variant.frames.isEmpty()) strings.variantEmpty(name) else name
     }
-    val variants = if (present.isEmpty()) stringResource(R.string.create_no_art) else present.joinToString(META_SEPARATOR)
-    return variants + META_SEPARATOR + formatTimestamp(design.modifiedAt)
+    val variants = if (present.isEmpty()) strings.noArt else present.joinToString(META_SEPARATOR)
+    return variants + META_SEPARATOR + date
 }
 
 /** Punctuation, not prose — kept out of `strings.xml`, which strips edge spaces. */
@@ -1144,8 +1794,13 @@ private const val META_SEPARATOR = " · "
  * `DesignCodec` guarantees it will for anything that reached storage, but this
  * runs on data that came off a disk and a null-safe fallback is cheaper than
  * being wrong about that.
+ *
+ * **This is the expensive line on a design card**, and the reason [designCardText]
+ * exists: an `Instant.parse` plus a localised `DateTimeFormatter` is tens of
+ * microseconds, it used to run twice per card per composition, and a swipe onto
+ * the Create tab composes a whole screenful of cards at once.
  */
-private fun formatTimestamp(iso: String): String = try {
+internal fun formatTimestamp(iso: String): String = try {
     DATE_FORMAT.format(Instant.parse(iso).atZone(ZoneId.systemDefault()))
 } catch (e: Exception) {
     iso.take(10)
@@ -1218,7 +1873,7 @@ internal fun CreateEmptyState(onStart: () -> Unit, onImport: () -> Unit) {
                     Spacer(Modifier.height(4.dp))
                     Button(onClick = onImport, colors = filledButtonColors()) {
                         Icon(
-                            Icons.Default.FileOpen,
+                            Icons.Outlined.FileOpen,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
                         )
@@ -1263,7 +1918,7 @@ private fun ImportButton(onImport: () -> Unit) {
     Row(Modifier.padding(start = 16.dp, top = 2.dp, bottom = 6.dp)) {
         Button(onClick = onImport, colors = filledButtonColors()) {
             Icon(
-                Icons.Default.FileOpen,
+                Icons.Outlined.FileOpen,
                 // The label says "Import a design"; describing the icon as well
                 // would make a screen reader say it twice.
                 contentDescription = null,
@@ -1443,15 +2098,10 @@ internal fun NewDesignFields(
 ) {
     val targetOptions = remember { designTargetOptions() }
     Column(Modifier.verticalScroll(rememberScrollState())) {
-        OutlinedTextField(
-            value = name,
-            // Capped at the format's own limit rather than validated after the
-            // fact: a field that will not accept a 65th character explains
-            // itself; a dialog that refuses to close afterwards does not.
-            onValueChange = { onName(it.replace('\n', ' ').take(DesignCodec.MAX_NAME_LENGTH)) },
-            modifier = Modifier.fillMaxWidth().demoTarget(DemoTarget.DIALOG_NAME),
-            label = { Text(stringResource(R.string.create_name_label)) },
-            singleLine = true,
+        DesignNameField(
+            name = name,
+            onName = onName,
+            modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(16.dp))
         // Pick ONE of two — exactly what MD3 specifies segmented buttons for, and
@@ -1495,7 +2145,7 @@ internal fun NewDesignFields(
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Column(Modifier.demoTarget(DemoTarget.DIALOG_DEVICE)) {
+        Column {
             targetOptions.forEach { option ->
                 ChoiceRow(
                     label = targetLabel(option),
@@ -1523,6 +2173,99 @@ internal fun NewDesignFields(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
+
+/**
+ * The field a design is named in — **one field, used by both dialogs that name
+ * one**, and by the guided tour through [NewDesignFields].
+ *
+ * It exists because rename came second. Writing a second `OutlinedTextField` for
+ * it would have meant two places holding the same three rules (no newlines,
+ * `DesignCodec.MAX_NAME_LENGTH`, single line) and two places to forget one of them
+ * the next time the format's limit moves.
+ *
+ * The cap is applied *as the user types* rather than validated afterwards: a field
+ * that will not accept a 65th character explains itself; a dialog that refuses to
+ * close does not.
+ */
+@Composable
+private fun DesignNameField(name: String, onName: (String) -> Unit, modifier: Modifier = Modifier) {
+    OutlinedTextField(
+        value = name,
+        onValueChange = { onName(it.replace('\n', ' ').take(DesignCodec.MAX_NAME_LENGTH)) },
+        modifier = modifier,
+        label = { Text(stringResource(R.string.create_name_label)) },
+        singleLine = true,
+    )
+}
+
+/**
+ * Rename, and only rename.
+ *
+ * Modelled on [NewDesignDialog] and sharing its field ([DesignNameField]) rather
+ * than restating it, because the two are asking the same question — what is this
+ * design called — and the answer has to obey the same rules in both. The other two
+ * questions the new-design dialog asks are deliberately absent: static-vs-dynamic
+ * is irreversible and belongs to creation, and which panels a design is drawn for
+ * is answered by Design settings inside the editor.
+ *
+ * The confirm button is driven entirely by [renamedName], so the enabled state and
+ * the value that gets saved can never disagree — a blank field, a field holding
+ * only spaces, and a field still holding the name it started with are all the same
+ * thing here: nothing to save.
+ */
+@Composable
+private fun RenameDesignDialog(design: Design, onDismiss: () -> Unit, onRename: (String) -> Unit) {
+    // Keyed on the id so that the dialog reopening for a DIFFERENT design starts
+    // from that design's name rather than from the last one's.
+    var typed by remember(design.id) { mutableStateOf(design.name) }
+    val renamed = renamedName(design.name, typed)
+    AlertDialog(
+        modifier = Modifier.padding(vertical = DIALOG_VERTICAL_MARGIN),
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.create_rename_title)) },
+        text = {
+            DesignNameField(
+                name = typed,
+                onName = { typed = it },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(enabled = renamed != null, onClick = { renamed?.let(onRename) }) {
+                Text(stringResource(R.string.create_rename_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.create_cancel)) }
+        },
+    )
+}
+
+/**
+ * The name a rename would actually save, or **null when there is nothing to
+ * save**.
+ *
+ * One function for the whole of rename's validation, because "is this legal" and
+ * "what gets written" are the same question and answering them in two places is
+ * how a disabled button and a save path drift apart.
+ *
+ * The order of the three operations is load-bearing. Newlines go first (a paste
+ * can carry one even though the field is `singleLine`); the cap goes second, so
+ * the result is guaranteed to satisfy `DesignCodec.MAX_NAME_LENGTH` however long
+ * the paste was; the trim goes last, so a cap that lands mid-space cannot leave a
+ * trailing one — and so that a field holding nothing but spaces collapses to empty
+ * rather than to a design named "   ".
+ *
+ * Refusing an *unchanged* name is not pedantry: the save restamps `modifiedAt`,
+ * which reorders the grid, so a rename that changed nothing would still visibly
+ * move the design to the top.
+ */
+internal fun renamedName(current: String, typed: String): String? {
+    val cleaned = typed.replace('\n', ' ').take(DesignCodec.MAX_NAME_LENGTH).trim()
+    if (cleaned.isEmpty()) return null
+    if (cleaned == current) return null
+    return cleaned
 }
 
 /**

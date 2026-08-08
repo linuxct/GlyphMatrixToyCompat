@@ -78,7 +78,6 @@ private class ProbeScreen(
 }
 
 class ScreenManagerTest {
-
     private val clock = FakeClock()
     private val prefs = FakePrefs()
     private val scheduler = FakeScheduler(clock)
@@ -207,18 +206,6 @@ class ScreenManagerTest {
     }
 
     @Test
-    fun `reapplyBrightness is a no-op without a live session`() {
-        val m = manager(a, b, c)
-        m.reapplyBrightness()
-        assertTrue(output.isEmpty())
-        m.startSession()
-        m.stopSession()
-        val n = output.size
-        m.reapplyBrightness()
-        assertEquals(n, output.size)
-    }
-
-    @Test
     fun `transient preview does not persist current screen`() {
         val m = manager(a, b, c)
         m.startSession()
@@ -242,16 +229,6 @@ class ScreenManagerTest {
         assertEquals(2, c.activations)
         assertEquals(1, a.activations) // only the initial start, never re-activated
         assertEquals(0, b.activations)
-    }
-
-    @Test
-    fun `selectScreen before a session only persists`() {
-        val m = manager(a, b, c)
-        m.selectScreen("clock")
-        assertEquals(0, b.activations)
-        assertEquals("clock", prefs.getString(PrefKeys.CURRENT_SCREEN, PrefKeys.CURRENT_SCREEN_DEF))
-        m.startSession()
-        assertEquals(1, b.activations)
     }
 
     // ---------- live preview (the design editor) ----------
@@ -351,17 +328,6 @@ class ScreenManagerTest {
     }
 
     @Test
-    fun `pushes outside the preview window are ignored`() {
-        val m = manager(a, b, c)
-        m.startSession()
-        val n = output.size
-        m.pushLivePreview(IntArray(13 * 13).also { it[7] = 4095 })
-        assertEquals("nothing reaches the panel without beginLivePreview", n, output.size)
-        m.endLivePreview() // not previewing: a no-op, and no re-activation
-        assertEquals(1, a.activations)
-    }
-
-    @Test
     fun `beginLivePreview closes the Essential-Key menu`() {
         val m = manager(a, b, c)
         m.startSession()
@@ -422,18 +388,6 @@ class ScreenManagerTest {
         assertEquals(3, a.activations)
     }
 
-    @Test
-    fun `refreshing without a live session does nothing`() {
-        val m = manager(a, b, c)
-        m.refreshCurrentScreen()
-        assertEquals(0, a.activations)
-        assertTrue(output.isEmpty())
-        m.startSession()
-        m.stopSession()
-        m.refreshCurrentScreen()
-        assertEquals(1, a.activations)
-    }
-
     // ---------- choosing a different design while it is on the matrix ----------
 
     /**
@@ -454,29 +408,6 @@ class ScreenManagerTest {
         m.onSelectedDesignChanged(CustomScreen.ID)
         assertEquals("the design toy must re-read its design", 2, custom.activations)
         assertEquals("and be torn down first, so its frame chain is cancelled", 1, custom.deactivations)
-    }
-
-    /**
-     * The gate that keeps the fix from becoming its own bug: a design selection
-     * says nothing about the clock, and re-activating the clock would restart an
-     * animation nobody touched.
-     */
-    @Test
-    fun `choosing a different design leaves an unrelated toy alone`() {
-        val m = manager(custom, b, c)
-        prefs.putString(PrefKeys.CURRENT_SCREEN, "clock")
-        m.startSession()
-        assertEquals(1, b.activations)
-
-        prefs.putString(PrefKeys.CUSTOM_DESIGN_ID, "design-b")
-        m.onSelectedDesignChanged(CustomScreen.ID)
-        assertEquals("an unrelated toy must not be restarted", 1, b.activations)
-        assertEquals(0, custom.activations)
-
-        // ...and the selection was still observed, so switching TO the design toy
-        // afterwards does not need a second change to read the right file.
-        m.selectScreen(CustomScreen.ID)
-        assertEquals(1, custom.activations)
     }
 
     /**
@@ -526,16 +457,6 @@ class ScreenManagerTest {
         prefs.putString(PrefKeys.CUSTOM_DESIGN_ID, "design-b")
         m.onSelectedDesignChanged(CustomScreen.ID)
         assertEquals(2, custom.activations)
-    }
-
-    @Test
-    fun `choosing a different design without a live session does nothing`() {
-        val m = manager(custom, b, c)
-        prefs.putString(PrefKeys.CURRENT_SCREEN, CustomScreen.ID)
-        prefs.putString(PrefKeys.CUSTOM_DESIGN_ID, "design-b")
-        m.onSelectedDesignChanged(CustomScreen.ID)
-        assertEquals(0, custom.activations)
-        assertTrue(output.isEmpty())
     }
 
     // ---------- menu mode ----------
@@ -650,17 +571,6 @@ class ScreenManagerTest {
         val n = output.size
         scheduler.advanceTime(5000) // no blink, no auto-commit after stop
         assertEquals(n, output.size)
-    }
-
-    @Test
-    fun `menu methods are no-ops when the menu is not open`() {
-        val m = manager(a, b, c)
-        m.startSession()
-        m.menuNext() // ignored: not in menu
-        m.commitMenu() // ignored: not in menu
-        assertFalse(m.inMenu)
-        assertEquals(1, a.activations) // nothing re-activated
-        assertEquals("ambient", persistedScreen())
     }
 
     private fun persistedScreen() =

@@ -22,6 +22,10 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The assistant's turn keeps the process alive while it runs; see
+         ai/GlyphAiTurnService for why the type is dataSync and not shortService. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <queries>
         <package android:name="com.nothing.ntessentialspace" />
@@ -142,6 +146,15 @@
                 android:value="androidx.startup"
                 tools:node="remove" />
         </provider>
+
+        <!-- Deliberately NOT directBootAware: it is started from a running turn,
+             a turn is started from the chat, and the chat only ever exists inside
+             an Activity — so nothing here can be reached before the first unlock,
+             which is the rule ai/ChatStore's credential-protected storage needs. -->
+        <service
+            android:name=".ai.GlyphAiTurnService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <service
             android:name=".key.KeyCaptureTileService"

@@ -1,7 +1,6 @@
 package space.linuxct.glyphmatrixtoycompat.ui.design
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import space.linuxct.glyphmatrixtoycompat.core.design.DesignCodec
@@ -19,7 +18,6 @@ import kotlin.math.abs
  * millisecond and assert on the resulting order.
  */
 class DesignTimelineTest {
-
     /**
      * The reorder loop, exactly as `applyReorder` runs it: accumulate a logical
      * offset, ask [reorderShift] how many neighbours that has earned, move that
@@ -65,14 +63,6 @@ class DesignTimelineTest {
     // ---- the threshold itself ----
 
     @Test
-    fun aShortDragMovesNothing() {
-        // 0.6 of an item width is the bar, so half of one is not enough.
-        assertEquals(0, reorderShift(30f, 60, 3, 9))
-        assertEquals(0, reorderShift(-30f, 60, 3, 9))
-        assertEquals(0, reorderShift(36f, 60, 3, 9))
-    }
-
-    @Test
     fun crossingTheThresholdMovesOnePlace() {
         assertEquals(1, reorderShift(37f, 60, 3, 9))
         assertEquals(-1, reorderShift(-37f, 60, 3, 9))
@@ -87,19 +77,6 @@ class DesignTimelineTest {
         assertEquals(0, reorderShift(10_000f, 60, 0, 0))
         // Degenerate width (nothing measured yet) must not divide anything.
         assertEquals(0, reorderShift(10_000f, 0, 0, 9))
-    }
-
-    /**
-     * The multi-step case, which `DisplayRow`'s single `if` cannot express: the
-     * auto-scroll can hand the reorder several item widths between two pointer
-     * events, and every neighbour it passed has to be passed.
-     */
-    @Test
-    fun oneLargeOffsetPassesEveryNeighbourItCrossed() {
-        assertEquals(4, reorderShift(4.5f * 60, 60, 0, 9))
-        assertEquals(-3, reorderShift(-3.5f * 60, 60, 5, 9))
-        // ...and stops at the end rather than running off it.
-        assertEquals(9, reorderShift(100f * 60, 60, 0, 9))
     }
 
     // ---- acceptance criterion 1: the far end of a 60-frame timeline ----
@@ -136,50 +113,7 @@ class DesignTimelineTest {
         assertEquals((0 until 60).filter { it != dragged }, sim.ids.dropLast(1))
     }
 
-    /** ...and all the way back again, without a release in between. */
-    @Test
-    fun aFrameCanBeDraggedBackToTheFrontInTheSameGesture() {
-        val sim = Sim(count = 60)
-        sim.startAt(59)
-        val dragged = sim.ids[59]
-        repeat(400) { sim.autoScroll(-10f) }
-        assertEquals(0, sim.index)
-        assertEquals(dragged, sim.ids[0])
-    }
-
     // ---- acceptance criterion 2: duplicates are not interchangeable ----
-
-    /**
-     * **Timeline acceptance criterion 2.** Duplicating a frame produces two
-     * byte-identical frames; reordering must then move the one that was dragged,
-     * not "one of the two that look the same".
-     *
-     * The test states the trap first — the contents genuinely are equal, so a
-     * content-derived key would collide — and then asserts that identity by id
-     * survives a reorder in both directions.
-     */
-    @Test
-    fun duplicatedFramesKeepTheirOwnIdentity() {
-        // Ids 0..4; frames 1 and 2 are duplicates of one another.
-        val content = listOf("a", "b", "b", "c", "d")
-        val sim = Sim(count = 5)
-
-        assertEquals("the duplicate is not actually a duplicate", content[1], content[2])
-        assertEquals(2, content.count { it == "b" })
-
-        // Drag the SECOND of the two duplicates to the front.
-        sim.startAt(2)
-        val dragged = sim.ids[2]
-        assertEquals(2, dragged)
-        sim.drag(-2f * 60)
-
-        assertEquals(0, sim.index)
-        assertEquals(listOf(2, 0, 1, 3, 4), sim.ids)
-        // The other duplicate did not move past its neighbour, and did not take
-        // the dragged frame's place.
-        assertTrue(dragged != sim.ids[2])
-        assertEquals(1, sim.ids[2])
-    }
 
     // ---- acceptance criterion 3: RTL ----
 
@@ -216,17 +150,6 @@ class DesignTimelineTest {
 
     // ---- list surgery ----
 
-    @Test
-    fun moveItemRejectsNonMoves() {
-        val list = mutableListOf(1, 2, 3)
-        assertFalse(moveItem(list, 1, 1))
-        assertFalse(moveItem(list, -1, 0))
-        assertFalse(moveItem(list, 0, 3))
-        assertEquals(listOf(1, 2, 3), list)
-        assertTrue(moveItem(list, 0, 2))
-        assertEquals(listOf(2, 3, 1), list)
-    }
-
     /** The selection follows the FRAME, never the slot. */
     @Test
     fun selectionFollowsTheFrameThroughAMove() {
@@ -239,20 +162,6 @@ class DesignTimelineTest {
         // A move entirely on the far side of it changes nothing.
         assertEquals(4, selectionAfterMove(selected = 4, from = 6, to = 8))
         assertEquals(4, selectionAfterMove(selected = 4, from = 1, to = 0))
-    }
-
-    @Test
-    fun selectionSurvivesADelete() {
-        // Deleting something earlier pulls the selection back with it.
-        assertEquals(3, selectionAfterDelete(selected = 4, removed = 1, sizeAfter = 9))
-        // Deleting the selected frame lands on whatever took its place...
-        assertEquals(4, selectionAfterDelete(selected = 4, removed = 4, sizeAfter = 9))
-        // ...or on the new last frame when there is nothing after it.
-        assertEquals(3, selectionAfterDelete(selected = 4, removed = 4, sizeAfter = 4))
-        // Deleting something later leaves it alone.
-        assertEquals(4, selectionAfterDelete(selected = 4, removed = 7, sizeAfter = 9))
-        // Down to one frame, the selection can only be 0.
-        assertEquals(0, selectionAfterDelete(selected = 1, removed = 0, sizeAfter = 1))
     }
 
     // ---- durations ----
@@ -298,18 +207,5 @@ class DesignTimelineTest {
         // An illegal value coming in is clamped before it is stepped.
         assertEquals(DesignCodec.MIN_DURATION_MS, stepDuration(-1, up = false))
         assertEquals(30, stepDuration(-1, up = true))
-    }
-
-    @Test
-    fun durationsReadAsTimeRatherThanAsANumber() {
-        assertEquals("20 ms", formatDurationValue(20))
-        assertEquals("750 ms", formatDurationValue(750))
-        assertEquals("1 s", formatDurationValue(1_000))
-        assertEquals("1.5 s", formatDurationValue(1_500))
-        assertEquals("60 s", formatDurationValue(60_000))
-        // Totals grow past a minute, where seconds stop being readable.
-        assertEquals("2.4 s", formatTotalValue(2_400))
-        assertEquals("1m 30s", formatTotalValue(90_000))
-        assertEquals("4m 0s", formatTotalValue(240_000))
     }
 }

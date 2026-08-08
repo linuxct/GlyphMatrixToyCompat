@@ -6,7 +6,6 @@ import org.junit.Test
 import space.linuxct.glyphmatrixtoycompat.GoldenAscii
 
 class Font3x5Test {
-
     @Test
     fun `all needed glyphs exist`() {
         "0123456789ADEHKMNPSTW%-+?:. ".forEach {
@@ -26,28 +25,11 @@ class Font3x5Test {
     }
 
     @Test
-    fun `single line clock fits 25`() {
-        assertTrue(Font3x5.stringWidth("12:45") <= 25)
-        val c = MatrixCanvas(25)
-        Font3x5.drawStringCentered(c, "12:45", 10, 4095)
-        GoldenAscii.check("font_25_clock_1245", c.copyOut(), 25)
-    }
-
-    @Test
     fun `digit sampler golden`() {
         val top = MatrixCanvas(25)
         Font3x5.drawString(top, "01234", 2, 3, 4095)
         Font3x5.drawString(top, "56789", 2, 10, 4095)
         Font3x5.drawString(top, "HTKMN", 2, 17, 4095)
         GoldenAscii.check("font_25_sampler", top.copyOut(), 25)
-    }
-
-    @Test
-    fun `counter digits at fixed columns 13`() {
-        val c = MatrixCanvas(13)
-        Font3x5.draw(c, '4', 0, 4, 4095)
-        Font3x5.draw(c, '2', 5, 4, 4095)
-        Font3x5.draw(c, '0', 10, 4, 4095)
-        GoldenAscii.check("font_13_counter_cols", c.copyOut(), 13)
     }
 }

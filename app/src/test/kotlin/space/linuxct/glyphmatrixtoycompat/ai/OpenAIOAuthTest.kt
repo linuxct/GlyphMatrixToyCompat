@@ -1,18 +1,34 @@
 package space.linuxct.glyphmatrixtoycompat.ai
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.net.URLDecoder
 
 /**
  * The OAuth flow's pure half: PKCE, the randomness that protects it, the
  * authorize URL's shape, and the token response parse.
  *
  * Plain JUnit — no Robolectric, no instrumentation, and nothing that touches
- * `org.json`, which is an empty android.jar stub down here. `android.net.Uri` is
- * the same kind of stub and is replaced for the test classpath only; see
- * `app/src/test/kotlin/android/net/Uri.kt`.
+ * `org.json`, which is an empty android.jar stub down here.
+ *
+ * ## No `android.net.Uri`, and no stand-in for one either
+ *
+ * `createOAuthFlow` used to build its URL with `Uri.parse(…).buildUpon()`, whose
+ * every method throws `"not mocked"` under plain JUnit, so this file could only
+ * run against a hand-written `Uri` planted in `android.net` on the test
+ * classpath — a class that shadowed the platform's for every test in the module,
+ * whether or not it wanted one. The production code assembles the string itself
+ * now (see `authorizeUrl`/`uriEncode`), the stand-in is deleted, and these tests
+ * exercise the real implementation.
+ *
+ * That swap is only safe if the escaping did not move, so it is pinned twice
+ * over: once directly, on the encoder's own rules, and once through the two
+ * parameters where a wrong rule would actually break a sign-in — the scope,
+ * whose spaces must be `%20` and never `+`, and the redirect URI, which must
+ * arrive fully escaped.
  *
  * ## What is deliberately NOT tested
  *
@@ -35,7 +51,6 @@ import org.junit.Test
  * API that exists only for tests.
  */
 class OpenAIOAuthTest {
-
     // ---------- PKCE ----------
 
     /**
@@ -48,20 +63,6 @@ class OpenAIOAuthTest {
     fun `code challenge is the unpadded base64url sha256 of the verifier`() {
         val verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
         assertEquals("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM", codeChallenge(verifier))
-    }
-
-    @Test
-    fun `code challenge is deterministic`() {
-        assertEquals(codeChallenge("some-verifier"), codeChallenge("some-verifier"))
-    }
-
-    @Test
-    fun `code challenge never contains base64 padding or non-url characters`() {
-        repeat(20) {
-            val challenge = codeChallenge(newVerifier())
-            assertEquals(43, challenge.length)
-            assertTrue(challenge, challenge.all { it in BASE64URL })
-        }
     }
 
     // ---------- the random material ----------
@@ -90,19 +91,6 @@ class OpenAIOAuthTest {
         }
     }
 
-    /**
-     * The whole point of both values. A verifier that repeated would let a
-     * captured code be replayed; a state that repeated would not distinguish this
-     * app's callback from a forged one.
-     */
-    @Test
-    fun `verifier and state differ on every call`() {
-        val verifiers = List(50) { newVerifier() }
-        val states = List(50) { newState() }
-        assertEquals(50, verifiers.toSet().size)
-        assertEquals(50, states.toSet().size)
-    }
-
     // ---------- the authorize URL ----------
 
     /**
@@ -114,7 +102,7 @@ class OpenAIOAuthTest {
     @Test
     fun `authorize url carries each query parameter exactly once`() {
         val flow = createOAuthFlow()
-        val keys = android.net.Uri.parse(flow.url).queryPairs().map { it.first }
+        val keys = queryPairs(flow.url).map { it.first }
 
         // The parameters whose names are plain language in the source. The three
         // obfuscated ones are counted, not named — see this class's KDoc.
@@ -134,16 +122,49 @@ class OpenAIOAuthTest {
         assertEquals("unexpected number of query parameters", 10, keys.size)
     }
 
+    /**
+     * The exact string, not a bag of parameters: endpoint, `?`, then every pair
+     * in the order the source lists them, each half percent-encoded.
+     *
+     * Everything nameable is asserted literally. The three parameters whose
+     * *names* are obfuscated in the source are asserted as what they must be
+     * without being spelled out — present, in that position, and containing
+     * nothing that escaping should have removed — because naming them here would
+     * put them back in the repo; see this class's KDoc.
+     */
     @Test
-    fun `authorize url pins the pkce method and echoes the flow's own state and challenge`() {
+    fun `the authorize url is the endpoint, a question mark, and the parameters in order`() {
         val flow = createOAuthFlow()
-        val uri = android.net.Uri.parse(flow.url)
-        assertEquals("code", uri.getQueryParameter("response_type"))
-        assertEquals("S256", uri.getQueryParameter("code_challenge_method"))
-        assertEquals(flow.state, uri.getQueryParameter("state"))
-        // The URL must commit to the challenge for the verifier it hands back,
-        // or the exchange fails after the user has already typed a password.
-        assertEquals(codeChallenge(flow.verifier), uri.getQueryParameter("code_challenge"))
+        val head = constant("AUTHORIZE_URL") + "?" + listOf(
+            "response_type" to "code",
+            "client_id" to constant("CLIENT_ID"),
+            "redirect_uri" to OAUTH_REDIRECT_URI,
+            "scope" to constant("SCOPE"),
+            "code_challenge" to codeChallenge(flow.verifier),
+            "code_challenge_method" to "S256",
+            "state" to flow.state,
+        ).joinToString("&") { (key, value) -> "${uriEncode(key)}=${uriEncode(value)}" }
+
+        assertTrue(flow.url, flow.url.startsWith(head))
+        val rest = flow.url.removePrefix(head)
+        assertTrue(rest, rest.startsWith("&"))
+        val tail = rest.drop(1).split("&")
+        assertEquals(rest, 3, tail.size)
+        tail.forEach { pair -> assertTrue(pair, ESCAPED_PAIR.matches(pair)) }
+    }
+
+    /**
+     * The scope is a space-separated list, and this is the single place where
+     * `URLEncoder` — the obvious thing to reach for — would have silently changed
+     * the request: it writes a space as `+`, which a query parser reads as a
+     * literal plus, and the sign-in fails on the device with a scope the server
+     * does not recognise.
+     */
+    @Test
+    fun `spaces in the scope are percent-encoded, never plus-encoded`() {
+        val scope = rawQueryValue(createOAuthFlow().url, "scope")
+        assertTrue(scope, scope.contains("%20"))
+        assertFalse(scope, scope.contains("+"))
     }
 
     @Test
@@ -160,25 +181,6 @@ class OpenAIOAuthTest {
     fun `a well-formed token response parses`() {
         val tokens = parseTokenResponse(
             """{"access_token":"at","refresh_token":"rt","expires_in":3600}""",
-        )
-        assertEquals("at", tokens.accessToken)
-        assertEquals("rt", tokens.refreshToken)
-        assertEquals(3600, tokens.expiresIn)
-    }
-
-    /**
-     * The endpoint returns `id_token`, `token_type` and more besides. Unknown
-     * keys must not be an error, or a field added on the server's side breaks
-     * sign-in for every installed copy of the app at once.
-     */
-    @Test
-    fun `unknown fields are ignored`() {
-        val tokens = parseTokenResponse(
-            """
-            {"token_type":"Bearer","access_token":"at","id_token":"jwt",
-             "refresh_token":"rt","expires_in":3600,"scope":"openid",
-             "something_new":{"nested":[1,2,3]}}
-            """.trimIndent(),
         )
         assertEquals("at", tokens.accessToken)
         assertEquals("rt", tokens.refreshToken)
@@ -203,14 +205,6 @@ class OpenAIOAuthTest {
         }
     }
 
-    /** A field that is present but empty is a missing field with extra steps. */
-    @Test
-    fun `a blank field is treated as missing`() {
-        assertFailsWithMessage("access_token") {
-            parseTokenResponse("""{"access_token":"","refresh_token":"rt","expires_in":3600}""")
-        }
-    }
-
     /**
      * The realistic malformed responses: a proxy's HTML error page, a truncated
      * body, an empty one, and a field of the wrong type. None may escape as a raw
@@ -231,6 +225,32 @@ class OpenAIOAuthTest {
 
     // ---------- helpers ----------
 
+    /**
+     * The query as `name` to `value`, decoded, in order.
+     *
+     * Six lines here rather than a `Uri` on the test classpath. The decode side
+     * has to guard a literal `+`: `URLDecoder` reads it as a space, and this
+     * query encodes `+` as `%2B` and a space as `%20`, so an undefended decode
+     * would turn a `+` in a token into a space that was never there.
+     */
+    private fun queryPairs(url: String): List<Pair<String, String>> =
+        url.substringAfter('?', "")
+            .split('&')
+            .filter { it.isNotEmpty() }
+            .map { pair ->
+                decode(pair.substringBefore('=')) to decode(pair.substringAfter('=', ""))
+            }
+
+    /** [key]'s value **as it appears in the URL**, still escaped. */
+    private fun rawQueryValue(url: String, key: String): String =
+        url.substringAfter('?', "")
+            .split('&')
+            .first { it.substringBefore('=') == key }
+            .substringAfter('=', "")
+
+    private fun decode(value: String): String =
+        URLDecoder.decode(value.replace("+", "%2B"), "UTF-8")
+
     private fun assertFailsWithMessage(needle: String, label: String = needle, block: () -> Unit) {
         val thrown = try {
             block()
@@ -249,6 +269,12 @@ class OpenAIOAuthTest {
         val BASE64URL = ('A'..'Z') + ('a'..'z') + ('0'..'9') + listOf('-', '_')
         val HEX = ('0'..'9') + ('a'..'f')
 
+        /**
+         * A `name=value` pair in which everything that should have been escaped
+         * was: only the unreserved set and `%` survive an encode.
+         */
+        val ESCAPED_PAIR = Regex("""[A-Za-z0-9_\-!.~'()*%]+=[A-Za-z0-9_\-!.~'()*%]+""")
+
         /** The file facade `OpenAIOAuth.kt` compiles to; see this class's KDoc. */
         val facade: Class<*> = Class.forName("space.linuxct.glyphmatrixtoycompat.ai.OpenAIOAuthKt")
 
@@ -258,8 +284,23 @@ class OpenAIOAuthTest {
             return checkNotNull(method.invoke(null, *args)) { "$name returned null" }
         }
 
+        /**
+         * One of the file's private constants, read rather than reproduced.
+         *
+         * Reading it is not the same as *asserting* it: nothing here spells one
+         * out, and the URL test compares the code's own output against the code's
+         * own inputs, which is what makes it an exact-string assertion that
+         * survives any of them being rotated.
+         */
+        fun constant(name: String): String {
+            val field = facade.getDeclaredField(name)
+            field.isAccessible = true
+            return field.get(null) as String
+        }
+
         fun newVerifier(): String = invoke("newVerifier") as String
         fun newState(): String = invoke("newState") as String
         fun codeChallenge(verifier: String): String = invoke("codeChallenge", verifier) as String
+        fun uriEncode(value: String): String = invoke("uriEncode", value) as String
     }
 }

@@ -30,6 +30,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -46,6 +47,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -61,27 +63,35 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.HelpOutline
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.BrightnessAuto
-import androidx.compose.material.icons.filled.BrightnessMedium
-import androidx.compose.material.icons.filled.Brush
-import androidx.compose.material.icons.filled.Casino
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.BrightnessAuto
+import androidx.compose.material.icons.outlined.BrightnessMedium
+import androidx.compose.material.icons.outlined.Brush
+import androidx.compose.material.icons.outlined.Casino
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.DragIndicator
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Psychology
+import androidx.compose.material.icons.outlined.Route
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Slideshow
+import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledIconToggleButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
@@ -99,6 +109,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -106,7 +117,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -128,6 +138,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -136,9 +147,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
@@ -149,14 +163,19 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import space.linuxct.glyphmatrixtoycompat.Core
 import space.linuxct.glyphmatrixtoycompat.R
 import space.linuxct.glyphmatrixtoycompat.core.DebugLog
 import space.linuxct.glyphmatrixtoycompat.core.PrefKeys
+import space.linuxct.glyphmatrixtoycompat.core.aiMaxRounds
+import space.linuxct.glyphmatrixtoycompat.core.aiReasoningEffort
 import space.linuxct.glyphmatrixtoycompat.core.SessionArbiter
 import space.linuxct.glyphmatrixtoycompat.core.ai.ChatWire
+import space.linuxct.glyphmatrixtoycompat.core.ai.ReasoningEffort
 import space.linuxct.glyphmatrixtoycompat.core.design.DesignCodec
 import space.linuxct.glyphmatrixtoycompat.ui.design.DemoTarget
 import space.linuxct.glyphmatrixtoycompat.ui.design.DesignDemoActivity
@@ -392,10 +411,10 @@ private class NavOverlayPadding(
  * needs to know where a page sits, it asks this enum.
  */
 private enum class Tab(val icon: ImageVector, val caption: Int, val title: Int) {
-    TOYS(Icons.Default.Casino, R.string.nav_toys, R.string.screens_title),
-    CREATE(Icons.Default.Brush, R.string.nav_create, R.string.create_title),
-    SETTINGS(Icons.Default.Settings, R.string.nav_settings, R.string.settings),
-    TUTORIAL(Icons.Default.School, R.string.tut_section, R.string.tut_section),
+    TOYS(Icons.Outlined.Casino, R.string.nav_toys, R.string.screens_title),
+    CREATE(Icons.Outlined.Brush, R.string.nav_create, R.string.create_title),
+    SETTINGS(Icons.Outlined.Settings, R.string.nav_settings, R.string.settings),
+    TUTORIAL(Icons.Outlined.School, R.string.tut_section, R.string.tut_section),
 }
 
 /**
@@ -462,6 +481,32 @@ private fun MainScreen(startTab: Int = 0) {
     // tab body renders the dialog.
     val createState = remember { CreateState() }
 
+    // The Initial setup checklist, probed HERE rather than inside [SettingsTab],
+    // because two things now read it and only one of them is on that page: the
+    // checklist rows, and the attention badge on the Settings chip of the
+    // [FloatingNavBar] — which is a SIBLING of the pager and is drawn whichever
+    // tab is showing. Hoisting the probe is what makes those two the same answer
+    // rather than two implementations of the same question; see [SetupStatus].
+    //
+    // It costs nothing to move: the six checks are synchronous permission/service
+    // reads, they already ran on this schedule (the page is inside the pager's
+    // live window from either neighbour, so it was re-probing while off screen
+    // too), and now they run exactly once per resume for the whole screen instead
+    // of once per resume of one page.
+    val setupContext = LocalContext.current
+    var setupTick by remember { mutableIntStateOf(0) }
+    val setup = remember(setupTick, setupContext) { probeSetup(setupContext) }
+    // The refresh mechanism the checklist has always used, moved up with the
+    // probe: re-ask on every resume, which is what makes granting a permission or
+    // enabling the accessibility service — both of which happen in another
+    // activity — clear the badge and the row's question mark together, with no
+    // restart. The in-app permission dialog does not pass through onResume in
+    // every case, so [SettingsTab]'s launcher bumps the same counter directly.
+    LifecycleResumeEffect(Unit) {
+        setupTick++
+        onPauseOrDispose { }
+    }
+
     // The header's settle after a partial scroll. Spelled out rather than left
     // to the parameter default (which now resolves to the very same expressive
     // effects spring through the theme) so the choice is on the record:
@@ -482,37 +527,102 @@ private fun MainScreen(startTab: Int = 0) {
     // pager settles on a page whose content is already at the top, expand the
     // header back. Deliberately keyed on settledPage, not currentPage: doing
     // this mid-drag would fight the finger.
-    LaunchedEffect(pagerState, scrollBehavior) {
+    // Which page's scroller is which, in one place, because the rule below needs
+    // to ask each of them two questions and asking them in two `when`s is how the
+    // Create tab's grid got read from the wrong state once already.
+    fun atTopOf(tab: Tab): Boolean = when (tab) {
+        Tab.TOYS ->
+            toysListState.firstVisibleItemIndex == 0 &&
+                toysListState.firstVisibleItemScrollOffset == 0
+        // The Create tab is a LazyVerticalGrid, so its scroller is the grid
+        // state that lives on [CreateState] and NOT the `createListState`
+        // hoisted above with the other tabs' scrollers — that one is still
+        // passed to [CreateTab], and unused. Reading it here would see a
+        // permanent zero and re-expand the header every time the pager settled
+        // on a scrolled Create tab.
+        Tab.CREATE ->
+            createState.gridState.firstVisibleItemIndex == 0 &&
+                createState.gridState.firstVisibleItemScrollOffset == 0
+        Tab.SETTINGS -> settingsScrollState.value == 0
+        Tab.TUTORIAL -> tutorialScrollState.value == 0
+    }
+
+    /** Is the user's finger currently moving this page's content? */
+    fun busy(tab: Tab): Boolean = when (tab) {
+        Tab.TOYS -> toysListState.isScrollInProgress
+        Tab.CREATE -> createState.gridState.isScrollInProgress
+        Tab.SETTINGS -> settingsScrollState.isScrollInProgress
+        Tab.TUTORIAL -> tutorialScrollState.isScrollInProgress
+    }
+
+    // Arriving on Create is what arms its one-off tutorial offer — see
+    // [CreateState.visited] for why the tab cannot work this out for itself, and
+    // [CreateTourOffer] for what is done with it.
+    //
+    // On **settledPage**, unlike the header rule below, and the difference is the
+    // point: the header cares which page you are heading for, this cares which
+    // page you actually reached. Armed at the halfway mark, a swipe begun towards
+    // Create and pulled back would offer a tour of a tab the user never landed on.
+    LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
-            val atTop = when (Tab.entries[page]) {
-                Tab.TOYS ->
-                    toysListState.firstVisibleItemIndex == 0 &&
-                        toysListState.firstVisibleItemScrollOffset == 0
-                Tab.CREATE ->
-                    createListState.firstVisibleItemIndex == 0 &&
-                        createListState.firstVisibleItemScrollOffset == 0
-                Tab.SETTINGS -> settingsScrollState.value == 0
-                Tab.TUTORIAL -> tutorialScrollState.value == 0
-            }
-            // Arriving on Create is what arms its one-off tutorial offer — see
-            // [CreateState.visited] for why the tab cannot work this out for
-            // itself, and [CreateTourOffer] for what is done with it. Set from
-            // the SAME settled-page collector as the header rule above rather
-            // than from a second one: both questions are "which page did the
-            // pager stop on", and one flow answering both keeps that a single
-            // snapshot read.
             if (Tab.entries[page] == Tab.CREATE) createState.visited = true
-            if (atTop && scrollBehavior.state.heightOffset != 0f) {
-                animate(
-                    initialValue = scrollBehavior.state.heightOffset,
-                    targetValue = 0f,
-                    animationSpec = headerSpec,
-                ) { value, _ -> scrollBehavior.state.heightOffset = value }
-                // Same reset material3 does itself once a fling reaches the top:
-                // contentOffset only feeds overlappedFraction, and leaving a
-                // stale one behind makes the header think content is still
-                // tucked under it.
-                scrollBehavior.state.contentOffset = 0f
+        }
+    }
+
+    // **The header re-expands as the page arrives, not after it, and any touch
+    // wins.**
+    //
+    // Two costs used to run in series: the pager's slide, and then this
+    // animation. Switching tabs therefore meant waiting out both before the new
+    // page would scroll — and because `animate` cannot be stopped from outside,
+    // a finger put down during it was ignored rather than obeyed. The nested
+    // scroll connection and this animation both write `heightOffset`, so while
+    // this was running it simply overwrote whatever the drag asked for.
+    //
+    // **Keyed on currentPage**, which crosses at the halfway mark, so the header
+    // finishes with the slide instead of starting when the slide ends. The
+    // earlier note here said settledPage was deliberate because "doing this
+    // mid-drag would fight the finger" — that was the right worry and the wrong
+    // trade. Nothing here fights a horizontal drag (this moves the header, the
+    // finger moves the pages), and the serial wait it bought is the thing the
+    // user actually felt. `collectLatest` abandons an in-flight expansion if the
+    // page changes again, so a swipe pulled back leaves the header part-expanded
+    // — a legal state the next scroll resolves, and a cheaper one than the wait.
+    //
+    // **Interruptible**, which is the half that matters most: the moment the
+    // arrived page's own scroller starts moving, the expansion is cancelled and
+    // the nested scroll owns the header again. Already scrolling when the page
+    // lands? Then `first { it }` fires at once and the expansion never starts.
+    // `contentOffset` is only cleared on a completed expansion — an interrupted
+    // one has not reached the top, so claiming it had would leave the header
+    // thinking no content is tucked under it.
+    LaunchedEffect(pagerState, scrollBehavior) {
+        snapshotFlow { pagerState.currentPage }.collectLatest { page ->
+            val tab = Tab.entries[page]
+            if (!atTopOf(tab)) return@collectLatest
+            val from = scrollBehavior.state.heightOffset
+            if (from == 0f) return@collectLatest
+            coroutineScope {
+                val expand = launch {
+                    animate(
+                        initialValue = from,
+                        targetValue = 0f,
+                        animationSpec = headerSpec,
+                    ) { value, _ -> scrollBehavior.state.heightOffset = value }
+                    // Same reset material3 does itself once a fling reaches the
+                    // top: contentOffset only feeds overlappedFraction, and
+                    // leaving a stale one behind makes the header think content
+                    // is still tucked under it.
+                    scrollBehavior.state.contentOffset = 0f
+                }
+                // Cancels the child, not this scope, so the collector survives to
+                // handle the next page.
+                val yieldToUser = launch {
+                    snapshotFlow { busy(tab) }.first { it }
+                    expand.cancel()
+                }
+                expand.join()
+                yieldToUser.cancel()
             }
         }
     }
@@ -633,7 +743,23 @@ private fun MainScreen(startTab: Int = 0) {
                 // every tab adjacent to the visible one is always composed, laid out
                 // and scroll-stable, in both directions. A handful of light
                 // pages: cheap.
-                beyondViewportPageCount = 1,
+                // EXPERIMENT, measured: every page stays composed, so a swipe
+                // never recomposes one.
+                //
+                // At 1, the window covers only the adjacent pages, so moving
+                // between Toys (0) and Settings (2) deactivates and later
+                // re-composes whole pages — and `SettingsTab` is a
+                // `Column(verticalScroll)`, so that means every row of it, not
+                // just the visible ones. Measured on device: a Toys<->Settings
+                // workload that never opens the Create tab spends 2.74% of its
+                // frames over 33 ms with an `anim` p99 of 30 ms, against 0.38%
+                // and 6 ms for scrolling the design grid. The cost is composing
+                // pages, not drawing designs.
+                //
+                // [Tab] has four entries, so 3 keeps all of them alive at once.
+                // They are light — the heavy one is a `LazyVerticalGrid` that
+                // composes only its visible cells either way.
+                beyondViewportPageCount = Tab.entries.size - 1,
                 // NO stretch overscroll on the pager. Compose implements stretch
                 // by rendering the whole scrollable into an OFFSCREEN layer sized
                 // to the content plus the stretch margin, applying a RenderEffect
@@ -654,7 +780,12 @@ private fun MainScreen(startTab: Int = 0) {
                 when (Tab.entries[page]) {
                     Tab.TOYS -> ToysTab(pagePadding, toysListState)
                     Tab.CREATE -> CreateTab(pagePadding, createListState, createState)
-                    Tab.SETTINGS -> SettingsTab(pagePadding, settingsScrollState)
+                    Tab.SETTINGS -> SettingsTab(
+                        pagePadding,
+                        settingsScrollState,
+                        setup,
+                        setupTick,
+                    ) { setupTick++ }
                     Tab.TUTORIAL -> TutorialTab(pagePadding, tutorialScrollState)
                 }
             }
@@ -681,6 +812,11 @@ private fun MainScreen(startTab: Int = 0) {
             // on every frame of every swipe in the app, which is precisely the
             // defect [NavOverlayPadding] documents. Discrete in, animated out.
             fabVisible = pagerState.targetPage == Tab.CREATE.ordinal,
+            // One bit, from the SAME [SetupStatus] the checklist rows are drawn
+            // from (see the probe above). Discrete and rare — it changes only
+            // when the user actually finishes a setup item — so it costs the pill
+            // one recomposition on the day it flips and nothing on any other.
+            setupNeedsAttention = setup.needsAttention,
             onFabClick = { createState.newDesignRequested = true },
             onSelect = { i ->
                 scope.launch { pagerState.animateScrollToPage(i, animationSpec = pageSpec) }
@@ -731,6 +867,21 @@ private fun MainScreen(startTab: Int = 0) {
  * It fits, with ~20 dp of margin each side. The safety valve if it ever stops
  * fitting already exists and needs no code: only the SELECTED chip shows its
  * label, so the pill is at its widest for exactly one chip at a time.
+ *
+ * ## The badge
+ *
+ * [setupNeedsAttention] puts an [AttentionBadge] on the Settings chip when the
+ * Initial setup checklist has an outstanding item. It is a plain Boolean rather
+ * than anything resembling a badge model: there is one badgeable destination in
+ * this app and one condition that badges it, and a general "badges per tab" API
+ * would be four times the surface for no second caller. It defaults to `false`
+ * so the guided demo — which draws this same pill with no pager and no
+ * checklist behind it (see `DesignDemoActivity`) — is unaffected and shows the
+ * nav bar in its ordinary state.
+ *
+ * It also costs the pill's LAYOUT nothing: the badge is drawn inside the chip's
+ * existing 24 dp icon slot with an offset, so no width in the budget above moves
+ * when it appears.
  */
 @Composable
 internal fun FloatingNavBar(
@@ -741,6 +892,7 @@ internal fun FloatingNavBar(
     onSelect: (Int) -> Unit,
     onPillHeight: (Dp) -> Unit,
     modifier: Modifier = Modifier,
+    setupNeedsAttention: Boolean = false,
 ) {
     val pill = MaterialTheme.navPill
     val density = LocalDensity.current
@@ -804,6 +956,7 @@ internal fun FloatingNavBar(
                                 index = i,
                                 selected = i == selected,
                                 position = position,
+                                badge = setupNeedsAttention && t == Tab.SETTINGS,
                             ) { onSelect(i) }
                         }
                     }
@@ -878,6 +1031,15 @@ private val NAV_FAB_SIZE = 56.dp
  * The ripple stays. This app strips ripples from TOGGLES ([NoRipple]), whose own
  * state animation already acknowledges the touch; a FAB is a plain button with
  * no state of its own, so the ripple is its only feedback.
+ *
+ * ## The fill
+ *
+ * It is the one coloured control in the app: Nothing's red and blue, moving, from
+ * a shader. [LiquidFabFill] holds all of it — including the frame loop, which is
+ * bounded by being composed inside [present] and so runs only while the button is
+ * actually on screen. That is why the fill is a composable in the content slot
+ * rather than a modifier on this button: composed-ness is the gate, and the
+ * cheapest way to spell "stop when it leaves" is to leave the composition.
  */
 @Composable
 private fun NavFab(visible: Boolean, onClick: () -> Unit) {
@@ -944,8 +1106,10 @@ private fun NavFab(visible: Boolean, onClick: () -> Unit) {
                     alpha = fade.value.coerceIn(0f, 1f)
                 },
             shape = CircleShape,
-            // A distinct mid-grey, NOT the pill's near-black — see
-            // [NavPillColors.fabContainer].
+            // The liquid's own dark blue, and it stays OPAQUE — see
+            // [NavPillColors.fabContainer]. The moving fill is drawn in the
+            // content slot below rather than in place of this, which is what
+            // leaves the shadow and the ripple exactly as they were.
             containerColor = pill.fabContainer,
             contentColor = pill.fabContent,
             // Matched to the pill's own 8 dp so the two sit at the same height
@@ -953,7 +1117,14 @@ private fun NavFab(visible: Boolean, onClick: () -> Unit) {
             // visual no-op in this theme.
             elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp),
         ) {
-            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.create_new))
+            // The FAB's content slot is a centring Box, so this fills the button
+            // and the icon lands on top of it. Order is the whole arrangement:
+            // fill (content, drawn first) → icon (content) → ripple (drawn by the
+            // clickable ABOVE its content, so it survives).
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                LiquidFabFill(Modifier.fillMaxSize())
+                Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.create_new))
+            }
         }
     }
 }
@@ -1007,6 +1178,7 @@ private fun NavChip(
     index: Int,
     selected: Boolean,
     position: () -> Float,
+    badge: Boolean = false,
     onClick: () -> Unit,
 ) {
     val pill = MaterialTheme.navPill
@@ -1045,7 +1217,27 @@ private fun NavChip(
         // The icon always carries the name: the label below is present in the
         // layout even at zero width, and semantics do not care about width, so
         // it is cleared to stop TalkBack reading every chip's caption twice.
-        Icon(tab.icon, contentDescription = stringResource(tab.caption), tint = tint)
+        //
+        // The Box wraps the icon exactly — `offset` does not change a measured
+        // size — so a badged chip is the same width as an unbadged one and the
+        // pill's width budget (see [FloatingNavBar]) is untouched.
+        Box {
+            Icon(tab.icon, contentDescription = stringResource(tab.caption), tint = tint)
+            if (badge) {
+                AttentionBadge(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        // Out past the icon's top-end corner, far enough to read
+                        // as a badge ON the icon rather than as part of the
+                        // glyph, and no further: the chip is `clip`ped to
+                        // [NAV_CHIP_SHAPE], which at rest is a 48 dp circle, so
+                        // anything that leaves a radius of 24 dp from the chip's
+                        // centre is silently sliced. At this offset the badge's
+                        // own disc reaches ~19 dp from that centre.
+                        .offset(x = 4.dp, y = (-4).dp),
+                )
+            }
+        }
         Box(
             Modifier
                 .clearAndSetSemantics {}
@@ -1082,6 +1274,94 @@ private fun NavChip(
     }
 }
 
+/**
+ * Diameter of the nav-bar attention badge.
+ *
+ * Sized by what it has to survive rather than by taste. The chip is `clip`ped to
+ * [NAV_CHIP_SHAPE] — a 48 dp circle at rest — and the badge hangs off the corner
+ * of a 24 dp icon centred in it, so the constraint is that the badge's disc stays
+ * inside a radius of 24 dp from the chip's centre. At 16 dp with the 4 dp corner
+ * offset [NavChip] applies, the disc's centre sits ~11 dp out and its rim ~19 dp
+ * out: clear, with room for the chip to grow (it only ever gets *wider*, and
+ * `percent = 50` resolves on the shorter side, so this margin is the worst case).
+ *
+ * 16 dp is also MD3's own size for a badge WITH content, which is what this is —
+ * it carries the exclamation mark, and the mark is the point.
+ */
+private val NAV_BADGE_SIZE = 16.dp
+
+/**
+ * The red dot with a white `!` that marks the Settings destination while the
+ * Initial setup checklist still has an outstanding item.
+ *
+ * ## The colour, which is the theme's third and last exception
+ *
+ * This app is monochrome by rule and the rule is kept honest by *enumerating* its
+ * exceptions (see `ui/theme/Theme.kt`). This is the third: the FAB's brand
+ * red/blue, the device illustration's recording dot, and this badge. It is the
+ * only one of the three that uses hue to carry MEANING, which is why it needed
+ * asking for rather than deriving — and why it stays this small and this rare.
+ *
+ * The red is `NothingRed`, the brand value already in the app, not a new shade
+ * and not `RECORDING_DOT_COLOR` (whose own KDoc says it is a picture of hardware
+ * and stops being a defensible exception the moment it is used as an accent). It
+ * is also the better of the two on the number that matters here: the mark is
+ * white, and white on `#D71921` is **5.18:1**, past WCAG AA for text and more
+ * than double the 3:1 a graphical object needs, where white on `#E0392C` is only
+ * 4.38:1.
+ *
+ * Because the disc is OPAQUE, that ratio is the whole legibility story on both
+ * nav-bar surfaces — the pill is near-black in either scheme and the selected
+ * chip's fill is near-white, and the mark's contrast is against the red in both
+ * cases. The disc itself is the thing whose separation varies: 2.6:1 against the
+ * pill, 4.6:1 against the selected chip's near-white fill, both comfortably
+ * visible for a solid shape of this size.
+ *
+ * ## Why an exclamation mark and not a plain dot
+ *
+ * Colour is never the only signal in this app, and a red dot on a nav icon is
+ * colour and nothing else — invisible to a colour-blind user against a grey
+ * chip, and meaningless in a greyscale screenshot. The mark carries the meaning;
+ * the red only makes it urgent. It is drawn rather than typed so that it keeps
+ * its proportions inside a 16 dp disc at every font scale, which a `Text("!")`
+ * would not.
+ *
+ * The [contentDescription] is the third channel: the chip merges its
+ * descendants' semantics, so TalkBack announces the destination and then this.
+ */
+@Composable
+private fun AttentionBadge(modifier: Modifier = Modifier) {
+    val pill = MaterialTheme.navPill
+    val label = stringResource(R.string.nav_setup_needs_attention)
+    Canvas(
+        modifier
+            .size(NAV_BADGE_SIZE)
+            .semantics { contentDescription = label },
+    ) {
+        val r = size.minDimension / 2f
+        drawCircle(color = pill.badgeContainer, radius = r)
+        // The mark: a bar and a dot, laid out symmetrically about the centre so
+        // it reads as an exclamation rather than as a stripe. Stroke 0.28r; the
+        // bar spans 0.5r..1.0r and the round caps take it to 0.36r..1.14r, the
+        // dot sits at 1.5r with the same radius as the cap (0.14r) and so ends at
+        // 1.64r — the same 0.36r of clearance top and bottom.
+        val stroke = r * 0.28f
+        val cx = size.width / 2f
+        drawLine(
+            color = pill.badgeContent,
+            start = Offset(cx, r * 0.5f),
+            end = Offset(cx, r * 1.0f),
+            strokeWidth = stroke,
+            cap = StrokeCap.Round,
+        )
+        drawCircle(
+            color = pill.badgeContent,
+            radius = stroke / 2f,
+            center = Offset(cx, r * 1.5f),
+        )
+    }
+}
+
 // ---------- Glyph Toys tab ----------
 
 /**
@@ -1107,35 +1387,38 @@ internal fun selectToy(id: String) {
 private fun ToysTab(innerPadding: PaddingValues, listState: LazyListState) {
     var dialogId by remember { mutableStateOf<String?>(null) }
 
-    // The toy currently on the matrix: tracks the persisted current screen
-    // live (cycled from the Essential Key outside this UI); the pref change
-    // listener fires on the main thread.
+    // The toy currently on the matrix: tracks the persisted current screen live,
+    // including while this page is off screen and while the Essential Key cycles
+    // it from outside this UI entirely.
     //
-    // Both effects below can now run while this page is composed but OFF SCREEN:
-    // the pager keeps a window of pages alive (the neighbour during a drag, and
-    // the next page as a prefetch) rather than only the visible one. Both are
-    // safe that way. There is still exactly ONE listener — a pager composes any
-    // given page index at most once, so this cannot double-register — and all it
-    // does is re-read a pref into local state, so an off-screen tab arrives
-    // already up to date instead of catching up on its first frame. The
-    // symmetric case, being DISPOSED when it falls out of that window, is why
-    // the list's scroll position is hoisted into [MainScreen] instead of
-    // remembered here.
-    var currentToy by remember {
-        mutableStateOf(Core.prefs.getString(PrefKeys.CURRENT_SCREEN, PrefKeys.CURRENT_SCREEN_DEF))
-    }
-    DisposableEffect(Unit) {
-        val listener: (String) -> Unit = { key ->
-            if (key == PrefKeys.CURRENT_SCREEN) {
-                currentToy = Core.prefs.getString(PrefKeys.CURRENT_SCREEN, PrefKeys.CURRENT_SCREEN_DEF)
-            }
-        }
-        Core.prefs.addChangeListener(listener)
-        onDispose { Core.prefs.removeChangeListener(listener) }
-    }
-    LifecycleResumeEffect(Unit) {
-        currentToy = Core.prefs.getString(PrefKeys.CURRENT_SCREEN, PrefKeys.CURRENT_SCREEN_DEF)
-        onPauseOrDispose { }
+    // ## What this replaced, and why it had to
+    //
+    // This was a `remember { mutableStateOf(prefs.getString(...)) }` seeded once,
+    // a `DisposableEffect` that registered a change listener, and a
+    // `LifecycleResumeEffect` that re-read on every resume. The KDoc on it argued
+    // that "a pager composes any given page index at most once, so this cannot
+    // double-register". Double-registration was never the risk; the OPPOSITE was.
+    //
+    // This page is index 0 and `beyondViewportPageCount` is 1, so the moment the
+    // user is on Settings (index 2) this page leaves the window — and a page that
+    // leaves the window is DEACTIVATED AND RETAINED, not destroyed: Compose
+    // clears the group's `RememberObserver`s (the `DisposableEffect` disposes, the
+    // listener goes) and leaves plain remembered values alone (the
+    // `mutableStateOf` keeps its old id). Enabling the accessibility service is a
+    // Settings-tab journey, so the reported repro puts this page in exactly that
+    // state, and any Essential-Key press while it is there — the first thing
+    // anyone does after enabling the key — moved the current screen with nobody
+    // listening. Coming back showed a highlight one toy behind reality, and
+    // tapping the toy that was really current wrote the id the store already
+    // held, which `SharedPreferences` does not report as a change at all. Hence
+    // "the play button does nothing until I background the app": only the resume
+    // re-read could repair it.
+    //
+    // [rememberPref] fixes the asymmetry at its root — it cannot hold a value it
+    // did not get from a live subscription — so the resume re-read is gone with
+    // it. Do not add one back; see [rememberPref] for why it is a mask.
+    val currentToy by rememberPref(PrefKeys.CURRENT_SCREEN) {
+        it.getString(PrefKeys.CURRENT_SCREEN, PrefKeys.CURRENT_SCREEN_DEF)
     }
 
     val order = remember { mutableStateListOf<String>().apply { addAll(loadOrder()) } }
@@ -1197,44 +1480,108 @@ private fun ToysTab(innerPadding: PaddingValues, listState: LazyListState) {
 
 // ---------- Settings tab (first-time setup + app settings) ----------
 
+/** `POST_NOTIFICATIONS` — the Timer chime. */
+private val SETUP_NOTIFICATION_PERMISSIONS = arrayOf(Manifest.permission.POST_NOTIFICATIONS)
+
+/** `RECORD_AUDIO` — the music visualizer. */
+private val SETUP_MICROPHONE_PERMISSIONS = arrayOf(Manifest.permission.RECORD_AUDIO)
+
+/**
+ * Location for the compass's magnetic-declination correction. Either grade will
+ * do — declination varies over hundreds of kilometres, so coarse is plenty — which
+ * is why [probeSetup] asks for `any` rather than `all`.
+ */
+private val SETUP_LOCATION_PERMISSIONS = arrayOf(
+    Manifest.permission.ACCESS_COARSE_LOCATION,
+    Manifest.permission.ACCESS_FINE_LOCATION,
+)
+
+/**
+ * Asks the system the six Initial setup questions, once.
+ *
+ * The **only** place any of them is asked. Both readers — the checklist rows and
+ * the nav bar's [AttentionBadge] — take the [SetupStatus] this returns, which is
+ * what stops the badge and the rows from drifting apart; see that class's KDoc
+ * for why that mattered enough to hoist.
+ *
+ * Every line is a synchronous system call with no I/O behind it, so this is cheap
+ * enough to run on each resume from the composition (which is what
+ * [MainScreen] does).
+ */
+private fun probeSetup(context: Context): SetupStatus {
+    fun anyGranted(permissions: Array<String>) =
+        permissions.any { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
+    return SetupStatus(
+        accessibility = isEssentialKeyServiceEnabled(context),
+        // No system setting or SDK call exposes the selected always-on toy, and
+        // the system binds the chosen toy LAZILY — often never, because the
+        // accessibility-driven session does the day-to-day rendering. So this is
+        // a latch: the system only ever binds or messages the toy it has
+        // selected, and once that has happened the selection is proven.
+        // (Deselection is equally invisible, so the mark cannot clear itself —
+        // the row still opens the picker.)
+        alwaysOnToy = Core.arbiter.owner == SessionArbiter.Owner.TOY ||
+            Core.prefs.getLong(PrefKeys.TOY_LAST_BOUND, PrefKeys.TOY_LAST_BOUND_DEF) > 0L,
+        notifications = anyGranted(SETUP_NOTIFICATION_PERMISSIONS),
+        microphone = anyGranted(SETUP_MICROPHONE_PERMISSIONS),
+        location = anyGranted(SETUP_LOCATION_PERMISSIONS),
+        exactAlarms = context.getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() == true,
+    )
+}
+
+/**
+ * The Settings page: the Initial setup checklist, then App settings, then AI
+ * settings.
+ *
+ * [setup] and [refreshTick] are both hoisted into [MainScreen]. The status is,
+ * because the nav bar's badge reads it too and the pill is not in this subtree;
+ * the tick rides along rather than being re-derived here so that there is exactly
+ * one "re-ask the system" signal on this screen — the rows below, the app-settings
+ * rows that re-read prefs, and the badge all move together on it. [onRefresh]
+ * raises it from this page, which is what the in-app permission dialog needs.
+ */
 @Composable
-private fun SettingsTab(innerPadding: PaddingValues, scrollState: ScrollState) {
+private fun SettingsTab(
+    innerPadding: PaddingValues,
+    scrollState: ScrollState,
+    setup: SetupStatus,
+    refreshTick: Int,
+    onRefresh: () -> Unit,
+) {
     val context = LocalContext.current
-    var refreshTick by remember { mutableIntStateOf(0) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
-    ) { refreshTick++ }
-    // Re-probe system state whenever the user returns from system Settings.
-    //
-    // This can now fire while the page is composed but not visible — this is an
-    // INTERIOR page (see [Tab]: Toys, Create, Settings, Tutorials), so it is
-    // inside the pager's live window from either of its neighbours, and it would
-    // stay that way at any position other than an end.
-    // That is the right trade rather than a leak: the probes are a handful of
-    // synchronous permission/service checks, and running them before the page
-    // is on screen means the checklist is already correct the instant it is
-    // swiped to instead of visibly correcting itself on arrival.
-    LifecycleResumeEffect(Unit) {
-        refreshTick++
-        onPauseOrDispose { }
-    }
+    ) { onRefresh() }
 
     // Scroll state hoisted by [MainScreen]; see [ToysTab].
     Column(Modifier.fillMaxSize().verticalScroll(scrollState)) {
         Spacer(Modifier.height(innerPadding.calculateTopPadding()))
 
-        // Initial setup is a CLOSED section by default, and App settings is not
-        // a section that closes at all. That asymmetry is the point: the
-        // checklist is a first-run job that is finished and stays finished, so
-        // once it is all check marks it is six rows of noise above the settings
-        // people actually come back for. App settings is what they came for, so
-        // it is never a click away.
+        // Initial setup is a section that closes, and App settings is not. That
+        // asymmetry is the point: the checklist is a first-run job that is
+        // finished and stays finished, so once it is all check marks it is six
+        // rows of noise above the settings people actually come back for. App
+        // settings is what they came for, so it is never a click away.
         //
-        // rememberSaveable, not remember: rotating the phone must not throw away
-        // a section the user has just opened. It deliberately does NOT persist
-        // across launches — reopening the app is exactly when "is my setup still
-        // fine?" is worth re-asking, so it starts closed every time.
-        var setupExpanded by rememberSaveable { mutableStateOf(false) }
+        // It starts closed only when there is nothing to see. An unfinished item
+        // is the one case where the collapsed section is hiding the answer to the
+        // question that brought the user here — the badge on the nav chip (see
+        // [AttentionBadge]) points at this page, and a page that then shows a
+        // closed section is a dead end. So the section opens itself on arrival,
+        // off the SAME [SetupStatus] the rows are drawn from.
+        //
+        // The initializer is what makes this the INITIAL state and nothing more.
+        // rememberSaveable runs it once — on first composition, never on a
+        // restore — so a user who closes the section keeps it closed while the
+        // screen lives, through rotation and through the page being disposed and
+        // rebuilt as the pager's window moves, even though the items are still
+        // outstanding. Recomputing this on recomposition would re-open the
+        // section under the finger that just shut it.
+        //
+        // Like the old fixed `false`, it deliberately does NOT persist across
+        // launches: reopening the app is exactly when "is my setup still fine?"
+        // is worth re-asking.
+        var setupExpanded by rememberSaveable { mutableStateOf(setup.needsAttention) }
         CollapsibleSectionHeader(
             text = stringResource(R.string.section_initial_setup),
             expanded = setupExpanded,
@@ -1255,7 +1602,7 @@ private fun SettingsTab(innerPadding: PaddingValues, scrollState: ScrollState) {
             Column {
                 SectionCard {
                     item {
-                        val a11yEnabled = remember(refreshTick) { isEssentialKeyServiceEnabled(context) }
+                        val a11yEnabled = setup.accessibility
                         // Read through stringResource rather than
                         // context.getString: values pulled off LocalContext do
                         // not follow a configuration change, and Compose lints
@@ -1291,19 +1638,7 @@ private fun SettingsTab(innerPadding: PaddingValues, scrollState: ScrollState) {
                         }
                     }
                     item {
-                        // No system setting or SDK call exposes the selected
-                        // always-on toy, and the system binds the chosen toy
-                        // LAZILY — often never, because the accessibility-driven
-                        // session does the day-to-day rendering. So this is a
-                        // latch: the system only ever binds or messages the toy
-                        // it has selected, and once that has happened the
-                        // selection is proven. (Deselection is equally
-                        // invisible, so the mark cannot clear itself — the row
-                        // still opens the picker.)
-                        val toyOk = remember(refreshTick) {
-                            Core.arbiter.owner == SessionArbiter.Owner.TOY ||
-                                Core.prefs.getLong(PrefKeys.TOY_LAST_BOUND, PrefKeys.TOY_LAST_BOUND_DEF) > 0L
-                        }
+                        val toyOk = setup.alwaysOnToy
                         ChecklistRow(
                             title = stringResource(R.string.checklist_toy),
                             subtitle = stringResource(
@@ -1320,31 +1655,26 @@ private fun SettingsTab(innerPadding: PaddingValues, scrollState: ScrollState) {
                     item {
                         PermissionRow(
                             stringResource(R.string.checklist_notifications),
-                            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                            refreshTick,
+                            SETUP_NOTIFICATION_PERMISSIONS,
+                            setup.notifications,
                         ) { permissionLauncher.launch(it) }
                     }
                     item {
                         PermissionRow(
                             stringResource(R.string.checklist_mic),
-                            arrayOf(Manifest.permission.RECORD_AUDIO),
-                            refreshTick,
+                            SETUP_MICROPHONE_PERMISSIONS,
+                            setup.microphone,
                         ) { permissionLauncher.launch(it) }
                     }
                     item {
                         PermissionRow(
                             stringResource(R.string.checklist_location),
-                            arrayOf(
-                                Manifest.permission.ACCESS_COARSE_LOCATION,
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                            ),
-                            refreshTick,
+                            SETUP_LOCATION_PERMISSIONS,
+                            setup.location,
                         ) { permissionLauncher.launch(it) }
                     }
                     item {
-                        val alarmsOk = remember(refreshTick) {
-                            context.getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() == true
-                        }
+                        val alarmsOk = setup.exactAlarms
                         ChecklistRow(
                             title = stringResource(R.string.checklist_exact_alarm),
                             subtitle = stringResource(
@@ -1357,6 +1687,48 @@ private fun SettingsTab(innerPadding: PaddingValues, scrollState: ScrollState) {
                                     Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
                                     Uri.parse("package:${context.packageName}"),
                                 ),
+                            )
+                        }
+                    }
+                    // **The walkthrough, and deliberately NOT a checklist item.**
+                    //
+                    // Every row above answers a yes/no question about this phone,
+                    // and [SetupStatus] is the six of them; the badge and the
+                    // auto-expand are that record's `needsAttention`. This row has
+                    // no state at all — there is no such thing as "the
+                    // walkthrough is unsatisfied" — so it is deliberately absent
+                    // from [SetupStatus], which is what keeps it out of both.
+                    // Adding a seventh field for it would put a permanent
+                    // exclamation mark on the Settings tab.
+                    //
+                    // A [PrefRow] rather than a [ChecklistRow] for the same
+                    // reason: `ChecklistRow` draws a tick or a question mark, and
+                    // a question mark here would say something is wrong.
+                    //
+                    // **It resets nothing.** It starts the walkthrough activity
+                    // directly and writes no preference on the way in, so backing
+                    // out of it leaves everything — including `ONBOARDING_DONE` —
+                    // exactly as it was. That is the difference between this and
+                    // the `restart_onboarding` debug hook at the top of this file,
+                    // which clears the flag first.
+                    item {
+                        PrefRow(
+                            lines = PrefRowLines.TWO,
+                            leading = { PrefIcon(Icons.Outlined.Slideshow) },
+                            onClick = {
+                                context.startActivity(
+                                    Intent(context, OnboardingActivity::class.java),
+                                )
+                            },
+                        ) {
+                            Text(
+                                stringResource(R.string.checklist_walkthrough),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Text(
+                                stringResource(R.string.checklist_walkthrough_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
@@ -1375,7 +1747,7 @@ private fun SettingsTab(innerPadding: PaddingValues, scrollState: ScrollState) {
                     title = stringResource(R.string.master_toggle),
                     subtitle = stringResource(R.string.master_toggle_summary),
                     checked = master,
-                    leading = Icons.Default.Key,
+                    leading = Icons.Outlined.Key,
                 ) {
                     master = it
                     Core.prefs.putBoolean(PrefKeys.MASTER_TOGGLE, it)
@@ -1389,7 +1761,7 @@ private fun SettingsTab(innerPadding: PaddingValues, scrollState: ScrollState) {
                     title = stringResource(R.string.pref_menu_mode),
                     subtitle = stringResource(R.string.pref_menu_mode_summary),
                     checked = menuMode,
-                    leading = Icons.AutoMirrored.Filled.List,
+                    leading = Icons.AutoMirrored.Outlined.List,
                 ) {
                     menuMode = it
                     Core.prefs.putBoolean(PrefKeys.MENU_MODE_ENABLED, it)
@@ -1403,7 +1775,7 @@ private fun SettingsTab(innerPadding: PaddingValues, scrollState: ScrollState) {
                     title = stringResource(R.string.pref_use12h),
                     subtitle = null,
                     checked = use12h,
-                    leading = Icons.Default.Schedule,
+                    leading = Icons.Outlined.Schedule,
                 ) {
                     use12h = it
                     Core.prefs.putBoolean(PrefKeys.USE_12H, it)
@@ -1411,9 +1783,33 @@ private fun SettingsTab(innerPadding: PaddingValues, scrollState: ScrollState) {
             }
             item { BrightnessRow() }
             item { CreatorNameRow() }
-            item { AiModelRow() }
             item { UpdateRow() }
         }
+
+        // The design assistant's own group, and the three rows that were loose
+        // among the app settings above are now in it.
+        //
+        // They came apart badly as they multiplied: a model id, a round budget
+        // and a reasoning level read as three unrelated rows sitting between the
+        // creator's name and the update check, and the only thing tying them
+        // together was that each title happened to start with "Assistant". They
+        // are one feature with three knobs, and two of the three are only ever
+        // touched when that feature is misbehaving — so grouping them also makes
+        // "where do I go when the assistant stops working" a single answer.
+        //
+        // Ordered as they are used: the model is what a stuck user changes first,
+        // the round budget is what a user with a big animation changes next, and
+        // the effort is the one with an unproven range — see the hint under it.
+        SectionHeader(stringResource(R.string.section_ai_settings))
+        SectionCard {
+            item { AiModelRow() }
+            item { AiRoundsRow() }
+            item { AiEffortRow() }
+        }
+        // Belongs to the group, like the Initial-setup hint above: it is the one
+        // place that says out loud which effort levels are known to work, which
+        // is the recovery path for a level the backend rejects.
+        HintText(stringResource(R.string.pref_ai_effort_hint))
 
         Spacer(Modifier.height(innerPadding.calculateBottomPadding() + NAV_PILL_CLEARANCE))
     }
@@ -1430,28 +1826,25 @@ private fun SettingsTab(innerPadding: PaddingValues, scrollState: ScrollState) {
  */
 @Composable
 private fun BrightnessRow() {
-    PrefRow(lines = PrefRowLines.THREE, leading = { PrefIcon(Icons.Default.BrightnessMedium) }) {
+    PrefRow(lines = PrefRowLines.THREE, leading = { PrefIcon(Icons.Outlined.BrightnessMedium) }) {
         Text(stringResource(R.string.brightness), style = MaterialTheme.typography.titleMedium)
-        var brightness by remember {
-            mutableFloatStateOf(Core.prefs.getFloat(PrefKeys.BRIGHTNESS, PrefKeys.BRIGHTNESS_DEF))
+        // Auto-brightness writes BRIGHTNESS from the render thread, so the slider
+        // must follow the PREF rather than a local copy of it — otherwise it
+        // shows what the user last dragged instead of what auto is doing.
+        //
+        // Through [rememberPref] for the reason spelled out in [ToysTab]: this
+        // page is index 2, so it leaves the pager's window whenever the user is
+        // on Toys (index 0), and the hand-rolled seed-plus-listener this replaced
+        // lost every auto-brightness step that landed while it was away — with
+        // its own remembered value surviving to hide the fact. No local
+        // assignment on either control now either; the pref is the single source
+        // and the write comes straight back through the subscription on the same
+        // (main) thread.
+        val brightness by rememberPref(PrefKeys.BRIGHTNESS) {
+            it.getFloat(PrefKeys.BRIGHTNESS, PrefKeys.BRIGHTNESS_DEF)
         }
-        var auto by remember {
-            mutableStateOf(Core.prefs.getBoolean(PrefKeys.AUTO_BRIGHTNESS, PrefKeys.AUTO_BRIGHTNESS_DEF))
-        }
-        // Auto-brightness writes BRIGHTNESS from the render thread, so the
-        // slider must follow the pref (not just local state) to show what
-        // auto is doing. Pref-change listeners fire on the main thread.
-        DisposableEffect(Unit) {
-            val listener: (String) -> Unit = { key ->
-                when (key) {
-                    PrefKeys.BRIGHTNESS ->
-                        brightness = Core.prefs.getFloat(PrefKeys.BRIGHTNESS, PrefKeys.BRIGHTNESS_DEF)
-                    PrefKeys.AUTO_BRIGHTNESS ->
-                        auto = Core.prefs.getBoolean(PrefKeys.AUTO_BRIGHTNESS, PrefKeys.AUTO_BRIGHTNESS_DEF)
-                }
-            }
-            Core.prefs.addChangeListener(listener)
-            onDispose { Core.prefs.removeChangeListener(listener) }
+        val auto by rememberPref(PrefKeys.AUTO_BRIGHTNESS) {
+            it.getBoolean(PrefKeys.AUTO_BRIGHTNESS, PrefKeys.AUTO_BRIGHTNESS_DEF)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             // MD3's shape-morphing icon toggle: a full circle when auto
@@ -1475,15 +1868,12 @@ private fun BrightnessRow() {
             NoRipple {
                 FilledIconToggleButton(
                     checked = auto,
-                    onCheckedChange = { on ->
-                        auto = on
-                        Core.prefs.putBoolean(PrefKeys.AUTO_BRIGHTNESS, on)
-                    },
+                    onCheckedChange = { on -> Core.prefs.putBoolean(PrefKeys.AUTO_BRIGHTNESS, on) },
                     shapes = IconButtonDefaults.toggleableShapes(),
                     modifier = Modifier.offStateOutline(auto),
                 ) {
                     Icon(
-                        Icons.Default.BrightnessAuto,
+                        Icons.Outlined.BrightnessAuto,
                         contentDescription = stringResource(
                             if (auto) R.string.auto_brightness_on else R.string.auto_brightness_off,
                         ),
@@ -1512,12 +1902,8 @@ private fun BrightnessRow() {
                     // Fiddling with the slider means "I'll do it myself":
                     // drop out of auto first, so the controller has stopped
                     // polling before the manual value lands.
-                    if (auto) {
-                        auto = false
-                        Core.prefs.putBoolean(PrefKeys.AUTO_BRIGHTNESS, false)
-                    }
-                    brightness = it.coerceIn(0.05f, 1f)
-                    Core.prefs.putFloat(PrefKeys.BRIGHTNESS, brightness)
+                    if (auto) Core.prefs.putBoolean(PrefKeys.AUTO_BRIGHTNESS, false)
+                    Core.prefs.putFloat(PrefKeys.BRIGHTNESS, it.coerceIn(0.05f, 1f))
                 },
                 valueRange = 0.05f..1f,
                 modifier = Modifier.weight(1f),
@@ -1550,7 +1936,7 @@ private fun CreatorNameRow() {
     }
     // THREE-line for the same reason as [BrightnessRow]: it is the 12 dp
     // padding this block has always had, and nothing in it fits in 88 dp.
-    PrefRow(lines = PrefRowLines.THREE, leading = { PrefIcon(Icons.Default.Person) }) {
+    PrefRow(lines = PrefRowLines.THREE, leading = { PrefIcon(Icons.Outlined.Person) }) {
         Text(stringResource(R.string.pref_creator_name), style = MaterialTheme.typography.titleMedium)
         Text(
             stringResource(R.string.pref_creator_name_summary),
@@ -1584,14 +1970,16 @@ private fun CreatorNameRow() {
  * row is the escape hatch: a working id typed here revives it on the next
  * message, with no update and no restart.
  *
- * ## Why it lives here, next to the creator name
+ * ## Why it lives in Settings
  *
  * The obvious alternative is the chat sheet's own overflow — closer to the
  * failure. But the chat is *inside* the design editor, behind sign-in and the
  * disclosure, and the state this fixes is one where the chat is the thing that
- * does not work. Settings is where a stuck user looks, it is reachable from a
- * cold start, and it puts the field beside the other typed preference in the
- * app so it reads as an app setting rather than as a debug affordance.
+ * does not work. Settings is where a stuck user looks and it is reachable from a
+ * cold start. It used to sit beside the creator name, among the app's general
+ * rows; it now heads the AI settings group with the other two assistant knobs,
+ * which is the same argument one step further — a stuck user wants one place to
+ * go, not three rows to find.
  *
  * Written through on every keystroke and read fresh per turn (see
  * `ai/GlyphAiViewModel`) — same no-Save-button reasoning as [CreatorNameRow].
@@ -1604,7 +1992,7 @@ private fun AiModelRow() {
         mutableStateOf(Core.prefs.getString(PrefKeys.AI_MODEL, PrefKeys.AI_MODEL_DEF))
     }
     // THREE-line for the same reason as [CreatorNameRow].
-    PrefRow(lines = PrefRowLines.THREE, leading = { PrefIcon(Icons.Default.AutoAwesome) }) {
+    PrefRow(lines = PrefRowLines.THREE, leading = { PrefIcon(Icons.Outlined.AutoAwesome) }) {
         Text(stringResource(R.string.pref_ai_model), style = MaterialTheme.typography.titleMedium)
         Text(
             stringResource(R.string.pref_ai_model_summary),
@@ -1630,6 +2018,308 @@ private fun AiModelRow() {
             },
             singleLine = true,
         )
+    }
+}
+
+/**
+ * How many tool rounds the assistant may take before a turn is cut short.
+ *
+ * A slider rather than a text field, unlike [AiModelRow] directly above it: a
+ * model id is an opaque token that only the user knows, so it has to be typed,
+ * whereas this is a small integer with a floor and a ceiling — and a field would
+ * have to defend itself against "", "-1" and "99999" while the slider simply
+ * cannot express them. [aiMaxRounds] still clamps on read; that guard is for a
+ * store this control is not the only writer of, not for this control.
+ *
+ * Through [rememberPref] like everything else on this page — see [BrightnessRow]
+ * for what the hand-rolled alternative costs.
+ *
+ * The slider writes on every step rather than on release. Each write is a pref
+ * put, the value is read once per turn (never mid-turn), and the assistant is
+ * not running while the user is dragging a slider in Settings.
+ *
+ * **`Route`, not `Repeat`.** The two-arrow loop this used to carry says "do the
+ * same thing again", which is what it means one screen away — `DesignTimeline`
+ * uses `Repeat` for the editor's actual loop toggle, so the app was spending one
+ * glyph on two unrelated ideas. This setting is not a loop: it is a *bounded
+ * path*, "how many steps may this turn take before it has to answer", and
+ * `Route` (a track with a start and an end) is the one glyph on the classpath
+ * that says exactly that.
+ */
+@Composable
+private fun AiRoundsRow() {
+    val rounds by rememberPref(PrefKeys.AI_MAX_ROUNDS) { it.aiMaxRounds() }
+    PrefRow(lines = PrefRowLines.THREE, leading = { PrefIcon(Icons.Outlined.Route) }) {
+        Text(stringResource(R.string.pref_ai_rounds), style = MaterialTheme.typography.titleMedium)
+        Text(
+            stringResource(R.string.pref_ai_rounds_summary),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            // The default is called out where it is the current value, because
+            // "8 rounds" alone does not tell somebody whether they have already
+            // changed this — which is the only question a reader of a settings
+            // screen is actually asking about a number they do not recognise.
+            stringResource(
+                if (rounds == PrefKeys.AI_MAX_ROUNDS_DEF) {
+                    R.string.pref_ai_rounds_default
+                } else {
+                    R.string.pref_ai_rounds_value
+                },
+                rounds,
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        Slider(
+            value = rounds.toFloat(),
+            onValueChange = {
+                Core.prefs.putInt(PrefKeys.AI_MAX_ROUNDS, it.roundToInt())
+            },
+            valueRange = PrefKeys.AI_MAX_ROUNDS_MIN.toFloat()..PrefKeys.AI_MAX_ROUNDS_MAX.toFloat(),
+            // Buckets of [PrefKeys.AI_MAX_ROUNDS_STEP], not one per round. Ten
+            // positions, so `steps` — which counts the detents BETWEEN the two
+            // ends, not the selectable values — is eight. One per round drew 35
+            // ticks and read as a smear.
+            steps = (PrefKeys.AI_MAX_ROUNDS_MAX - PrefKeys.AI_MAX_ROUNDS_MIN) /
+                PrefKeys.AI_MAX_ROUNDS_STEP - 1,
+            // **Ticks on the empty half of the track only**, which is how Nothing's
+            // own volume panel draws them.
+            //
+            // Material3 puts a tick at every detent along the WHOLE track and
+            // colours the two halves differently — `activeTickColor` over the
+            // filled part, `inactiveTickColor` over the rest. Nothing draws the
+            // filled part as one solid bar and leaves the dots to describe only
+            // what is still available, which reads as a level rather than as a
+            // ruler with a bar on top of it.
+            //
+            // Done by making the active ticks transparent rather than by supplying
+            // a custom `track`: the geometry, the thumb gap and the inside corner
+            // radius are all things material3 already gets right, and a hand-rolled
+            // track would be a copy of them free to drift. The disabled pair goes
+            // with it so the rule does not quietly reappear if this row is ever
+            // greyed out.
+            colors = SliderDefaults.colors(
+                activeTickColor = Color.Transparent,
+                disabledActiveTickColor = Color.Transparent,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+/**
+ * The display name of one reasoning level.
+ *
+ * A mapping from the `core/` enum onto `strings.xml`, in that order and never the
+ * other way round: the **token** is the enum's ([ReasoningEffort.wire]) and the
+ * **words** are the resource table's, so a label can be reworded or translated
+ * without touching what goes on the wire, and a wire token cannot be changed by
+ * editing copy. It is `internal` and not a composable so a unit test can prove it
+ * total — every level has a string, and no two share one.
+ *
+ * `when` without an `else`, deliberately: adding a level to the enum then fails
+ * to compile here rather than shipping a row with no name.
+ */
+internal fun ReasoningEffort.labelRes(): Int = when (this) {
+    ReasoningEffort.LOW -> R.string.pref_ai_effort_low
+    ReasoningEffort.MEDIUM -> R.string.pref_ai_effort_medium
+    ReasoningEffort.HIGH -> R.string.pref_ai_effort_high
+    ReasoningEffort.XHIGH -> R.string.pref_ai_effort_xhigh
+    ReasoningEffort.MAX -> R.string.pref_ai_effort_max
+    ReasoningEffort.ULTRA -> R.string.pref_ai_effort_ultra
+}
+
+/**
+ * The caution pictogram beside a reasoning level this app cannot show the
+ * backend accepts. See [ReasoningEffort.unverified] — which values carry it is
+ * the enum's decision, not this file's.
+ *
+ * A **warning**, not an error: the outlined triangle rather than
+ * `Icons.Outlined.ErrorOutline`, because these levels are unproven rather than
+ * broken, and somebody may well be running one of them happily.
+ *
+ * Tinted `onSurfaceVariant` — the supporting-ink role this page already uses —
+ * and explicitly not red. This app's colour rule allows exactly three enumerated
+ * exceptions to its monochrome palette (the recording dot, the `+` FAB, the
+ * nav-bar setup badge) and a settings hint is not a fourth: red here would read
+ * as "this option is dangerous", which overstates a value that may simply work.
+ *
+ * The content description is the one place words are unavoidable: a pictogram is
+ * invisible to a screen reader, and this is a menu of six items where two are
+ * qualified. Both call sites pass it, so it is spoken with the option's name in
+ * the menu and again on the field when a flagged level is the one selected.
+ */
+@Composable
+private fun UnverifiedEffortIcon() {
+    Icon(
+        Icons.Outlined.WarningAmber,
+        contentDescription = stringResource(R.string.pref_ai_effort_unverified),
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(20.dp),
+    )
+}
+
+/**
+ * How hard the assistant is asked to think before it answers.
+ *
+ * A dropdown rather than the slider [AiRoundsRow] uses, because this is a short
+ * list of *named* levels and not a number on a scale: nothing sits between "high"
+ * and "extra-high", and a slider would invent a continuum the protocol does not
+ * have. It is a read-only [OutlinedTextField] anchoring an
+ * `ExposedDropdownMenuBox` — MD3's own idiom for exactly this, and the same
+ * control shape as the two text fields above it, so the group reads as one thing.
+ *
+ * Through [rememberPref] like everything else on this page; see [BrightnessRow]
+ * for what the hand-rolled alternative costs. Written straight to the pref on
+ * selection and read fresh per turn (`ai/GlyphAiSession`), so a change applies to
+ * the very next message.
+ *
+ * ## Two of the six may not exist
+ *
+ * [ReasoningEffort] carries the detail and the flag; here it only matters that
+ * the marked ones are still ordinary, selectable options. The failure mode is
+ * mild and visible: an unknown `effort` is rejected by the *request*, so the chat
+ * shows the server's own words verbatim (`ChatFailure`, which exists precisely to
+ * never paraphrase them) and the supporting line under this field names the token
+ * that was sent, which is the string to look for in that error. The hint under
+ * the section says which three levels are documented, so there is always a way
+ * back that does not involve guessing.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AiEffortRow() {
+    val effort by rememberPref(PrefKeys.AI_REASONING_EFFORT) { it.aiReasoningEffort() }
+    var open by remember { mutableStateOf(false) }
+
+    // **Give focus back when the menu closes.**
+    //
+    // `ExposedDropdownMenuBox` focuses its anchor to open the menu and does not
+    // unfocus it afterwards, so a field that has been tapped once stays focused
+    // for the rest of the visit — including after a tap *outside*, which
+    // dismisses the menu and leaves the anchor looking like the active control
+    // on a page where nothing is active. The colours below make that invisible;
+    // this makes it untrue, which is the half that also fixes the keyboard's
+    // idea of where it is.
+    //
+    // Guarded on a real true → false transition rather than keyed on `open`
+    // alone: the effect runs on first composition too, and an unconditional
+    // clear there would steal focus from whatever the user was typing in — the
+    // model field one row up, on any recomposition that rebuilt this page.
+    val focusManager = LocalFocusManager.current
+    var wasOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(open) {
+        if (wasOpen && !open) focusManager.clearFocus()
+        wasOpen = open
+    }
+    // THREE-line for the same reason as the rows above it: it is the 12 dp
+    // padding this block has always had, and nothing in it fits in 88 dp.
+    PrefRow(lines = PrefRowLines.THREE, leading = { PrefIcon(Icons.Outlined.Psychology) }) {
+        Text(stringResource(R.string.pref_ai_effort), style = MaterialTheme.typography.titleMedium)
+        Text(
+            stringResource(R.string.pref_ai_effort_summary),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val label = stringResource(effort.labelRes())
+        ExposedDropdownMenuBox(
+            expanded = open,
+            onExpandedChange = { open = it },
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        ) {
+            OutlinedTextField(
+                // The default is called out where it IS the current value, for
+                // the same reason [AiRoundsRow] does it: "Medium" alone does not
+                // tell somebody whether they have already changed this.
+                value = if (effort == ReasoningEffort.DEFAULT) {
+                    stringResource(R.string.pref_ai_effort_default, label)
+                } else {
+                    label
+                },
+                // Read-only rather than disabled: disabled would grey the text
+                // and drop the field out of the tab order, and this IS the
+                // control — the menu opens from it.
+                onValueChange = {},
+                readOnly = true,
+                modifier = Modifier
+                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                    .fillMaxWidth(),
+                // The warning survives the menu closing. Without this, choosing
+                // Ultra would show a caution mark for as long as the menu was
+                // open and then a field that looks like every other setting.
+                leadingIcon = if (effort.unverified) {
+                    { UnverifiedEffortIcon() }
+                } else {
+                    null
+                },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(open) },
+                // The exact token the request will carry. The label is copy and
+                // may be translated; this is the string that appears in a server
+                // error, so it is the one worth being able to read off.
+                supportingText = {
+                    Text(stringResource(R.string.pref_ai_effort_current, effort.wire))
+                },
+                singleLine = true,
+                // **Stock MD3 colours, deliberately — including the near-black
+                // focused rim.**
+                //
+                // There was a `focusedBorderColor` override here for one
+                // revision, greying the rim down to match the resting one. That
+                // was the wrong fix for the right complaint: the rim looked
+                // wrong not because black is wrong but because it *persisted*
+                // after the menu closed, so the field advertised a focus the
+                // user had already left. Fixing the focus made the colour
+                // correct again, and the override then only made a focused
+                // dropdown look unfocused — the same disguise, one layer down.
+                //
+                // So this field matches [AiModelRow]'s exactly: grey hairline at
+                // rest, near-black while it holds focus, and it holds focus only
+                // while its menu is open. See the `LaunchedEffect` above.
+            )
+            ExposedDropdownMenu(
+                expanded = open,
+                onDismissRequest = { open = false },
+                // 16 dp, not the 4 dp `MenuDefaults.shape` hands out. That default
+                // still reads `MenuTokens.ContainerShape` — the token file stamped
+                // `VERSION: v0_210`, i.e. the pre-expressive baseline. The library
+                // itself already carries the current one: `SegmentedMenuTokens`
+                // (`VERSION: 24.1.2`) sets a menu's `ContainerShape` to
+                // `CornerLarge` = 16 dp, and nothing routes it to `DropdownMenu`
+                // yet. `shapes.large` IS `ShapeTokens.CornerLarge`, so this is the
+                // spec value, not a taste value — see the same override on the
+                // Create tab's overflow menu and the assistant's.
+                shape = MaterialTheme.shapes.large,
+            ) {
+                // Declaration order is the order they are offered, which is
+                // ascending effort — the enum is the single list, so the menu
+                // cannot fall out of step with what the wire accepts.
+                ReasoningEffort.entries.forEach { level ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(level.labelRes())) },
+                        trailingIcon = if (level.unverified) {
+                            { UnverifiedEffortIcon() }
+                        } else {
+                            null
+                        },
+                        onClick = {
+                            // The token, never the enum name or its ordinal: what
+                            // is stored is what is sent. See [PrefKeys.AI_REASONING_EFFORT].
+                            Core.prefs.putString(PrefKeys.AI_REASONING_EFFORT, level.wire)
+                            open = false
+                        },
+                        // The spec'd insets for an EXPOSED dropdown's items,
+                        // which are not `DropdownMenuItem`'s own defaults: the
+                        // menu is anchored to a text field and its items line up
+                        // with that field's text, not with a floating menu's.
+                        // Without it the labels sit a few dp left of the value
+                        // they replace, and the list reads as a separate object
+                        // that happens to be nearby.
+                        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -1844,8 +2534,15 @@ private fun DisplayRow(
             modifier = Modifier.padding(start = 8.dp, end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // `DragIndicator`, not the hamburger `Menu` this carried: three
+            // stacked bars is a *navigation drawer*, and it meant "drag me" here
+            // only by the Holo-era convention that a list row's right-hand
+            // hamburger is a grab handle. `DragIndicator` (the 2x3 dot grid) is
+            // Material's own reorder-handle glyph and is what Android's own
+            // reorderable lists use, so it says what this is without the
+            // convention having to be known.
             Icon(
-                Icons.Default.Menu,
+                Icons.Outlined.DragIndicator,
                 contentDescription = "Drag to reorder",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
@@ -1938,13 +2635,13 @@ private fun DisplayRow(
                     onCheckedChange = { onSelect() },
                     shapes = IconButtonDefaults.toggleableShapes(),
                 ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.set_active))
+                    Icon(Icons.Outlined.PlayArrow, contentDescription = stringResource(R.string.set_active))
                 }
             }
             if (id in CONFIGURABLE) {
                 IconButton(onClick = onSettings) {
                     Icon(
-                        Icons.Default.Settings,
+                        Icons.Outlined.Settings,
                         contentDescription = stringResource(R.string.settings),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -2014,7 +2711,7 @@ private fun CollapsibleSectionHeader(text: String, expanded: Boolean, onToggle: 
             modifier = Modifier.weight(1f),
         )
         Icon(
-            Icons.Default.ExpandMore,
+            Icons.Outlined.ExpandMore,
             contentDescription = stringResource(
                 if (expanded) R.string.section_collapse else R.string.section_expand,
             ),
@@ -2597,7 +3294,7 @@ private fun ChecklistRow(title: String, subtitle: String, good: Boolean?, onClic
                 label = "checklistRowMark",
             ) { ok ->
                 Icon(
-                    if (ok) Icons.Default.Check else Icons.AutoMirrored.Filled.HelpOutline,
+                    if (ok) Icons.Outlined.Check else Icons.AutoMirrored.Outlined.HelpOutline,
                     contentDescription = null,
                     modifier = Modifier.size(PREF_ROW_ICON_SIZE),
                 )
@@ -2615,12 +3312,21 @@ private fun ChecklistRow(title: String, subtitle: String, good: Boolean?, onClic
     }
 }
 
+/**
+ * A checklist row for a runtime permission.
+ *
+ * [granted] is passed IN rather than probed here, and that is the whole point of
+ * the refactor this row came out of: the answer now comes from the one
+ * [SetupStatus] the badge also reads, so a row showing a check mark and a badge
+ * saying otherwise cannot happen.
+ */
 @Composable
-private fun PermissionRow(title: String, permissions: Array<String>, refreshTick: Int, onRequest: (Array<String>) -> Unit) {
-    val context = LocalContext.current
-    val granted = remember(refreshTick) {
-        permissions.any { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
-    }
+private fun PermissionRow(
+    title: String,
+    permissions: Array<String>,
+    granted: Boolean,
+    onRequest: (Array<String>) -> Unit,
+) {
     ChecklistRow(
         title = title,
         subtitle = stringResource(if (granted) R.string.checklist_granted else R.string.checklist_tap_to_grant),
@@ -2729,7 +3435,7 @@ private fun UpdateRow() {
             is UpdateUiState.Failed -> false
             else -> null
         },
-        leading = Icons.Default.SystemUpdate,
+        leading = Icons.Outlined.SystemUpdate,
     ) {
         when (val s = state) {
             // Once an update is known, the row becomes the download link.

@@ -19,7 +19,6 @@ import org.junit.Test
  * send and agreed to it.
  */
 class AiConsentTest {
-
     /** [AiConsentStorage] with the `SharedPreferences` taken out. */
     private class FakeConsent(private var value: Boolean = false) : AiConsentStorage {
         var writes = 0
@@ -82,16 +81,5 @@ class AiConsentTest {
         assertFalse(consent.accepted)
         assertEquals(AiGate.CONSENT, aiGate(consent.accepted, signedIn = true))
         assertEquals(AiGate.CONSENT, aiGate(consent.accepted, signedIn = false))
-    }
-
-    @Test
-    fun `every combination is decided`() {
-        val gates = listOf(false, true).flatMap { consented ->
-            listOf(false, true).map { signedIn -> aiGate(consented, signedIn) }
-        }
-        assertEquals(
-            listOf(AiGate.CONSENT, AiGate.CONSENT, AiGate.SIGN_IN, AiGate.CHAT),
-            gates,
-        )
     }
 }

@@ -45,11 +45,25 @@ class App : Application(), Configuration.Provider {
                 NotificationManager.IMPORTANCE_DEFAULT,
             ),
         )
+        // IMPORTANCE_LOW: this one is the required notice for a foreground
+        // service the user started themselves and is waiting on. It has to be
+        // visible — it is the only way back to the design being worked on — and
+        // it must not make a sound, because it appears on every single turn.
+        nm.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_AI,
+                getString(R.string.channel_ai),
+                NotificationManager.IMPORTANCE_LOW,
+            ),
+        )
     }
 
     companion object {
         const val CHANNEL_TIMER = "timer"
         const val CHANNEL_UPDATES = "app_updates"
+
+        /** The assistant working on a design. See `ai/GlyphAiTurnService`. */
+        const val CHANNEL_AI = "ai_turn"
 
         /** Pre-rename id of [CHANNEL_TIMER], deleted on first launch of this build. */
         private const val LEGACY_CHANNEL_TEA_TIME = "tea_time"

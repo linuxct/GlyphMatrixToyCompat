@@ -402,7 +402,12 @@ class GlyphAiOrchestrator(
         validated: Design?,
         notes: MutableList<ChatToolNote>,
     ): TurnResult.Failure {
-        val outOfRounds = "The assistant used its $maxRounds tool rounds without answering."
+        // Names the budget AND where to change it. Running out is not always a
+        // fault to be reported — for a big animation it is simply the wrong
+        // number, and a message that says only "it ran out" leaves the user with
+        // no move except asking again and watching it run out identically.
+        val outOfRounds = "The assistant used its $maxRounds tool rounds without answering. " +
+            "A complex design may need more — raise the assistant's tool rounds in Settings."
         val draft = validated?.takeIf { applied == null }
             ?: return fail(TurnResult.Reason.STUCK, outOfRounds, rounds, applied, notes)
 

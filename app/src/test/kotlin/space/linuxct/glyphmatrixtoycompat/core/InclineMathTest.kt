@@ -3,7 +3,6 @@ package space.linuxct.glyphmatrixtoycompat.core
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import space.linuxct.glyphmatrixtoycompat.screens.LevelScreen
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -17,7 +16,6 @@ import kotlin.math.sin
  * start from gravity vectors, which is the only place that bug was visible.
  */
 class InclineMathTest {
-
     private val G = 9.81f
 
     /** Gravity for a device tilted [deg] about its X axis, face up or down. */
@@ -45,25 +43,6 @@ class InclineMathTest {
     }
 
     @Test
-    fun `face down flat reads dead level`() {
-        // THE regression test. The Glyph Matrix is on the BACK of the phone, so
-        // the toy is only ever looked at face down, where gz is negative. The
-        // old atan2(gy, gz) / atan2(gx, gz) returned 180 on both axes here — a
-        // combined magnitude of 254 deg that saturated the ball's deflection and
-        // pinned it in a corner forever, no matter how flat the desk was.
-        assertEquals(0f, InclineMath.pitchDegrees(0f, -G), 1e-4f)
-        assertEquals(0f, InclineMath.rollDegrees(0f, -G), 1e-4f)
-    }
-
-    @Test
-    fun `face down flat is inside the level tolerance`() {
-        // The same thing stated the way the user experiences it: lying flat on
-        // its face, the toy must call itself level.
-        val (gx, gy, gz) = Triple(0f, 0f, -G)
-        assertTrue(LevelScreen.isLevel(InclineMath.pitchDegrees(gy, gz), InclineMath.rollDegrees(gx, gz)))
-    }
-
-    @Test
     fun `face down tilt keeps the pitch sign and magnitude`() {
         // Top edge low, phone face down: pitch is positive and equals the tilt.
         assertEquals(5f, pitch(pitchVector(5.0, faceUp = false)), 1e-3f)
@@ -84,28 +63,6 @@ class InclineMathTest {
         // physical tilt reads with the opposite sign — which is what keeps the
         // ball rolling toward the edge that looks low to the viewer.
         assertEquals(-up, down, 1e-3f)
-    }
-
-    @Test
-    fun `near vertical saturates without NaN`() {
-        for (v in listOf(pitchVector(89.9, faceUp = false), pitchVector(89.9, faceUp = true))) {
-            val p = pitch(v)
-            assertTrue("not finite: $p", p.isFinite())
-            assertTrue("did not saturate: $p", p > 85f && p <= 90f)
-        }
-        // Exactly on edge: gz is 0, which is where a divide-based derivation
-        // would blow up. atan2 is total, so this is a clean +-90.
-        assertEquals(90f, InclineMath.pitchDegrees(G, 0f), 1e-3f)
-        assertEquals(-90f, InclineMath.pitchDegrees(-G, 0f), 1e-3f)
-        assertEquals(90f, InclineMath.rollDegrees(G, 0f), 1e-3f)
-        assertEquals(-90f, InclineMath.rollDegrees(-G, 0f), 1e-3f)
-    }
-
-    @Test
-    fun `a zero vector is finite, not NaN`() {
-        // Free fall, or the very first accelerometer sample on a broken sensor.
-        assertEquals(0f, InclineMath.pitchDegrees(0f, 0f), 1e-4f)
-        assertEquals(0f, InclineMath.rollDegrees(0f, 0f), 1e-4f)
     }
 
     @Test

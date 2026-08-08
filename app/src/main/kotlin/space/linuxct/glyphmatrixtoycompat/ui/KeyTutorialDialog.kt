@@ -12,6 +12,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +39,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -56,6 +58,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
@@ -63,6 +66,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
 import space.linuxct.glyphmatrixtoycompat.R
 import space.linuxct.glyphmatrixtoycompat.ui.design.Camera
 import space.linuxct.glyphmatrixtoycompat.ui.design.DeviceBack
@@ -193,6 +198,46 @@ internal fun MotionDialog(
             decorFitsSystemWindows = !fullScreen,
         ),
     ) {
+        // **A dialog is its own window, and the status bar's icons are a property
+        // of a window — so this one starts with the platform default rather than
+        // the app's.**
+        //
+        // The same sentence the `decorFitsSystemWindows` note above is built on,
+        // costing something different. `enableEdgeToEdge()` gives the Activity's
+        // window dark status-bar icons under a light theme; a `Dialog` opened
+        // from it gets a fresh window that was never told, so its icons stay
+        // light — white on the light background, i.e. an empty status bar. Dark
+        // theme was unaffected because white-on-dark is what it wanted anyway,
+        // which is exactly why this only ever showed up in light mode, and only
+        // while a dialog was open.
+        //
+        // **[fullScreen] only, and that is not caution — it is the rule.**
+        //
+        // What the status bar has to be legible against is not the app's theme,
+        // it is whatever is drawn behind it, and the two kinds of dialog differ
+        // there. A full-screen one *is* the background: its own surface runs
+        // under the status bar, so the icons must match the app. A floating card
+        // leaves the page behind it visible and **dimmed by the platform scrim**
+        // — a mid grey in either theme — and light icons are what reads on that.
+        // Forcing the app's appearance onto a card would put dark icons on that
+        // grey and break the one case that was already right.
+        //
+        // Keyed on `dark` so a theme change while a dialog is open re-applies;
+        // no `onDispose` restore, because the dialog window is destroyed with the
+        // dialog and the Activity's own window was never touched.
+        val dark = isSystemInDarkTheme()
+        val dialogView = LocalView.current
+        if (fullScreen) {
+            DisposableEffect(dialogView, dark) {
+                (dialogView.parent as? DialogWindowProvider)?.window?.let { dialogWindow ->
+                    WindowCompat.getInsetsController(dialogWindow, dialogView).apply {
+                        isAppearanceLightStatusBars = !dark
+                        isAppearanceLightNavigationBars = !dark
+                    }
+                }
+                onDispose { }
+            }
+        }
         AnimatedVisibility(
             visibleState = visible,
             // Outside the Surface, so it caps how tall these dialogs may grow

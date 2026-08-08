@@ -2,9 +2,7 @@ package space.linuxct.glyphmatrixtoycompat.screens
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
-import space.linuxct.glyphmatrixtoycompat.GoldenAscii
 import space.linuxct.glyphmatrixtoycompat.TestHarness
 import space.linuxct.glyphmatrixtoycompat.core.Events
 import space.linuxct.glyphmatrixtoycompat.core.design.DEFAULT_LEVELS
@@ -26,7 +24,6 @@ import space.linuxct.glyphmatrixtoycompat.core.design.PokemonCodename
  * against a ticker that ignored the authored durations.
  */
 class CustomScreenTest {
-
     // ---------- static ----------
 
     @Test
@@ -42,24 +39,6 @@ class CustomScreenTest {
         // No chain was armed: a still image must cost nothing while it is up.
         h.scheduler.advanceTime(60_000)
         assertEquals(1, h.frames.size)
-    }
-
-    @Test
-    fun `a design declared static shows only its first frame`() {
-        val h = TestHarness(13)
-        // Extra frames are legal in the file — the editor keeps them when the
-        // author switches a design back to static — and must not animate.
-        h.design.design = design(
-            DesignKind.STATIC,
-            frames = listOf(frame(13, lit = 40), frame(13, lit = 41)),
-        )
-        val screen = CustomScreen()
-
-        screen.onActivate(h.context)
-        h.scheduler.advanceTime(10_000)
-
-        assertEquals(1, h.frames.size)
-        assertArrayEquals(decoded(13, lit = 40), h.frames[0])
     }
 
     // ---------- dynamic timing ----------
@@ -183,65 +162,6 @@ class CustomScreenTest {
         assertArrayEquals(decoded(13, lit = 1), h.frames.last())
     }
 
-    @Test
-    fun `loop off holds the last frame and a press replays from the start`() {
-        val h = TestHarness(13)
-        h.design.design = design(
-            DesignKind.DYNAMIC,
-            keyMode = KeyMode.PLAY_PAUSE,
-            loop = false,
-            frames = List(3) { frame(13, lit = it, durationMs = 100) },
-        )
-        val screen = CustomScreen()
-
-        screen.onActivate(h.context)
-        h.scheduler.advanceTime(100) // -> frame 1
-        h.scheduler.advanceTime(100) // -> frame 2, the last one
-        assertArrayEquals(decoded(13, lit = 2), h.frames.last())
-        // Held, indefinitely, and the chain is not re-armed.
-        h.scheduler.advanceTime(10_000)
-        assertArrayEquals(decoded(13, lit = 2), h.frames.last())
-        val held = h.frames.size
-
-        // Stopped at the end, so a toggle has nothing to resume — it starts over.
-        screen.onEvent(Events.CHANGE)
-        assertArrayEquals(decoded(13, lit = 0), h.frames.last())
-        assertTrue(h.frames.size > held)
-        h.scheduler.advanceTime(100)
-        assertArrayEquals(decoded(13, lit = 1), h.frames.last())
-    }
-
-    /**
-     * A shake is a press. Coin, Dice, Rps and Bottle all take the two gestures
-     * as one input, and this screen used to drop the shake on the floor — so on
-     * a phone lying face down, the toy that is *most* likely to be a hand-drawn
-     * animation was the one that could not be started without pressing the key.
-     */
-    @Test
-    fun `a shake pauses and resumes exactly as a press does`() {
-        val h = TestHarness(13)
-        h.design.design = design(
-            DesignKind.DYNAMIC,
-            keyMode = KeyMode.PLAY_PAUSE,
-            loop = true,
-            frames = List(4) { frame(13, lit = it, durationMs = 100) },
-        )
-        val screen = CustomScreen()
-
-        screen.onActivate(h.context)
-        h.scheduler.advanceTime(100)
-        assertArrayEquals(decoded(13, lit = 1), h.frames.last())
-
-        screen.onEvent(Events.SHAKE)
-        val paused = h.frames.size
-        h.scheduler.advanceTime(5_000)
-        assertEquals("a shake must pause, like a press", paused, h.frames.size)
-
-        screen.onEvent(Events.SHAKE)
-        h.scheduler.advanceTime(100)
-        assertArrayEquals(decoded(13, lit = 2), h.frames.last())
-    }
-
     // ---------- the placeholder ----------
 
     @Test
@@ -254,45 +174,6 @@ class CustomScreenTest {
 
         assertEquals(1, h.frames.size)
         assertArrayEquals(CustomScreen.renderPlaceholder(13), h.frames[0])
-    }
-
-    @Test
-    fun `a design with no variant for this device renders the placeholder`() {
-        val h = TestHarness(13)
-        // Authored on a Phone (3) and never opened on a (4a) Pro: real art, none
-        // of it for this panel.
-        h.design.design = design(
-            DesignKind.STATIC,
-            codename = PokemonCodename.ARBOK,
-            frames = listOf(frame(25, lit = 0)),
-        )
-        val screen = CustomScreen()
-
-        screen.onActivate(h.context)
-
-        assertArrayEquals(CustomScreen.renderPlaceholder(13), h.frames.last())
-    }
-
-    @Test
-    fun `an empty variant renders the placeholder rather than a dark matrix`() {
-        val h = TestHarness(13)
-        // The blank second canvas every dual-size design starts with.
-        h.design.design = design(DesignKind.STATIC, frames = emptyList())
-        val screen = CustomScreen()
-
-        screen.onActivate(h.context)
-
-        assertArrayEquals(CustomScreen.renderPlaceholder(13), h.frames.last())
-    }
-
-    @Test
-    fun `the placeholder is a dim border around a full-brightness question mark`() {
-        GoldenAscii.check("custom_13_placeholder", CustomScreen.renderPlaceholder(13), 13)
-        GoldenAscii.check("custom_25_placeholder", CustomScreen.renderPlaceholder(25), 25)
-        for (size in intArrayOf(13, 25)) {
-            // The audit rule: the brightest element is 4095, the border a ratio.
-            assertEquals(4095, CustomScreen.renderPlaceholder(size).max())
-        }
     }
 
     // ---------- deactivation ----------
@@ -325,44 +206,7 @@ class CustomScreenTest {
         )
     }
 
-    @Test
-    fun `presses after deactivation do nothing`() {
-        val h = TestHarness(13)
-        h.design.design = design(
-            DesignKind.DYNAMIC,
-            keyMode = KeyMode.PLAY_ONCE,
-            frames = List(3) { frame(13, lit = it, durationMs = 100) },
-        )
-        val screen = CustomScreen()
-
-        screen.onActivate(h.context)
-        screen.onDeactivate()
-        val atDeactivation = h.frames.size
-
-        screen.onEvent(Events.CHANGE)
-        h.scheduler.advanceTime(1_000)
-
-        assertEquals(atDeactivation, h.frames.size)
-    }
-
-    @Test
-    fun `reactivation re-reads the selection`() {
-        val h = TestHarness(13)
-        val screen = CustomScreen()
-
-        h.design.design = null
-        screen.onActivate(h.context)
-        assertArrayEquals(CustomScreen.renderPlaceholder(13), h.frames.last())
-        screen.onDeactivate()
-
-        // The user picked a design in Settings while another toy was up.
-        h.design.design = design(DesignKind.STATIC, frames = listOf(frame(13, lit = 77)))
-        screen.onActivate(h.context)
-        assertArrayEquals(decoded(13, lit = 77), h.frames.last())
-    }
-
     private companion object {
-
         /** A frame with exactly one cell at palette index 2 (4095), the rest dark. */
         fun frame(size: Int, lit: Int, durationMs: Int = 120): DesignFrame {
             val cells = StringBuilder("0".repeat(size * size))

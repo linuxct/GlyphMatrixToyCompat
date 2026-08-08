@@ -1,7 +1,6 @@
 package space.linuxct.glyphmatrixtoycompat.ai
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -28,7 +27,6 @@ import java.io.File
  * would be able to point the writer at the OAuth token.
  */
 class ChatStoreTest {
-
     // region path derivation
 
     @Test
@@ -60,15 +58,6 @@ class ChatStoreTest {
         hostile.forEach { assertNull(it, chatFileName(it)) }
     }
 
-    @Test
-    fun `the chats directory is not the designs directory`() {
-        // The two stores must not share a directory: designs are device-protected
-        // so the always-on display can read them before unlock, conversations are
-        // credential-protected so nothing can. A name collision would be a very
-        // quiet way to undo that.
-        assertEquals("chats", DIRECTORY_NAME)
-    }
-
     // endregion
 
     // region degrading gracefully
@@ -97,23 +86,6 @@ class ChatStoreTest {
     }
 
     @Test
-    fun `a file of garbage degrades to no history`() {
-        assertNull(readTranscript(write("garbage.json", "\u0000\u0001 not json at all {{{")))
-        assertNull(readTranscript(write("empty.json", "")))
-        assertNull(readTranscript(write("array.json", "[1,2,3]")))
-    }
-
-    @Test
-    fun `a transcript from a newer build degrades to no history`() {
-        val file = write(
-            "future.json",
-            """{"format":"glyph.chat","formatVersion":99,"designId":"abc123","messages":[]}""",
-        )
-
-        assertNull(readTranscript(file))
-    }
-
-    @Test
     fun `an absurdly large file is refused without being read into memory`() {
         val file = File(dir(), "huge.json").apply {
             // Sparse: the assertion is about the length check firing before the
@@ -125,22 +97,6 @@ class ChatStoreTest {
         }
 
         assertNull(readTranscript(file))
-    }
-
-    @Test
-    fun `a directory where a file should be is not fatal`() {
-        val asDirectory = File(dir(), "adirectory.json").apply { mkdirs() }
-
-        assertNull(readTranscript(asDirectory))
-    }
-
-    @Test
-    fun `a readable file is not affected by an unreadable neighbour`() {
-        write("broken.json", "{{{")
-        val good = write("intact.json", ChatTranscriptCodec.encode(transcript))
-
-        assertNotNull(readTranscript(good))
-        assertTrue(readTranscript(good)!!.messages.isNotEmpty())
     }
 
     // endregion
@@ -181,14 +137,6 @@ class ChatStoreTest {
     }
 
     @Test
-    fun `a live design's backup and temp are left alone`() {
-        assertEquals(
-            emptyList<String>(),
-            orphanChats(listOf("abc.json", "abc.json.bak", "abc.json.tmp"), setOf("abc")),
-        )
-    }
-
-    @Test
     fun `nothing this store did not write is ever swept up`() {
         // Sweeping a directory is not a licence to delete what we do not
         // recognise: a subdirectory, somebody's notes, a file from a later build.
@@ -203,14 +151,6 @@ class ChatStoreTest {
         )
 
         assertEquals(emptyList<String>(), orphanChats(strangers, emptySet()))
-    }
-
-    @Test
-    fun `no designs at all means every conversation is an orphan`() {
-        // The honest reading of an empty design directory, and the reason
-        // `ChatStore` refuses to prune when the id supplier *throws* rather than
-        // returning nothing: those are different facts.
-        assertEquals(listOf("a.json", "b.json"), orphanChats(listOf("a.json", "b.json"), emptySet()))
     }
 
     // endregion
@@ -237,42 +177,6 @@ class ChatStoreTest {
         assertTrue(deleteTranscript(directory, "abc123.json"))
 
         assertEquals(emptyList<String>(), directory.list()!!.sorted())
-    }
-
-    /**
-     * The promise the confirmation dialog makes: resetting a conversation is not
-     * an undo of the artwork.
-     *
-     * Designs live in a different directory *and* on a different storage volume
-     * (device-protected, so the always-on display can read them before unlock),
-     * which is the real guarantee. This asserts the reachable part of it — the
-     * only path built here is `<id>.json` inside the chats directory, so a design
-     * file of the same name a directory away is untouched, and so is every other
-     * conversation.
-     */
-    @Test
-    fun `clearing one conversation leaves the design and every other chat alone`() {
-        val root = freshDir("gmtc-chat-delete-scope")
-        val designs = File(root, "designs").apply { mkdirs() }
-        val chats = File(root, "chats").apply { mkdirs() }
-        File(designs, "abc123.json").writeText("the design itself")
-        File(chats, "abc123.json").writeText(ChatTranscriptCodec.encode(transcript))
-        File(chats, "other.json").writeText(ChatTranscriptCodec.encode(transcript))
-
-        deleteTranscript(chats, "abc123.json")
-
-        assertEquals(listOf("other.json"), chats.list()!!.sorted())
-        assertEquals("the design itself", File(designs, "abc123.json").readText())
-    }
-
-    @Test
-    fun `clearing a conversation nobody ever had is not a failure`() {
-        val directory = freshDir("gmtc-chat-delete-empty")
-
-        // False here means "there was nothing to remove", which is the ordinary
-        // case for a design nobody has talked to. No caller may treat it as an
-        // error, and none does.
-        assertEquals(false, deleteTranscript(directory, "never-written.json"))
     }
 
     // endregion

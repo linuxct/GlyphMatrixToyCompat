@@ -90,7 +90,13 @@ object ChatWire {
      */
     const val MODEL_MAX_LENGTH = 64
 
-    /** Reasoning effort asked of the backend; see [ChatReasoning]. */
+    /**
+     * Reasoning effort asked of the backend when nobody has chosen otherwise.
+     *
+     * The one value this app has ever sent, and the one the settings row defaults
+     * to — see [ReasoningEffort], which owns the rest of the list and derives its
+     * own default from this constant rather than repeating the token.
+     */
     const val DEFAULT_REASONING_EFFORT = "medium"
 
     // region request
@@ -438,6 +444,96 @@ data class ChatRequest(
 /** How hard the backend should think. Omitted entirely on backends that reject it. */
 @Serializable
 data class ChatReasoning(val effort: String = ChatWire.DEFAULT_REASONING_EFFORT)
+
+/**
+ * The reasoning-effort levels the settings row offers, and the token each one
+ * sends as [ChatReasoning.effort].
+ *
+ * ## How much of this is actually known
+ *
+ * Not all of it, and the difference matters more than the list does:
+ *
+ * - [LOW], [MEDIUM] and [HIGH] are the values the Responses API **documents**.
+ *   They are the ones that can be relied on, and [MEDIUM] is what this app has
+ *   always sent.
+ * - [XHIGH] is a level that exists for the Codex-Max-class models this backend
+ *   fronts. Plausible on the model this app asks for; not proven here.
+ * - [MAX] and [ULTRA] are **unverified**. They were asked for by name and are
+ *   offered because the cost of being wrong is small and recoverable, but nothing
+ *   in this repository — and no reading of the published API — establishes that
+ *   the backend accepts either. Treat them as an experiment, not as a feature.
+ *
+ * There is no way to find out from in here: the only proof is a real request from
+ * a signed-in device, exactly as with [ChatWire.MODEL].
+ *
+ * ## What a rejected token does, and why that is survivable
+ *
+ * An `effort` the backend does not know is a **request** error, not a parse
+ * error: the POST comes back non-200 with the reason in its body, `GlyphAiClient`
+ * puts the status and the first 300 characters of that body into the exception
+ * message, and the chat sheet shows it verbatim and copyable (see `ChatFailure`,
+ * whose whole contract is never to replace the server's own words). So the user
+ * sees a message naming `effort` rather than a mute failure, and the settings row
+ * says which three levels are safe.
+ *
+ * Nothing here can wedge the app: [wire] is what is stored, [fromWire] maps
+ * anything unrecognised back to [DEFAULT], and the row therefore always has a
+ * value to display and always has a way back to a working one.
+ */
+enum class ReasoningEffort(
+    /** The lowercase token sent on the wire. The single source of both halves. */
+    val wire: String,
+    /**
+     * True for a level this repository cannot show the backend accepts, which the
+     * settings dropdown marks with a caution pictogram.
+     *
+     * **The fact lives here, not at the call site.** The UI asks the level whether
+     * it is proven rather than matching on names, so the day `max` turns out to be
+     * real — or `xhigh` turns out not to be — the correction is this one flag and
+     * not a hunt through composables.
+     *
+     * [XHIGH] is deliberately *not* flagged: it is a documented level for the
+     * Codex-Max-class models this backend fronts, so it is a reasonable thing to
+     * offer unmarked. [MAX] and [ULTRA] are flagged because they are guesses.
+     */
+    val unverified: Boolean = false,
+) {
+    LOW("low"),
+    MEDIUM("medium"),
+    HIGH("high"),
+    XHIGH("xhigh"),
+    MAX("max", unverified = true),
+    ULTRA("ultra", unverified = true),
+    ;
+
+    companion object {
+        /**
+         * What an unset — or unrecognised — preference reads as.
+         *
+         * Derived from [ChatWire.DEFAULT_REASONING_EFFORT] rather than named
+         * again, so the shipped behaviour and the wire default cannot drift
+         * apart. `firstOrNull` rather than `first` because a class initialiser
+         * that throws would take the process with it; [MEDIUM] is the documented
+         * middle of the range and the value this app sent before the setting
+         * existed, so it is the right thing to have fallen back to.
+         */
+        val DEFAULT: ReasoningEffort =
+            entries.firstOrNull { it.wire == ChatWire.DEFAULT_REASONING_EFFORT } ?: MEDIUM
+
+        /**
+         * [stored] as a level, or [DEFAULT] if it names none.
+         *
+         * Total by construction, which is the point: the preference is a free
+         * string on disk, an older build's token may be one this build dropped,
+         * and a value the UI cannot display is a settings row that cannot be
+         * used to fix itself.
+         */
+        fun fromWire(stored: String?): ReasoningEffort {
+            val token = stored?.trim()?.lowercase().orEmpty()
+            return entries.firstOrNull { it.wire == token } ?: DEFAULT
+        }
+    }
+}
 
 /**
  * One item of the `input` array.

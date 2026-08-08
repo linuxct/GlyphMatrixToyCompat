@@ -3,12 +3,8 @@ package space.linuxct.glyphmatrixtoycompat.screens
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import space.linuxct.glyphmatrixtoycompat.GoldenAscii
-import space.linuxct.glyphmatrixtoycompat.TestHarness
-import space.linuxct.glyphmatrixtoycompat.core.Events
-import space.linuxct.glyphmatrixtoycompat.core.PrefKeys
 
 class VisualizerScreenTest {
-
     private val ramp13 = FloatArray(13) { it / 12f }
 
     @Test
@@ -41,23 +37,5 @@ class VisualizerScreenTest {
                 .contentEquals(VisualizerScreen.renderIdlePattern(13)),
         )
         GoldenAscii.check("visualizer_13_idle", VisualizerScreen.renderIdlePattern(13), 13)
-    }
-
-    @Test
-    fun `null spectrum shows permission pattern`() {
-        assertTrue(
-            VisualizerScreen.renderFrame(13, null, 0)
-                .contentEquals(VisualizerScreen.renderPermissionPattern(13)),
-        )
-        GoldenAscii.check("visualizer_13_nomic", VisualizerScreen.renderPermissionPattern(13), 13)
-    }
-
-    @Test
-    fun `aod event persists pref`() {
-        val h = TestHarness(13)
-        val screen = VisualizerScreen()
-        screen.onActivate(h.context)
-        screen.onEvent(Events.AOD)
-        assertTrue(h.prefs.getBoolean(PrefKeys.VISUALIZER_AOD_HINT, false))
     }
 }

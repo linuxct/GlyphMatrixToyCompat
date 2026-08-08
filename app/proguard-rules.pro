@@ -22,3 +22,14 @@
 -keep class space.linuxct.glyphmatrixtoycompat.key.KeyCaptureTileService { *; }
 -keep class space.linuxct.glyphmatrixtoycompat.toy.AodToyService { *; }
 -keep class space.linuxct.glyphmatrixtoycompat.toy.TimerAlarmReceiver { *; }
+
+# SharedPreferences keeps its change listeners in a WeakHashMap, so AndroidPrefs
+# holds the only strong reference to the one it registers. R8 removed that field
+# once — written, never read — kept the registration side effect, and left the
+# listener weakly reachable: one GC later every preference notification in the
+# process stopped for good, which shipped as a Toys tab whose highlight silently
+# froze. The field carries @Keep as well; this rule is here so the guarantee does
+# not rest on the annotation alone. See AndroidPrefs.spListener.
+-keepclassmembers class space.linuxct.glyphmatrixtoycompat.util.AndroidPrefs {
+    private android.content.SharedPreferences$OnSharedPreferenceChangeListener spListener;
+}

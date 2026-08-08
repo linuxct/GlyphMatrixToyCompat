@@ -32,17 +32,20 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Redo
-import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.GridOff
-import androidx.compose.material.icons.filled.GridOn
-import androidx.compose.material.icons.filled.Layers
-import androidx.compose.material.icons.filled.Smartphone
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.ZoomOutMap
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Redo
+import androidx.compose.material.icons.automirrored.outlined.Undo
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.FormatColorFill
+import androidx.compose.material.icons.outlined.FormatColorReset
+import androidx.compose.material.icons.outlined.Layers
+import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.TextFields
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material.icons.outlined.ZoomOutMap
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconToggleButton
 import androidx.compose.material3.Icon
@@ -131,7 +134,7 @@ import space.linuxct.glyphmatrixtoycompat.ui.offStateOutline
 import space.linuxct.glyphmatrixtoycompat.ui.requestPeakRefreshRateWhileVisible
 import space.linuxct.glyphmatrixtoycompat.ui.saveRespectingAuthor
 import space.linuxct.glyphmatrixtoycompat.ui.showDesignOnMatrix
-import space.linuxct.glyphmatrixtoycompat.ui.showOnMatrixMessage
+import space.linuxct.glyphmatrixtoycompat.ui.ShowOnMatrix
 import space.linuxct.glyphmatrixtoycompat.ui.theme.GmtcTheme
 import kotlin.math.ceil
 import kotlin.math.max
@@ -206,23 +209,41 @@ import kotlin.math.roundToInt
  *
  * ## Live preview
  *
- * While this activity is resumed the real Glyph Matrix mirrors the frame being
- * drawn, with hard precedence over the selected toy and over every compositing
- * override. See [LiveMatrixPreview] for what it shows and what it costs, and
+ * While this activity is resumed the real Glyph Matrix mirrors this design, with
+ * hard precedence over the selected toy and over every compositing override — the
+ * frame being drawn, or the animation running, depending on the app bar's
+ * play/pause. See [LiveMatrixPreview] for what each of those shows and costs, and
  * `ScreenManager.beginLivePreview` for how precedence is actually enforced.
+ * Opening a design also makes it the design the `Custom` toy plays, silently, so
+ * that closing the editor leaves the drawing on the panel rather than whatever was
+ * there before.
  *
  * ## Performance
  *
  * See [EditorFrame] for the phase discipline that keeps a moving finger out of
  * recomposition, and [ThumbnailCache] for the one that keeps the timeline out of
- * it. Note what is NOT here: no `withFrameNanos`, no infinite transition, nothing
- * that redraws on a clock — the single frame loop in this screen lives inside a
- * reorder drag and dies with the finger (see `DesignTimeline`), and the live
- * preview is a `snapshotFlow` that suspends unless a pixel changed. An idle
- * editor issues no frames and no pushes at all. [requestPeakRefreshRateWhileVisible]
- * is called for the same reason every other visible activity calls it — so a drag
- * is sampled and presented at 120 Hz instead of at whatever the display policy
- * would otherwise park us on.
+ * it.
+ *
+ * **What redraws on a clock, and what does not.** This screen used to promise
+ * none of it. It now has exactly two clocks and each one is bounded by something
+ * the user did:
+ *
+ * 1. **The floating preview's frame loop** ([FloatingLivePreview]) — running only
+ *    while the design is dynamic, has more than one frame, the widget is composed
+ *    and the activity is resumed. A tick writes one Int that is read from a draw
+ *    lambda, so it invalidates one node's draw and recomposes nothing.
+ * 2. **Playback on the panel**, while play is switched on: a `delay` chain at the
+ *    design's own frame rate, not a frame callback, and it stops with the toggle
+ *    or with the activity.
+ *
+ * Everything else is unchanged and still holds: the reorder drag's frame loop dies
+ * with the finger (see `DesignTimeline`), and the paused live preview is a
+ * `snapshotFlow` that suspends unless a pixel changed. **An idle editor showing a
+ * static design still issues no frames and no pushes at all**, and an idle one
+ * showing an animation issues frames for one small disc and nothing else.
+ * [requestPeakRefreshRateWhileVisible] is called for the same reason every other
+ * visible activity calls it — so a drag is sampled and presented at 120 Hz instead
+ * of at whatever the display policy would otherwise park us on.
  */
 class DesignEditorActivity : ComponentActivity() {
 
@@ -390,12 +411,7 @@ internal fun EditorScaffold(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val saveFailed = stringResource(R.string.create_save_failed)
-    val savedMessage = stringResource(R.string.editor_saved)
     val unnamed = stringResource(R.string.pref_custom_unnamed)
-    // `afterEditor = true`: this activity holds the matrix with hard precedence
-    // for as long as it is resumed, so the honest confirmation here is that the
-    // design starts playing on the way out, not that it is playing now.
-    val showMessage = showOnMatrixMessage(afterEditor = true)
 
     val saver = remember(state, store, demo) {
         SaveScheduler(scope) {
@@ -439,7 +455,41 @@ internal fun EditorScaffold(
         }
     }
 
+    // **Has the user asked for this design, as opposed to merely opened it?**
+    // Latches false → true and never goes back; it is what makes the design the
+    // active toy (see the `LaunchedEffect` below), so a design that was only
+    // *looked at* leaves the panel alone.
+    //
+    // Two things set it, and they are the two ways of saying "this one":
+    //   - **any edit** — somebody who drew on it wants to see what they drew;
+    //   - **play** — an explicit "run this on the hardware", which is a claim on
+    //     the panel even though it changes not one pixel of the document.
+    //
+    // A plain `remember`, keyed on the state like everything else that describes
+    // this session rather than this document. A rotation is neither an edit nor a
+    // press, but it also must not un-latch one — and it does not, because the
+    // composition it survives is the same [EditorState].
+    val claimed = remember(state) { mutableStateOf(false) }
+
+    /**
+     * Every mutating control goes through here, not through [saver] directly:
+     * "something changed" has two consequences now — the debounced write, and the
+     * activation — and a control that armed only one of them would be a bug that
+     * looks like a typo. Cheap after the first call: [MutableState] does not
+     * notify when the value it already holds is written again.
+     */
+    fun edit() {
+        claimed.value = true
+        saver.schedule()
+    }
+
     var settingsOpen by remember { mutableStateOf(false) }
+
+    // The scrolling-text dialog. `rememberSaveable`, unlike `settingsOpen`: the
+    // keyboard is up for the whole life of this one, and turning the phone with a
+    // half-typed phrase in it must not throw the phrase away — see
+    // [MarqueeDialog], which saves the text for the same reason.
+    var marqueeOpen by rememberSaveable { mutableStateOf(false) }
 
     // The assistant's sign-in. Only the DIALOG's visibility is held here — the
     // flow it starts lives in an activity-scoped ViewModel, so rotating the phone
@@ -475,6 +525,10 @@ internal fun EditorScaffold(
             )
 
             override fun apply(design: Design): GlyphApplyResult {
+                // No `recordUndo`: the way back from a chat turn is the revert
+                // banner on the message that caused it, which is what the
+                // `previous` below is handed to. See [EditorState.replaceDesign]
+                // for why this one affordance rather than two.
                 val previous = state.replaceDesign(design)
                     // Model-facing, not user-facing: the orchestrator hands this
                     // back as a failed tool result so the model does not go on to
@@ -484,8 +538,9 @@ internal fun EditorScaffold(
                     )
                 // Straight into the ordinary debounced write — an assistant's
                 // change is a change like any other, and every guarantee in this
-                // file's KDoc applies to it unaltered.
-                saver.schedule()
+                // file's KDoc applies to it unaltered. That includes activation:
+                // a design the assistant drew into is a design that was edited.
+                edit()
                 return GlyphApplyResult.Applied(previous)
             }
         }
@@ -503,6 +558,33 @@ internal fun EditorScaffold(
     // forth to compare.
     val transform = remember { CanvasTransform() }
 
+    // Is the animation running on the panel? Held here because two things need
+    // it: the app-bar toggle that writes it, and [LiveMatrixPreview], which is
+    // what a `true` actually means. **Paused is the resting state** and a plain
+    // `remember` is deliberate — a rotation puts the editor back the way it was
+    // in every other respect, but silently resuming a timer chain that is
+    // driving the hardware is not something a configuration change should do.
+    var playing by remember(state) { mutableStateOf(false) }
+    // A design can lose its animation while it is open — the assistant replaces
+    // the whole document (see [EditorState.replaceDesign]) and may hand back a
+    // static one. Playback that survived that would be a timer chain with no
+    // visible control left to stop it, because the toggle is composed only for a
+    // dynamic design. (The other way a frame list changes wholesale, a variant
+    // switch, is handled where the switch is.)
+    val dynamic = state.design.kind == DesignKind.DYNAMIC
+    LaunchedEffect(dynamic) { if (!dynamic) playing = false }
+
+    // Is the floating preview on screen? **Shown by default** — it is the reason
+    // the widget exists, and a preview somebody has to go and switch on is a
+    // preview they will not know is there.
+    //
+    // Hidden is nonetheless a real want: the disc sits over the top-right of the
+    // drawing area, and the one thing it can obscure is the artwork being drawn
+    // underneath it. So this is an escape hatch, not a preference — `rememberSaveable`
+    // so a rotation does not bring back something deliberately dismissed, and NOT
+    // persisted, so the next design opens with the preview where it belongs.
+    var previewShown by rememberSaveable(state) { mutableStateOf(true) }
+
     // The matrix on the back of the phone mirrors the frame being drawn, for as
     // long as this screen is resumed. Emits nothing.
     //
@@ -510,7 +592,53 @@ internal fun EditorScaffold(
     // fight the toy that is on it: a tutorial that took the matrix would break
     // the feature while explaining it. Not composing it is what keeps the lease
     // and the preview gate out of the demo's reach entirely.
-    if (!demo) LiveMatrixPreview(state)
+    if (!demo) {
+        LiveMatrixPreview(state, playing = playing, onRest = { playing = false })
+
+        // **Editing a design makes it the design the panel plays.**
+        //
+        // Somebody who has just drawn on something wants the phone showing what
+        // they drew when they put it down. Somebody who *opened* it to look — to
+        // check which design this was, to read its settings, to close it again —
+        // asked for nothing and gets nothing: the toy that was on the matrix is
+        // still on it. Opening used to be enough, and that made browsing a
+        // destructive act, silently replacing the user's chosen toy with whatever
+        // they last glanced at.
+        //
+        // This is the same call the Create tab's "Show" menu item makes, so there
+        // is exactly one implementation of "make this the active toy" and no
+        // second copy of its side effects.
+        //
+        // **Silent, on purpose.** The Create tab toasts because a tap deserves an
+        // answer; this is not a tap, and a toast on the first brush stroke would
+        // be a notification of something the user did not ask for and cannot turn
+        // off. The panel itself is the acknowledgement — on the way out, when the
+        // preview lease is dropped and the design starts playing for real.
+        //
+        // Keyed on [claimed], which latches once, so this runs at most once per
+        // opened design and does nothing at all until the first edit or the first
+        // press of play. It does not wait for a change to reach the disk: what is
+        // being selected is the design *file*, which already exists — and the
+        // debounced write that an edit arms alongside this will land long before
+        // anyone puts the phone down.
+        LaunchedEffect(state, claimed.value) {
+            if (!claimed.value) return@LaunchedEffect
+            when (showDesignOnMatrix(state.design)) {
+                // Nothing was touched: `showDesignOnMatrix` returns this BEFORE
+                // it writes a preference, so a design with no artwork for this
+                // phone's panel leaves the matrix exactly as it found it. That is
+                // the whole reason this branches on the result rather than
+                // ignoring it — opening a bellsprout-only design on an arbok must
+                // not swap a working toy for a blank Custom screen.
+                is ShowOnMatrix.NoArt -> Unit
+                // Selected. `Shown` and `ShownWhenEnabled` differ only in whether
+                // the toy is being driven right now, which is a distinction worth
+                // a sentence when somebody asked for it and worth nothing at all
+                // here — either way, this is now the design the panel plays.
+                ShowOnMatrix.Shown, ShowOnMatrix.ShownWhenEnabled -> Unit
+            }
+        }
+    }
 
     // Point (3) of this file's KDoc: leave only once the write has landed.
     fun saveAndClose() = saver.flush { ok -> if (ok) onClose() }
@@ -532,51 +660,84 @@ internal fun EditorScaffold(
                 navigationIcon = {
                     IconButton(onClick = { saveAndClose() }) {
                         Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
+                            Icons.AutoMirrored.Outlined.ArrowBack,
                             contentDescription = stringResource(R.string.editor_close),
                         )
                     }
                 },
                 actions = {
-                    // **The payoff, one tap, where the drawing was just made.**
-                    //
-                    // Before this existed, a finished design reached the matrix
-                    // only by leaving here, finding `Custom` among nineteen toys,
-                    // opening its cog, picking the design from a radio list, and
-                    // separately making `Custom` the active toy. Every one of
-                    // those steps is discoverable *if you already know*, which
-                    // is precisely the user this action is not for.
-                    //
-                    // It is an app-bar action rather than a menu item because a
-                    // first-time user has to be able to SEE it, and it sits to
-                    // the left of save because it is the more consequential of
-                    // the two — save is an acknowledgement of something that has
-                    // already happened on its own.
-                    //
-                    // The save is flushed first, and the selection only happens
-                    // if that write landed: pointing the toy at a design whose
-                    // last few strokes are still in the debounce window would put
-                    // a version of the drawing on the matrix that is not the one
-                    // on screen. `showDesignOnMatrix` then re-reads nothing —
-                    // `state.design` carries the id, which is all it needs.
-                    IconButton(
-                        onClick = {
-                            saver.flush { ok ->
-                                if (ok) {
-                                    Toast.makeText(
-                                        context,
-                                        showMessage(showDesignOnMatrix(state.design)),
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
-                                }
-                            }
-                        },
-                        modifier = Modifier.demoTarget(DemoTarget.SHOW_ACTION),
+                    // Wrapped in a Row purely so the guided tour can spotlight the
+                    // actions as **one** thing. `TopAppBar` lays its actions out in
+                    // a Row anyway, so this changes no measurement; what it adds is
+                    // a single node with a single set of bounds, which is what the
+                    // tour needs to say "this is the bar, here is what is on it"
+                    // instead of spending a step per icon. The individual buttons
+                    // are deliberately untagged — see [DemoTarget.TOP_BAR].
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.demoTarget(DemoTarget.TOP_BAR),
                     ) {
-                        Icon(
-                            Icons.Default.Smartphone,
-                            contentDescription = stringResource(R.string.create_show),
-                        )
+                    // **Watch it run, on the hardware, without leaving.**
+                    //
+                    // The editor holds the matrix for as long as it is resumed, so
+                    // until this existed the only way to see an animation actually
+                    // play was to leave — and the timing of an animation is
+                    // precisely the thing you cannot judge from a still frame.
+                    //
+                    // Only for a design that HAS an animation. A static design has
+                    // one frame and a play button on it would be a control that
+                    // can never do anything, which is the same rule the onion-skin
+                    // toggle and the variant switcher are rationed by.
+                    //
+                    // It is in the bar rather than on the timeline (where an
+                    // earlier note in [LiveMatrixPreview] proposed it) because the
+                    // timeline's row is already six controls wide at 13x13 and
+                    // every dp of it comes off the cell pitch — and because this
+                    // acts on the whole design, like everything else up here, not
+                    // on the selected frame, like everything down there.
+                    //
+                    // Paused is the resting state and nothing about the editor's
+                    // behaviour changes until it is pressed; see [LiveMatrixPreview].
+                    if (dynamic) {
+                        IconButton(
+                            onClick = {
+                                playing = !playing
+                                // Pressing play is an explicit "run THIS on the
+                                // hardware", so it claims the panel exactly like
+                                // an edit does — see [claimed]. Set on the press,
+                                // not on `playing == true`, because pausing is
+                                // still a statement about this design: the frame
+                                // it leaves on the matrix is this design's.
+                                claimed.value = true
+                            },
+                        ) {
+                            Icon(
+                                if (playing) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
+                                contentDescription = stringResource(
+                                    if (playing) R.string.editor_pause else R.string.editor_play,
+                                ),
+                            )
+                        }
+                        // Hide or show the floating preview. Dynamic only, and for
+                        // the same reason play is: on a static design the widget
+                        // is not composed at all, so a button to dismiss it would
+                        // be a control that can never do anything.
+                        IconButton(onClick = { previewShown = !previewShown }) {
+                            Icon(
+                                if (previewShown) {
+                                    Icons.Outlined.Visibility
+                                } else {
+                                    Icons.Outlined.VisibilityOff
+                                },
+                                contentDescription = stringResource(
+                                    if (previewShown) {
+                                        R.string.editor_preview_hide
+                                    } else {
+                                        R.string.editor_preview_show
+                                    },
+                                ),
+                            )
+                        }
                     }
                     // The design assistant: the disclosure, then the sign-in, then
                     // the conversation — one button, and [aiGate] decides which of
@@ -584,13 +745,12 @@ internal fun EditorScaffold(
                     // somebody is looking at when they realise placing 137 dots by
                     // hand is slow.
                     //
-                    // To the right of "show on matrix", which stays the leftmost
-                    // and most consequential action; sparkles is the app-wide
-                    // convention for "an assistant does this", so the icon carries
-                    // the meaning without a label.
+                    // To the right of play/pause, which stays the leftmost action;
+                    // sparkles is the app-wide convention for "an assistant does
+                    // this", so the icon carries the meaning without a label.
                     IconButton(onClick = { aiOpen = true }) {
                         Icon(
-                            Icons.Default.AutoAwesome,
+                            Icons.Outlined.AutoAwesome,
                             contentDescription = stringResource(R.string.ai_action),
                         )
                     }
@@ -601,24 +761,22 @@ internal fun EditorScaffold(
                         modifier = Modifier.demoTarget(DemoTarget.SETTINGS_ACTION),
                     ) {
                         Icon(
-                            Icons.Default.Tune,
+                            Icons.Outlined.Tune,
                             contentDescription = stringResource(R.string.editor_settings),
                         )
                     }
-                    // Redundant by construction — saving already happens on its
-                    // own — but a drawing tool with no visible save control asks
-                    // the user to take that on faith. This is the acknowledgement,
-                    // and with a debounce in the picture it is also the way to
-                    // make the write happen *right now* if you want to watch it.
-                    IconButton(
-                        onClick = {
-                            saver.flush { ok ->
-                                if (ok) Toast.makeText(context, savedMessage, Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                    ) {
-                        Icon(Icons.Default.Check, contentDescription = stringResource(R.string.editor_save))
                     }
+                    // **There is deliberately no save action.** There used to be
+                    // one, on the argument that a drawing tool with no visible
+                    // save control asks the user to take saving on faith — but it
+                    // could only ever *acknowledge* a write that was already
+                    // guaranteed, and it cost a permanent slot in a four-action
+                    // bar to do it. Points (1) and (2) of this file's KDoc are
+                    // what actually make the guarantee: every mutating control
+                    // arms [SAVE_DEBOUNCE_MS], and back, up and `ON_STOP` each
+                    // flush before the editor can be left. The back arrow's label
+                    // says so out loud ("Save and close"), which is where somebody
+                    // looking for reassurance looks anyway.
                 },
                 // The whole page sits on the page background, and the bar is
                 // SOLID in that same colour so it stays opaque yet seamless —
@@ -648,48 +806,114 @@ internal fun EditorScaffold(
         // answer this rationing has: it is used continuously by somebody drawing
         // both sizes and is dead weight for somebody drawing one, so it is shown
         // when — and only when — the design actually has more than one variant.
-        Column(Modifier.fillMaxSize().padding(innerPadding)) {
-            EditorCanvas(
-                state = state,
-                transform = transform,
-                onStrokeEnd = { saver.schedule() },
-                modifier = Modifier.fillMaxWidth().weight(1f).demoTarget(DemoTarget.CANVAS),
-            )
-            Spacer(Modifier.height(CANVAS_PALETTE_GAP))
-            PaletteRow(state)
-            Spacer(Modifier.height(4.dp))
-            ToolRow(state, transform, onChanged = { saver.schedule() })
-            // Only when there is something to switch BETWEEN. A design drawn for
-            // one phone would otherwise spend ~56 dp (the row plus its gap) on a
-            // control with one reachable state, and by the arithmetic above that
-            // is ~2.7 dp of cell pitch at 13x13 and ~1.4 dp at 25x25 — every time
-            // the canvas is the shorter of its two dimensions, which is where the
-            // pitch is worst and the drawing hardest.
-            //
-            // Driven by [EditorState.variantsPresent], so it is a fact about the
-            // artwork and not about a stored preference: add the second size from
-            // [DesignSettings], or import a design that already carries both, and
-            // the row appears with no other code involved.
-            if (state.variantsPresent.size > 1) {
-                Spacer(Modifier.height(8.dp))
-                VariantRow(state, onSwitched = { saver.schedule() })
-            }
-            // The timeline and the per-frame duration are the core dynamic
-            // workflow — frames are switched constantly — so they stay on the
-            // surface. A static design has one frame and no timeline.
-            if (state.design.kind == DesignKind.DYNAMIC) {
+        // The one thing that is NOT rationed by the paragraphs above, because it
+        // does not take a single dp off the canvas: the floating preview is an
+        // overlay, pinned into the corner of the drawing area that the disc — a
+        // circle inscribed in the shorter side — cannot reach. See
+        // [FloatingLivePreview]. The `Box` it needs costs one layout node; an
+        // empty overlay does not consume touches, so the canvas underneath is
+        // still painted on everywhere the disc itself is not.
+        Box(Modifier.fillMaxSize().padding(innerPadding)) {
+            Column(Modifier.fillMaxSize()) {
+                EditorCanvas(
+                    state = state,
+                    transform = transform,
+                    onStrokeEnd = { edit() },
+                    modifier = Modifier.fillMaxWidth().weight(1f).demoTarget(DemoTarget.CANVAS),
+                )
+                Spacer(Modifier.height(CANVAS_PALETTE_GAP))
+                PaletteRow(state)
                 Spacer(Modifier.height(4.dp))
-                Timeline(state, onChanged = { saver.schedule() })
+                ToolRow(
+                    state,
+                    transform,
+                    // The same Boolean the play/pause action and the floating
+                    // preview are gated on, read once above: three controls that
+                    // mean "this design is an animation" cannot be allowed to
+                    // disagree about whether it is.
+                    dynamic = dynamic,
+                    onChanged = { edit() },
+                    onMarquee = { marqueeOpen = true },
+                )
+                // Only when there is something to switch BETWEEN. A design drawn for
+                // one phone would otherwise spend ~56 dp (the row plus its gap) on a
+                // control with one reachable state, and by the arithmetic above that
+                // is ~2.7 dp of cell pitch at 13x13 and ~1.4 dp at 25x25 — every time
+                // the canvas is the shorter of its two dimensions, which is where the
+                // pitch is worst and the drawing hardest.
+                //
+                // Driven by [EditorState.variantsPresent], so it is a fact about the
+                // artwork and not about a stored preference: add the second size from
+                // [DesignSettings], or import a design that already carries both, and
+                // the row appears with no other code involved.
+                if (state.variantsPresent.size > 1) {
+                    Spacer(Modifier.height(8.dp))
+                    VariantRow(
+                        state,
+                        onSwitched = {
+                            edit()
+                            // The other size cannot be previewed on this panel at
+                            // all (see [LiveMatrixPreview]), so a switch releases
+                            // the matrix — and a toggle still reading "pause"
+                            // over a panel that has gone back to its toy would be
+                            // claiming something that is not happening.
+                            playing = false
+                        },
+                    )
+                }
+                // The timeline and the per-frame duration are the core dynamic
+                // workflow — frames are switched constantly — so they stay on the
+                // surface. A static design has one frame and no timeline.
+                if (state.design.kind == DesignKind.DYNAMIC) {
+                    Spacer(Modifier.height(4.dp))
+                    Timeline(state, onChanged = { edit() })
+                }
+                Spacer(Modifier.height(12.dp))
             }
-            Spacer(Modifier.height(12.dp))
+            // Composed LAST so it sits above the canvas and the controls; it
+            // positions itself (top-right at rest) and covers the whole content
+            // area only while it is expanded.
+            //
+            // DYNAMIC ONLY, and gated here rather than inside the widget so a
+            // static design pays nothing at all — not the overlay `Box`, not the
+            // layout node, not the state. The widget exists to show MOVEMENT
+            // somebody is drawing: on a one-frame design it is a second, smaller
+            // copy of the canvas already filling the screen behind it, which is
+            // what made it read as clutter rather than as a tool.
+            //
+            // [previewShown] is the app bar's eye, and it gates the widget from
+            // out here for the same reason the kind does: hidden must cost
+            // nothing, not merely draw nothing. Composing it and setting its
+            // alpha to zero would leave the frame clock running to animate a disc
+            // nobody can see.
+            if (dynamic && previewShown) FloatingLivePreview(state)
         }
     }
 
     if (settingsOpen) {
         DesignSettings(
             state = state,
-            onChanged = { saver.schedule() },
+            onChanged = { edit() },
             onDismiss = { settingsOpen = false },
+        )
+    }
+
+    // Scrolling text. `onGenerated` is the ordinary [edit] — a marquee is a
+    // change like any other, so it marks the design dirty, activates it and is
+    // written by the same debounced save as a stroke. See [MarqueeDialog] for
+    // what it does to the artwork that was already there.
+    if (marqueeOpen) {
+        MarqueeDialog(
+            state = state,
+            onDismiss = { marqueeOpen = false },
+            onGenerated = {
+                edit()
+                // The frame list has just been rebuilt underneath it; a preview
+                // still driving the panel from the old one would be animating
+                // frames that no longer exist. Same rule the variant switch and
+                // a whole-document apply already follow.
+                playing = false
+            },
         )
     }
 
@@ -896,28 +1120,55 @@ internal fun openingCodename(design: Design, home: PokemonCodename): PokemonCode
  * The saving has to happen before the call is made, which is what the throttle
  * below does.
  */
-private const val PREVIEW_INTERVAL_MS = 33L
+internal const val PREVIEW_INTERVAL_MS = 33L
 
 /**
- * Mirrors the frame being edited onto the real Glyph Matrix, with hard
- * precedence over everything else on it.
+ * Mirrors the design onto the real Glyph Matrix, with hard precedence over
+ * everything else on it: the frame being edited while [playing] is false, and the
+ * animation itself while it is true.
  *
- * ## What it shows, for a dynamic design
+ * ## Paused — the resting state, and the default
  *
- * **The frame being edited — it does not play the animation.** The preview
- * exists to answer one question, "what does this pixel actually look like on the
- * hardware", and an animation playing through is the one thing that cannot
- * answer it: the pixel under the finger would be on screen for a fraction of a
- * second in every cycle, greys would be impossible to judge against their
- * neighbours, and the panel would be busiest exactly when the user is trying to
- * look at it. It would also cost a timer chain running for as long as the editor
- * is open, which is precisely the battery behaviour §8 of the plan rules out.
+ * **The frame being edited.** The preview exists to answer one question, "what
+ * does this pixel actually look like on the hardware", and an animation playing
+ * through is the one thing that cannot answer it: the pixel under the finger
+ * would be on screen for a fraction of a second in every cycle, greys would be
+ * impossible to judge against their neighbours, and the panel would be busiest
+ * exactly when the user is trying to look at it. That is why playback is a
+ * deliberate action and not what an opened editor does on its own.
  *
- * Playing a design through *is* valuable — it is how you check timing — but it
- * is a separate, deliberate action ("play this on the matrix"), not the resting
- * state of the editor, and the finished design already plays for real through
- * the Custom toy. A play button on the timeline is the right home for it and is
- * not built here.
+ * ## Playing
+ *
+ * The whole animation, frame by frame, honouring each frame's `durationMs` and
+ * the design's repeat rule — [nextPlaybackFrame], [playbackHoldMs] and
+ * [designRepeats] are the schedule, shared with the floating preview so the two
+ * cannot disagree about the timing, and matching `CustomScreen.advance` so what
+ * plays here is what the toy will play.
+ *
+ * A design that does not repeat plays through, holds its last frame for that
+ * frame's own duration, and then **turns playback off**: [onRest] flips the
+ * toggle, which puts the icon back to "play" and hands the panel to the paused
+ * pump above — so the panel ends up showing the frame being edited, which is what
+ * "paused" means everywhere else in this editor. Leaving the animation's final
+ * frame up instead would be a third state, indistinguishable on the panel from a
+ * playback that had got stuck.
+ *
+ * **Painting does not pause it, deliberately.** A stroke is not a request to stop
+ * watching, and stopping on one would make the toggle fight the finger — press
+ * play, touch the canvas, playback is over. It costs nothing in freshness either:
+ * the cells are copied at *push* time, one frame at a time, so an edit to any
+ * frame is on the panel the next time the loop reaches it, which for a design
+ * anybody is drawing is well under a second. What the canvas shows is unchanged
+ * in both states: the frame being edited.
+ *
+ * ## Cost while playing
+ *
+ * One `delay` chain, no frame callbacks, and one push per frame at the design's
+ * own rate — floored at [PREVIEW_INTERVAL_MS], because a 20 ms frame is legal and
+ * 50 blocking binder round-trips a second is not something to do for a panel that
+ * cannot show the difference. It exists only while [playing] **and** the activity
+ * is resumed: the effect is keyed on both, so leaving the editor for any reason
+ * cancels it, and returning finds it paused only if the toggle was turned off.
  *
  * ## The other variant
  *
@@ -929,15 +1180,15 @@ private const val PREVIEW_INTERVAL_MS = 33L
  *
  * ## Cost when nothing is happening
  *
- * Zero. The pump is a `snapshotFlow` over the frame's revision counter, so it is
- * suspended unless a pixel actually changed. No frame loop, no polling; an
- * editor left open and idle issues no pushes and holds no timers. Reading the
- * revision from a `snapshotFlow` also keeps Phase 5's phase discipline intact:
- * the flow installs its own snapshot observer, so a moving finger notifies this
- * coroutine and the `Canvas` draw scopes, and recomposes nothing.
+ * Zero, while paused. The pump is a `snapshotFlow` over the frame's revision
+ * counter, so it is suspended unless a pixel actually changed. No frame loop, no
+ * polling; an idle *paused* editor issues no pushes and holds no timers. Reading
+ * the revision from a `snapshotFlow` also keeps Phase 5's phase discipline
+ * intact: the flow installs its own snapshot observer, so a moving finger
+ * notifies this coroutine and the `Canvas` draw scopes, and recomposes nothing.
  */
 @Composable
-private fun LiveMatrixPreview(state: EditorState) {
+private fun LiveMatrixPreview(state: EditorState, playing: Boolean, onRest: () -> Unit) {
     // Reading `codename` here (a composable body) is correct and cheap: it
     // changes only on a variant switch, which is already a structural change.
     val previewable = Core.glyphLink.isSupported && state.codename.size == Core.glyphLink.size
@@ -969,8 +1220,41 @@ private fun LiveMatrixPreview(state: EditorState) {
         }
     }
 
-    LaunchedEffect(state, resumed) {
+    LaunchedEffect(state, resumed, playing) {
         if (!resumed) return@LaunchedEffect
+        if (playing) {
+            // The animation. One index, one push, one delay, and the schedule
+            // decides the rest — see [nextPlaybackFrame], which is the same rule
+            // `CustomScreen.advance` follows on the toy side.
+            //
+            // Everything is re-read per step rather than captured: the frame list
+            // is a `SnapshotStateList` the user is still editing, so a frame added,
+            // deleted or reordered mid-playback is picked up on the next step
+            // instead of playing out of a stale copy. Plain reads, from a
+            // coroutine and not from composition, so nothing subscribes to them.
+            var index = 0
+            while (true) {
+                val frames = state.frames
+                if (frames.isEmpty()) break
+                // Deletion can put the cursor past the end. Start the pass again
+                // rather than stopping: the design still has an animation.
+                if (index > frames.lastIndex) index = 0
+                val entry = frames[index]
+                // Copied on the main thread, for the same reason the pump below
+                // copies there: the buffer is mutated by the pointer handler.
+                val cells = entry.frame.copyOfCells()
+                Core.scheduler.run { Core.screenManager.pushLivePreview(cells) }
+                delay(playbackHoldMs(entry.durationMs))
+                val repeats = designRepeats(state.design.loop, state.design.keyMode)
+                index = nextPlaybackFrame(index, state.frames.size, repeats) ?: break
+            }
+            // Came to rest on the last frame (repeat off, or the frames went away
+            // under it). Hand the toggle back so the bar stops claiming to be
+            // playing; that flips `playing`, which re-runs this effect and lets
+            // the pump below take the panel again.
+            onRest()
+            return@LaunchedEffect
+        }
         snapshotFlow { state.previewToken() }
             // The throttle. `conflate` drops everything that arrives while the
             // collector is inside its delay and keeps only the fact that
@@ -1589,7 +1873,13 @@ private fun PaletteRow(state: EditorState) {
 private const val UNLIT_SWATCH_ALPHA = 0.10f
 
 @Composable
-private fun ToolRow(state: EditorState, transform: CanvasTransform, onChanged: () -> Unit) {
+private fun ToolRow(
+    state: EditorState,
+    transform: CanvasTransform,
+    dynamic: Boolean,
+    onChanged: () -> Unit,
+    onMarquee: () -> Unit,
+) {
     // The one read of the zoom outside a draw lambda in the whole editor, and it
     // goes through `derivedStateOf` for that reason: a pinch writes `scale` on
     // every pointer sample, and reading it directly here would recompose this row
@@ -1611,20 +1901,33 @@ private fun ToolRow(state: EditorState, transform: CanvasTransform, onChanged: (
             modifier = Modifier.demoTarget(DemoTarget.TOOLS, 0),
             enabled = state.canUndo,
         ) {
-            Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = stringResource(R.string.editor_undo))
+            Icon(Icons.AutoMirrored.Outlined.Undo, contentDescription = stringResource(R.string.editor_undo))
         }
         IconButton(
             onClick = { if (state.redo()) onChanged() },
             modifier = Modifier.demoTarget(DemoTarget.TOOLS, 1),
             enabled = state.canRedo,
         ) {
-            Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = stringResource(R.string.editor_redo))
+            Icon(Icons.AutoMirrored.Outlined.Redo, contentDescription = stringResource(R.string.editor_redo))
         }
+        // **A bucket pair, not a grid pair.** These two used to be `GridOff` and
+        // `GridOn`, which is wrong twice over. Wrong in meaning: in Material those
+        // two are "hide gridlines" / "show gridlines", a *view* toggle, and these
+        // buttons repaint every cell. And wrong in form: side by side they were
+        // the same 4x4 lattice differing only by a diagonal stroke, so the row's
+        // two most destructive controls were also its two least distinguishable —
+        // which is exactly the "these all look the same" complaint they drew.
+        //
+        // `FormatColorReset` (a struck-through drop: no paint) and
+        // `FormatColorFill` (a tipped bucket pouring) are one family, read as
+        // opposites at 24 dp, and describe what actually happens — this is a
+        // painting tool and both buttons are a paint verb applied to the whole
+        // canvas.
         IconButton(
             onClick = { if (state.fillAll(0)) onChanged() },
             modifier = Modifier.demoTarget(DemoTarget.TOOLS, 2),
         ) {
-            Icon(Icons.Default.GridOff, contentDescription = stringResource(R.string.editor_clear))
+            Icon(Icons.Outlined.FormatColorReset, contentDescription = stringResource(R.string.editor_clear))
         }
         // Fills with the SELECTED brush, not with white: "fill" means "everything
         // becomes what I am painting with", which also makes a mid-grey wash one
@@ -1633,7 +1936,42 @@ private fun ToolRow(state: EditorState, transform: CanvasTransform, onChanged: (
             onClick = { if (state.fillAll(state.brushValue())) onChanged() },
             modifier = Modifier.demoTarget(DemoTarget.TOOLS, 3),
         ) {
-            Icon(Icons.Default.GridOn, contentDescription = stringResource(R.string.editor_fill))
+            Icon(Icons.Outlined.FormatColorFill, contentDescription = stringResource(R.string.editor_fill))
+        }
+        // **Appended, and appended for a reason.** The guided tour taps this row
+        // by index — 0 undo, 1 redo, 2 clear, 3 fill — so a new tool goes on the
+        // end or every caption in the script points one button to the left. It
+        // being conditional costs those indices nothing, because it is the last
+        // of the numbered ones: 0 to 3 are above and neither of the two controls
+        // below is a demo target.
+        //
+        // **DYNAMIC ONLY.** A marquee IS an animation, so on a static design this
+        // button could only work by converting the document — the generator sets
+        // `kind` itself — and `kind` is a decision the user made when they created
+        // the design, is called irreversible everywhere else in this file (see
+        // [EditorState.deleteFrame]), and has nothing on this screen to change it
+        // back with. A button whose real effect is "turn this into a different
+        // sort of design" is not a text tool, so it is not offered here. The
+        // promotion still exists on the assistant's `marquee_text`, where it is
+        // asked for in words and answered in a message that says what it did.
+        //
+        // `TextFields` rather than `Abc`, `Title` or `FormatSize`, all of which
+        // are on the classpath. It is Material's own icon for "a text field goes
+        // here", it is drawn as a large letter beside a small one — which is the
+        // "Aa" idea, and now literally what this button produces, since the face
+        // has both cases — and its strokes are solid bars at the same weight as
+        // the paint bucket and the arrows beside it. `Abc` draws three lower-case
+        // letterforms in hairlines: at 24 dp in this row it reads as spellcheck
+        // and as a lighter icon than its neighbours, which is the "these all look
+        // the same" complaint in reverse. `Title` and `FormatSize` are a heading
+        // and a type ramp, and this button changes neither.
+        if (dynamic) {
+            IconButton(
+                onClick = onMarquee,
+                modifier = Modifier.demoTarget(DemoTarget.TOOLS, 4),
+            ) {
+                Icon(Icons.Outlined.TextFields, contentDescription = stringResource(R.string.marquee_tool))
+            }
         }
         // The way back to 1x. It appears only while there is a zoom to undo, the
         // same rule the onion-skin toggle below follows — and it is a button
@@ -1643,7 +1981,7 @@ private fun ToolRow(state: EditorState, transform: CanvasTransform, onChanged: (
         if (zoomed) {
             IconButton(onClick = { transform.reset() }) {
                 Icon(
-                    Icons.Default.ZoomOutMap,
+                    Icons.Outlined.ZoomOutMap,
                     contentDescription = stringResource(R.string.editor_zoom_reset),
                 )
             }
@@ -1666,7 +2004,7 @@ private fun ToolRow(state: EditorState, transform: CanvasTransform, onChanged: (
                     modifier = Modifier.offStateOutline(state.onionSkin),
                 ) {
                     Icon(
-                        Icons.Default.Layers,
+                        Icons.Outlined.Layers,
                         contentDescription = stringResource(
                             if (state.onionSkin) R.string.editor_onion_on else R.string.editor_onion_off,
                         ),
@@ -1732,6 +2070,20 @@ private fun VariantRow(state: EditorState, onSwitched: () -> Unit) {
  * 32 times each, which is not a session anybody has.
  */
 private const val UNDO_DEPTH = 32
+
+/**
+ * How many **whole-document** steps back the editor can go — the other stack the
+ * undo arrow drives, see [EditorState.undo].
+ *
+ * Four rather than [UNDO_DEPTH]'s 32, because these entries are a different size
+ * of thing: a per-frame snapshot is one frame, one of these is an entire design,
+ * and a 240-frame arbok animation encodes to well over a megabyte. Four is what
+ * the tools that produce them are actually used like — a marquee is generated,
+ * looked at, and either kept or taken back — and the alternative to a shallow
+ * bound here is not a deeper history, it is an editor that holds tens of
+ * megabytes of designs nobody is going to ask for.
+ */
+private const val DOCUMENT_UNDO_DEPTH = 4
 
 /**
  * The frame being drawn on, and the reason a moving finger does not recompose
@@ -1914,12 +2266,19 @@ internal class TimelineEntry(
 
 /**
  * Everything the editor is editing: the design, which variant is open, the frames
- * of that variant, which one is selected, the brush and the per-frame histories.
+ * of that variant, which one is selected, the brush and the histories.
  *
  * The `Design` is the model of record and [frames] is the working copy of the
  * open variant's frame list. [composed] folds one back into the other and is the
  * only place that happens, so a variant switch and a save can never disagree
  * about what the art currently is.
+ *
+ * **Undo has two grains and one button.** A stroke is a frame's business and its
+ * history lives on the [TimelineEntry] it was made on; a tool that rewrites the
+ * whole document — the scrolling-text generator — cannot be expressed that way at
+ * all, so it puts a whole `Design` on [documentUndo] instead. Both are reached
+ * through [undo] and [redo], because the user has one idea of what the arrow in
+ * the tool row does.
  */
 @Stable
 internal class EditorState(design: Design, codename: PokemonCodename) {
@@ -1970,15 +2329,46 @@ internal class EditorState(design: Design, codename: PokemonCodename) {
 
     private var dirty = false
 
+    /**
+     * The whole-document half of undo: the design as it stood before a
+     * [replaceDesign] that asked to be undoable, and the ones taken back off it.
+     *
+     * **Two stacks, one button.** These sit behind the same `undo` / `redo`
+     * controls the per-frame stacks drive (see [undo]), because the user has one
+     * idea of what undo is and it is not "undo, except for the tools that change
+     * more than one frame". A step is a whole [Design] — kind, loop, palette and
+     * every variant's frames — which is the only snapshot that can express what a
+     * document replacement did.
+     *
+     * **Shallow on purpose.** A per-frame snapshot is one frame's cells; one of
+     * these is an entire design, up to 240 encoded frames of it, so
+     * [UNDO_DEPTH]'s 32 would be tens of megabytes of history for a tool that is
+     * used a handful of times per design. [DOCUMENT_UNDO_DEPTH] is what "I did
+     * that by mistake" actually needs.
+     *
+     * `ArrayDeque` is not snapshot state, so the two depths beside it are: the
+     * tool row reads [canUndo] during composition and has to recompose when a
+     * marquee lands, not on whatever unrelated change happens next.
+     */
+    private val documentUndo = ArrayDeque<Design>()
+    private val documentRedo = ArrayDeque<Design>()
+    private var documentUndoDepth by mutableIntStateOf(0)
+    private var documentRedoDepth by mutableIntStateOf(0)
+
     /** Serialises saves, so a debounced write cannot overtake a flushed one. */
     private val saveMutex = Mutex()
 
     /** The frame every tool acts on. Never out of range: [frames] is never empty. */
     val selected: TimelineEntry get() = frames[selectedIndex.coerceIn(0, frames.lastIndex)]
 
-    val canUndo: Boolean get() = selected.canUndo
+    /**
+     * Whether the tool row's undo arrow has anything to do: a stroke on the
+     * selected frame, or a whole-document step behind it. See [undo] for which of
+     * the two a press actually takes.
+     */
+    val canUndo: Boolean get() = selected.canUndo || documentUndoDepth > 0
 
-    val canRedo: Boolean get() = selected.canRedo
+    val canRedo: Boolean get() = selected.canRedo || documentRedoDepth > 0
 
     /** Onion skin needs a previous frame to ghost, and an animation to be part of. */
     val canOnionSkin: Boolean
@@ -2067,7 +2457,7 @@ internal class EditorState(design: Design, codename: PokemonCodename) {
             entry.pushUndo(base)
         }
         strokeChanged = true
-        dirty = true
+        markEdited()
     }
 
     /** Ends the stroke; true if it changed anything and so is worth saving. */
@@ -2085,20 +2475,78 @@ internal class EditorState(design: Design, codename: PokemonCodename) {
         val base = entry.frame.copyOfCells()
         if (!entry.frame.fill(value)) return false
         entry.pushUndo(base)
-        dirty = true
+        markEdited()
         return true
     }
 
+    /**
+     * One step back, over whichever kind of step is the innermost one.
+     *
+     * **The selected frame's own history first, the document behind it.** Read as
+     * a rule that is: *undo the strokes you made here, then undo the thing that
+     * made this canvas.* A marquee arrives having rebuilt the frame list, so every
+     * frame's history is empty and the first press takes the document step; draw
+     * two strokes on the marquee afterwards and the first two presses take those,
+     * because they are edits *to* the marquee and cannot be undone from underneath
+     * it.
+     *
+     * That ordering is exact for the frame being looked at and approximate across
+     * frames — a stroke made on frame 5 and then abandoned for frame 0 is behind a
+     * document step that predates it. It is not lost by the wrong choice being
+     * made: undoing the marquee discards the marquee's frames, and a stroke drawn
+     * onto one of them goes with the frame it was drawn on. There is no reading of
+     * "put the canvas back the way it was" that keeps it.
+     */
     fun undo(): Boolean {
-        if (!selected.undo()) return false
-        dirty = true
+        if (selected.undo()) {
+            dirty = true
+            return true
+        }
+        val previous = documentUndo.removeLastOrNull() ?: return false
+        push(documentRedo, composed())
+        adopt(previous)
+        refreshDocumentFlags()
         return true
     }
 
+    /** The mirror of [undo], down to which stack is consulted first. */
     fun redo(): Boolean {
-        if (!selected.redo()) return false
-        dirty = true
+        if (selected.redo()) {
+            dirty = true
+            return true
+        }
+        val next = documentRedo.removeLastOrNull() ?: return false
+        push(documentUndo, composed())
+        adopt(next)
+        refreshDocumentFlags()
         return true
+    }
+
+    /**
+     * Marks the design changed, and forks the whole-document history the way
+     * [TimelineEntry.pushUndo] forks the per-frame one.
+     *
+     * A redo step is only reachable while nothing has happened since the undo that
+     * created it. Left alone, "undo the marquee, draw something, redo" would paste
+     * the marquee over the drawing — a branch the user has left, which is exactly
+     * what the per-frame stack already refuses to do.
+     */
+    private fun markEdited() {
+        dirty = true
+        if (documentRedo.isNotEmpty()) {
+            documentRedo.clear()
+            refreshDocumentFlags()
+        }
+    }
+
+    private fun push(stack: ArrayDeque<Design>, step: Design) {
+        stack.addLast(step)
+        if (stack.size > DOCUMENT_UNDO_DEPTH) stack.removeFirst()
+    }
+
+    private fun refreshDocumentFlags() {
+        documentUndoDepth = documentUndo.size
+        documentRedoDepth = documentRedo.size
     }
 
     // ---- the timeline ----
@@ -2110,7 +2558,7 @@ internal class EditorState(design: Design, codename: PokemonCodename) {
     /** Per-frame duration, on the selected frame. */
     fun setSelectedDuration(ms: Int): Boolean {
         if (!selected.setDuration(ms)) return false
-        dirty = true
+        markEdited()
         return true
     }
 
@@ -2133,7 +2581,7 @@ internal class EditorState(design: Design, codename: PokemonCodename) {
             ),
         )
         selectedIndex = at
-        dirty = true
+        markEdited()
         return true
     }
 
@@ -2158,7 +2606,7 @@ internal class EditorState(design: Design, codename: PokemonCodename) {
             ),
         )
         selectedIndex = at
-        dirty = true
+        markEdited()
         return true
     }
 
@@ -2179,7 +2627,7 @@ internal class EditorState(design: Design, codename: PokemonCodename) {
         val removed = selectedIndex
         frames.removeAt(removed)
         selectedIndex = selectionAfterDelete(selectedIndex, removed, frames.size)
-        dirty = true
+        markEdited()
         return true
     }
 
@@ -2190,7 +2638,7 @@ internal class EditorState(design: Design, codename: PokemonCodename) {
     fun moveFrame(from: Int, to: Int): Boolean {
         if (!moveItem(frames, from, to)) return false
         selectedIndex = selectionAfterMove(selectedIndex, from, to)
-        dirty = true
+        markEdited()
         return true
     }
 
@@ -2199,7 +2647,7 @@ internal class EditorState(design: Design, codename: PokemonCodename) {
     fun setLoop(loop: Boolean): Boolean {
         if (design.loop == loop) return false
         design = design.copy(loop = loop)
-        dirty = true
+        markEdited()
         return true
     }
 
@@ -2216,7 +2664,7 @@ internal class EditorState(design: Design, codename: PokemonCodename) {
     fun setKeyMode(mode: KeyMode): Boolean {
         if (design.keyMode == mode) return false
         design = design.copy(keyMode = mode)
-        dirty = true
+        markEdited()
         return true
     }
 
@@ -2276,7 +2724,7 @@ internal class EditorState(design: Design, codename: PokemonCodename) {
     fun addVariant(target: PokemonCodename): Boolean {
         if (design.variantFor(target) != null) return false
         design = design.copy(variants = design.variants + (target.codename to DesignVariant()))
-        dirty = true
+        markEdited()
         return true
     }
 
@@ -2318,11 +2766,23 @@ internal class EditorState(design: Design, codename: PokemonCodename) {
      * The art itself is never at risk either way — it is folded into [design]
      * before the swap, on the line below. What is lost is the ability to step
      * backwards through edits made before the switch, and only that.
+     *
+     * **The whole-document steps go too**, and by the same rule rather than by
+     * necessity: a [Design] carries both variants, so one of those snapshots
+     * *could* be restored from over here. It should not be. Undoing a marquee
+     * generated on the panel you have left would silently take back everything
+     * drawn on the panel you are now looking at, because the snapshot predates
+     * both — a step whose effect is invisible from the screen it is pressed on.
+     * "Opening the other variant is opening a different drawing" is the rule, and
+     * it is worth more than the one press it costs.
      */
     fun switchTo(target: PokemonCodename): Boolean {
         if (target == codename) return false
         design = composed()
         dirty = true
+        documentUndo.clear()
+        documentRedo.clear()
+        refreshDocumentFlags()
         codename = target
         frames.clear()
         frames.addAll(loadFrames(design, target))
@@ -2357,10 +2817,29 @@ internal class EditorState(design: Design, codename: PokemonCodename) {
      *   a document that arrives with a two-entry palette while the brush points
      *   at swatch three would leave a selection with no swatch under it and a
      *   brush that paints index 2 into a palette that has none.
-     * - **Undo histories are dropped**, exactly as [switchTo] drops them and for
-     *   the same reason: their snapshots are arrays of the old geometry and the
-     *   old palette. The whole-document step back is [replaceDesign] itself,
-     *   called with what this returned.
+     * - **Per-frame undo histories are dropped**, exactly as [switchTo] drops them
+     *   and for the same reason: their snapshots are arrays of the old geometry
+     *   and the old palette.
+     *
+     * ## Whether the user can undo it, and who decides
+     *
+     * [recordUndo] is that decision, and it belongs to the caller because the two
+     * callers answer it differently:
+     *
+     *  - **A tool in the editor passes true.** The document this replaced goes on
+     *    [documentUndo] and the tool row's undo arrow lights up, because a user
+     *    who has just pressed a button in the editor has exactly one idea of how
+     *    to take it back and it is that arrow. See [undo] for what a press does.
+     *  - **The assistant passes false** (the default), and keeps holding the
+     *    `Design` this returns for its own revert banner. That is a *narrower*
+     *    affordance, not a missing one: a chat turn can rewrite the whole document
+     *    including the other panel, so the way back is offered beside the message
+     *    that caused it, where it can be labelled with what it reverts. Two
+     *    controls for the same step would be two chances to press the wrong one.
+     *
+     * A `false` replacement also **clears both document stacks**, which is the
+     * same rule [switchTo] follows: a step from before a wholesale change nobody
+     * else knows about would restore a document that never had that change in it.
      *
      * ## What the model may not change
      *
@@ -2375,18 +2854,43 @@ internal class EditorState(design: Design, codename: PokemonCodename) {
      * refused" is a state the caller can report to the model rather than a
      * blank canvas nobody explains.
      */
-    fun replaceDesign(incoming: Design): Design? {
+    fun replaceDesign(incoming: Design, recordUndo: Boolean = false): Design? {
         if (incoming.variants.isEmpty()) return null
         val previous = composed()
-        val next = incoming.copy(
-            format = previous.format,
-            formatVersion = previous.formatVersion,
-            id = previous.id,
-            author = previous.author,
-            createdAt = previous.createdAt,
-            createdWith = previous.createdWith,
-            modifiedAt = nowIsoUtc(),
+        if (recordUndo) {
+            push(documentUndo, previous)
+            // A new step forks the history, for [markEdited]'s reason.
+            documentRedo.clear()
+        } else {
+            documentUndo.clear()
+            documentRedo.clear()
+        }
+        refreshDocumentFlags()
+        adopt(
+            incoming.copy(
+                format = previous.format,
+                formatVersion = previous.formatVersion,
+                id = previous.id,
+                author = previous.author,
+                createdAt = previous.createdAt,
+                createdWith = previous.createdWith,
+            ),
         )
+        return previous
+    }
+
+    /**
+     * Puts [document] on screen: the model of record, the canvas, the timeline and
+     * the brush, all from one design.
+     *
+     * Split out of [replaceDesign] so that stepping *back* to a document — [undo],
+     * [redo] — is the identical operation rather than a second implementation of
+     * it that could come to disagree about, say, the brush clamp. It records
+     * nothing: the caller owns the history, which is what stops an undo from
+     * pushing its own result onto the stack it just popped.
+     */
+    private fun adopt(document: Design) {
+        val next = document.copy(modifiedAt = nowIsoUtc())
         design = next
         // Only reachable if a document arrived without the variant being edited,
         // which the tools do not allow. Falling back rather than trusting it is
@@ -2397,7 +2901,6 @@ internal class EditorState(design: Design, codename: PokemonCodename) {
         selectedIndex = 0
         brushIndex = brushIndex.coerceIn(0, max(0, min(next.levels.size, MAX_SWATCHES) - 1))
         dirty = true
-        return previous
     }
 
     // ---- saving ----

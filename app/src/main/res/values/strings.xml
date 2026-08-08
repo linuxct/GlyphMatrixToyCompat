@@ -24,6 +24,9 @@
     <string name="channel_updates">App updates</string>
     <string name="notif_update_title">Update available</string>
     <string name="notif_update_body">GMTC %1$s is out — tap to open the download page.</string>
+    <string name="channel_ai">Assistant at work</string>
+    <string name="notif_ai_turn_title">Working on your design</string>
+    <string name="notif_ai_turn_body">The assistant is drawing “%1$s”. Tap to watch.</string>
 
     <!-- Update check -->
     <string name="update_check_title">Check for updates</string>
@@ -98,6 +101,8 @@
     <string name="checklist_mic">Microphone (music visualizer)</string>
     <string name="checklist_location">Location (compass declination, optional)</string>
     <string name="checklist_exact_alarm">Exact alarms (Timer backstop)</string>
+    <string name="checklist_walkthrough">Run through setup again</string>
+    <string name="checklist_walkthrough_hint">Reopens the first-run walkthrough. Nothing is reset — your toys, designs and settings stay exactly as they are.</string>
     <string name="checklist_hint_guides">Step-by-step guides for the trickier items live in the Tutorials tab.</string>
     <string name="checklist_granted">Granted</string>
     <string name="checklist_tap_to_grant">Tap to grant</string>
@@ -127,10 +132,19 @@
     <string name="nav_toys">Toys</string>
     <string name="nav_create">Create</string>
     <string name="nav_settings">Settings</string>
+    <!-- Spoken alongside the Settings chip's own caption when the attention badge
+         is showing, so a screen reader says "Settings, setup incomplete". The
+         badge's red is not the only signal: the exclamation mark carries the
+         meaning visually and this carries it aloud. -->
+    <string name="nav_setup_needs_attention">setup incomplete</string>
 
     <!-- Settings tab section headers -->
     <string name="section_initial_setup">Initial setup</string>
     <string name="section_app_settings">App settings</string>
+    <!-- The design assistant's own settings, grouped so that a model id, a round
+         budget and a reasoning level read as three knobs on one feature rather
+         than as three unrelated rows among the app's general settings. -->
+    <string name="section_ai_settings">AI settings</string>
     <!-- Spoken description of a collapsible section header's chevron. The header
          text is read out beside it, so these say only what the tap will do. -->
     <string name="section_expand">Expand</string>
@@ -157,24 +171,19 @@
     <string name="demo_skip">Skip</string>
     <string name="demo_done">Done</string>
 
-    <!-- The demo's captions. One or two sentences each: this teaches the gestures,
-         and the README carries the detail. -->
+    <!-- The demo's captions. One per PLACE, not one per control: a caption names
+         everything inside its spotlight, and the step acts out only the gestures
+         that cannot be guessed by looking at the thing. The README carries the
+         detail. -->
     <string name="demo_cap_fab">Every design starts with the + beside the navigation bar. It is there on the Create tab and nowhere else.</string>
-    <string name="demo_cap_name">Designs are named up front, with a suggestion already filled in that you can type over.</string>
-    <string name="demo_cap_kind">Static is a single still picture; dynamic adds a timeline of frames. It cannot be changed afterwards — this demo picks dynamic.</string>
-    <string name="demo_cap_device">Each Glyph Matrix size is a separate drawing, so pick which phone this one is for. It starts on the phone you are holding, and the other size can be added later.</string>
-    <string name="demo_cap_palette">Three shades — off, grey and white. Pick one before you draw; “off” is the eraser.</string>
-    <string name="demo_cap_paint">The black disc is the Glyph Matrix, drawn where it sits on the back of the phone. Drag across it and every cell your finger crosses is painted. Pinch with two fingers to zoom in — up to four times — and to move around while you are in close.</string>
-    <string name="demo_cap_undo">Undo steps back a whole stroke, not one pixel, and redo puts it back. Beside them: clear the frame, and fill it with the shade you are holding.</string>
-    <string name="demo_cap_duplicate">Duplicate copies the frame you are on. Copy, nudge a few pixels, repeat — that is how an animation gets drawn.</string>
-    <string name="demo_cap_add">The + on the right adds a blank frame straight after the one you are on.</string>
-    <string name="demo_cap_reorder">Frames are moved by pressing and holding one — nothing on the timeline says so, so it is worth remembering. Hold a frame until it lifts, drag it along the strip and let go where you want it. A plain tap only selects.</string>
-    <string name="demo_cap_duration">Every frame has its own length, anywhere from 20 ms to a minute. The total run time is written under the strip.</string>
-    <string name="demo_cap_settings">Repeat, what the Essential Key does, and artwork for the other phone size all live behind Design settings — the easiest three things in the editor to miss.</string>
+    <string name="demo_cap_new">A name is suggested for you and the drawing starts on the phone you are holding — each Glyph Matrix size is a separate drawing, and the other one can be added later. This is the answer you cannot change afterwards: static is a single still picture, dynamic adds a timeline of frames. The demo picks dynamic.</string>
+    <string name="demo_cap_draw">The black disc is the Glyph Matrix, drawn where it sits on the back of the phone. Pick one of the three shades under it — “off” is the eraser — then drag across the disc to paint every cell your finger crosses; pinch with two fingers to zoom in. Undo takes back a whole stroke rather than one pixel, and beside it sit redo, clear and fill.</string>
+    <string name="demo_cap_frames">The strip is your frames. Duplicate copies the one you are on — copy, nudge a few pixels, repeat is how an animation gets drawn — and + adds a blank one after it. Nothing says so, so it is worth remembering: a frame is moved by pressing and holding it until it lifts, then dragging it along the strip. Each frame has its own length, set by the − and + on the left.</string>
+    <string name="demo_cap_preview">The disc in the corner is your animation actually running, at the lengths you just set — the canvas behind it only ever shows the one frame you are drawing. Tap it and it grows to nearly the whole screen; tap again to send it back.</string>
+    <string name="demo_cap_top_bar">Four buttons, left to right. Play runs the animation on the real Glyph Matrix, and pause puts the frame you are editing back on it — pressing play, or changing anything at all, also makes this the design the matrix keeps afterwards. The eye hides the preview disc when it sits over what you are drawing. Sparkles opens the design assistant: describe what you want, or hand it a photo, and it draws or animates it for you. The sliders are Design settings, which we are opening now — repeat, the Essential Key and artwork for the other phone size live behind them, the three easiest things in the editor to miss.</string>
     <string name="demo_cap_key_mode">Play once rests on the first frame and plays the design through on a press of the Essential Key; play / pause runs it and lets a press stop and start it. Only play / pause has a repeat setting — which is why it just came and went.</string>
-    <string name="demo_cap_loop">This is repeat: on, the animation loops until you pause it; off, it plays through once and holds on the last frame. The whole shaded row is the switch — icon or sentence, either works — and it says which state you are in twice over: the icon fills in and squares off when repeat is on, and the sentence spells it out.</string>
+    <string name="demo_cap_loop">This is repeat: on, the animation loops until you pause it; off, it plays through once and holds on the last frame. The whole shaded row is the switch — icon or sentence, either works.</string>
     <string name="demo_cap_add_variant">Each Glyph Matrix size is a separate drawing, and this adds a blank canvas for the other one. Nothing is ever scaled between them.</string>
-    <string name="demo_cap_show">This puts the design on the real Glyph Matrix in one tap. The editor saves as you go, so leaving is always safe.</string>
     <string name="demo_cap_done">That is the whole editor. Nothing in this demo was saved or sent to the matrix — the Create tab is where the real one starts.</string>
 
     <!-- Guide: hand the Essential Key over -->
@@ -266,6 +275,33 @@
     <string name="pref_ai_model_summary">The model the design assistant talks to. If it stops answering, put a working model id here — it applies to your next message.</string>
     <string name="pref_ai_model_hint">Leave empty for %1$s</string>
     <string name="pref_ai_model_current">Asking for %1$s</string>
+    <string name="pref_ai_rounds">Assistant tool rounds</string>
+    <string name="pref_ai_rounds_summary">How many steps the assistant may take before it has to answer. A drawing usually lands well inside the default; a long animation may need more. Every step is another request, so higher costs more and takes longer.</string>
+    <string name="pref_ai_rounds_value">%1$d rounds</string>
+    <string name="pref_ai_rounds_default">%1$d rounds (default)</string>
+
+    <!-- Assistant reasoning effort. The labels are display names ONLY; the token
+         each one sends lives in core/ai/ChatWire.kt (ReasoningEffort.wire), so
+         the two can never drift. Low, Medium and High are the levels the service
+         documents; the three above them may not be accepted, which is what the
+         hint under the section says out loud rather than hiding. -->
+    <string name="pref_ai_effort">Assistant reasoning effort</string>
+    <string name="pref_ai_effort_summary">How long the assistant thinks before it answers. Higher is slower and costs more. It applies to your next message.</string>
+    <string name="pref_ai_effort_low">Low</string>
+    <string name="pref_ai_effort_medium">Medium</string>
+    <string name="pref_ai_effort_high">High</string>
+    <string name="pref_ai_effort_xhigh">Extra-High</string>
+    <string name="pref_ai_effort_max">Max</string>
+    <string name="pref_ai_effort_ultra">Ultra</string>
+    <!-- Shown under the dropdown: the exact token the request will carry, so a
+         rejected level can be matched against the error the chat shows. -->
+    <string name="pref_ai_effort_current">Sends effort “%1$s”</string>
+    <string name="pref_ai_effort_default">%1$s (default)</string>
+    <!-- Spoken for the caution pictogram beside an unverified level. A pictogram
+         is invisible to a screen reader, so this is the only form the warning
+         takes for anybody using one. -->
+    <string name="pref_ai_effort_unverified">May not be supported by every model</string>
+    <string name="pref_ai_effort_hint">Low, Medium and High are the levels the service documents. Extra-High, Max and Ultra may not be accepted — if a message then fails with an error mentioning “effort”, come back and choose High.</string>
 
     <!-- Create tab -->
     <string name="create_title">Your designs</string>
@@ -291,6 +327,11 @@
     <string name="create_more">More options for this design</string>
     <string name="create_duplicate">Duplicate</string>
     <string name="create_delete">Delete</string>
+    <!-- Create tab · renaming a design. The field itself is labelled by
+         create_name_label, shared with the new-design dialog. -->
+    <string name="create_rename">Rename</string>
+    <string name="create_rename_title">Rename design</string>
+    <string name="create_rename_save">Rename</string>
     <string name="create_copy_suffix">%1$s copy</string>
     <string name="create_delete_title">Delete “%1$s”?</string>
     <string name="create_delete_body">This design and every frame in it are removed from this phone. It cannot be undone.</string>
@@ -344,7 +385,6 @@
 
     <!-- Design editor -->
     <string name="editor_close">Save and close</string>
-    <string name="editor_save">Save now</string>
     <string name="editor_undo">Undo</string>
     <string name="editor_redo">Redo</string>
     <string name="editor_clear">Clear the frame</string>
@@ -359,10 +399,19 @@
          see DesignSettings for why there is no matching "remove". -->
     <string name="editor_add_variant">Add %1$s artwork</string>
     <string name="editor_open_failed">That design could not be opened.</string>
-    <string name="editor_saved">Saved.</string>
     <string name="editor_onion_on">Onion skin on — hide the previous frame</string>
     <string name="editor_onion_off">Onion skin off — show the previous frame</string>
     <string name="editor_settings">Design settings</string>
+    <string name="editor_play">Play this on the Glyph Matrix</string>
+    <string name="editor_pause">Stop playing — show the frame being edited</string>
+    <string name="editor_preview_hide">Hide the preview</string>
+    <string name="editor_preview_show">Show the preview</string>
+    <!-- The pill under the floating disc in the editor, saying what the disc is.
+         Kept to one short word: it sits under a 72 dp circle and anything wider
+         than the circle pushes it off the corner it is pinned to. -->
+    <string name="editor_preview_badge">PREVIEW</string>
+    <string name="editor_preview_expand">Preview of the design. Tap to enlarge it.</string>
+    <string name="editor_preview_collapse">Preview of the design. Tap to shrink it back into the corner.</string>
 
     <!-- Design assistant.
          Three doors behind one sparkles button, in this order: the disclosure,
@@ -401,6 +450,7 @@
     <string name="ai_chat_attach">Attach a photo</string>
     <string name="ai_chat_remove_photo">Remove this photo</string>
     <string name="ai_chat_attach_failed">That image could not be read.</string>
+    <string name="ai_chat_interrupted">This reply was cut short when the app stopped.</string>
     <string name="ai_chat_changed">The assistant changed your design.</string>
     <string name="ai_chat_undo">Undo AI change</string>
     <string name="ai_chat_copy">Copy</string>
@@ -468,6 +518,35 @@
          it ran out of time, AND something landed. The undo banner is showing. -->
     <string name="ai_chat_error_stuck_salvaged">It ran out of time. Its last checked draft is on your canvas — say what to change, or undo it.</string>
     <string name="ai_chat_error_empty">The assistant finished without saying anything.</string>
+
+    <!-- Left IN the conversation, unlike the banners above, and only ever by a
+         turn that changed the design: the banner goes when the sheet closes, and
+         somebody reopening that design tomorrow would otherwise find artwork they
+         did not draw with nothing anywhere that explains it. Written as the
+         assistant, past tense, because that is what the rest of the thread reads
+         like — and it is never sent back to the model. -->
+    <string name="ai_chat_notice_salvaged">I ran out of time before I could finish, so I left you the last draft that passed my checks. It is on your canvas — say what to change, or undo it.</string>
+    <!-- The same hole, arrived at the other way: something landed on the canvas
+         and then the turn broke off. Vaguer on purpose — the reason is in the
+         banner while it is showing, and this only has to account for the change. -->
+    <string name="ai_chat_notice_changed">I changed your design and then couldn\'t finish the rest of what you asked for. The change is on your canvas — say what to change, or undo it.</string>
+
+    <!-- The inverse of the two above, and the reason they exist at all. A turn
+         that finishes with no editor open records the drawing and tells the model
+         it worked, so the reply above it in this thread already says the design
+         was changed. When the record is later dropped instead of applied, that
+         reply is left asserting something that never happened — so the thread
+         gets the correction here, in the assistant's own voice, past tense, and
+         never sent back to the model. One per reason, because "why" is the part
+         the user needs: the CONFLICT case in particular has to say that their own
+         work is what was kept, or "it was dropped" reads as a bug. -->
+    <string name="ai_chat_notice_deferred_conflict">Correction: I finished that drawing while you were away, but you had changed this design yourself before I could put it on your canvas — so I kept your version and dropped mine. Ask again and I\'ll redraw it.</string>
+    <!-- Aged out. Says how long rather than "expired", which means nothing here. -->
+    <string name="ai_chat_notice_deferred_expired">Correction: I finished that drawing while you were away, but it sat waiting more than a week, so it was too old to put on your canvas safely and I dropped it. Ask again and I\'ll redraw it.</string>
+    <!-- The design could not be found when the time came. Deliberately does not
+         say "deleted": a correction is only ever written onto a conversation that
+         still exists, and a deleted design has none. -->
+    <string name="ai_chat_notice_deferred_missing">Correction: I finished that drawing while you were away, but I couldn\'t find the design it was for when the time came to put it on your canvas, so I dropped it.</string>
 
     <!-- Timeline -->
     <string name="editor_frame_thumb">Frame %1$d</string>
