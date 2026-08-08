@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Everything the GitHub build has and the Play build does not.
+
+    The split is not a feature flag: the design assistant and the update checker
+    are absent from the Play APK, so the permissions and components they need are
+    declared here rather than in main/ and merged in for this flavour only. The
+    Play build ships without INTERNET at all, which is what makes "collects no
+    data" checkable from the binary instead of taken on trust.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- The design assistant talks to OpenAI; the update checker polls GitHub
+         releases. Nothing else in the app opens a socket. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- The assistant's turn keeps the process alive while it runs; see
+         ai/GlyphAiTurnService for why the type is dataSync and not shortService. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <!-- networkSecurityConfig: HTTPS-only everywhere, with a loopback-only
+         exemption for the OAuth callback server. See res/xml/network_security_config.xml,
+         which is likewise a github-only resource. -->
+    <application android:networkSecurityConfig="@xml/network_security_config">
+
+        <!-- Deliberately NOT directBootAware: it is started from a running turn,
+             a turn is started from the chat, and the chat only ever exists inside
+             an Activity — so nothing here can be reached before the first unlock,
+             which is the rule ai/ChatStore's credential-protected storage needs. -->
+        <service
+            android:name=".ai.GlyphAiTurnService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Defer WorkManager to on-demand init (this flavour's App is a
+             Configuration.Provider): its automatic startup initializer would touch
+             credential-encrypted storage, which crashes when this process starts in
+             Direct Boot. The Play build has no WorkManager dependency, so it needs
+             no removal — there is no initializer to remove. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
+    </application>
+
+</manifest>

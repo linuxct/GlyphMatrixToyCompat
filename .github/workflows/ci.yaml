@@ -24,12 +24,19 @@ jobs:
       - name: Grant Gradle wrapper execute permission
         run: chmod +x gradlew
 
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon
+      # Both flavours, always. The two `ui/OptionalFeatures.kt` files must keep
+      # identical signatures and nothing but a build of the other flavour checks
+      # that — building only `github` would let `play` rot silently until release
+      # day. The unit tests differ per flavour by design: `github` runs the AI and
+      # updater suites, `play` does not have that code to test.
+      - name: Build and test both flavours
+        run: >
+          ./gradlew assembleGithubDebug assemblePlayDebug
+          testGithubDebugUnitTest testPlayDebugUnitTest --no-daemon
 
-      - name: Upload debug APK
+      - name: Upload debug APKs
         uses: actions/upload-artifact@v4
         with:
-          name: pulseloop-debug
-          path: app/build/outputs/apk/debug/*.apk
+          name: glyphworks-debug
+          path: app/build/outputs/apk/*/debug/*.apk
           retention-days: 30

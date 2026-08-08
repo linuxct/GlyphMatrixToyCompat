@@ -4,13 +4,13 @@ A single JSON file describing a still image or an animation for a Nothing Glyph 
 enough detail that another program can produce one and this app will play it.
 
 This is deliberately an **interchange format**, not an app-private one: it is what Glyph
-Matrix Toy Compat (GMTC) writes to its own storage, what it exports, and what it accepts on
+Matrix Toy Compat (GlyphWorks) writes to its own storage, what it exports, and what it accepts on
 import — the same bytes in all three cases. There is no second internal representation that
 could drift from this document.
 
-This specification describes **format version 1**, as implemented by GMTC 2.0.0. Everything
+This specification describes **format version 1**, as implemented by GlyphWorks 2.0.0. Everything
 below is a statement about the code in
-`app/src/main/kotlin/space/linuxct/glyphmatrixtoycompat/core/design/`
+`app/src/main/kotlin/space/linuxct/glyphworks/core/design/`
 (`Design.kt`, `DesignCodec.kt`, `DesignFrames.kt`); where this document and that code
 disagree, the code is right.
 
@@ -40,7 +40,7 @@ disagree, the code is right.
   "author": "linuxct",
   "createdAt": "2026-07-30T12:00:00Z",
   "modifiedAt": "2026-07-30T12:34:56Z",
-  "createdWith": "GMTC 2.0.0",
+  "createdWith": "GlyphWorks 2.0.0",
   "kind": "dynamic",
   "keyMode": "playPause",
   "loop": true,
@@ -59,18 +59,18 @@ gets JSON's own type rather than a private one.
 
 ## 2. The envelope
 
-Every field of the top-level object, in the order GMTC writes them.
+Every field of the top-level object, in the order GlyphWorks writes them.
 
 | Field | Type | Required | Meaning |
 |---|---|---|---|
 | `format` | string | **yes** | Magic string. Must be exactly `glyph.design`. A file without it is not a design file, whatever else it contains. |
 | `formatVersion` | integer | no (default `1`) | The version of *this* specification the file is written to. |
-| `id` | string | **yes** | Stable identity of the design. Becomes a filename, so it is restricted to `[A-Za-z0-9_-]`, 1–64 characters. GMTC generates a 32-character lowercase hex UUID. |
+| `id` | string | **yes** | Stable identity of the design. Becomes a filename, so it is restricted to `[A-Za-z0-9_-]`, 1–64 characters. GlyphWorks generates a 32-character lowercase hex UUID. |
 | `name` | string | no (default `""`) | Human-readable title, ≤ 64 characters. Arbitrary Unicode; never used as a path. |
-| `author` | string | no (default `""`) | Who made it, ≤ 64 characters. Set once, when the design is created, and never rewritten — GMTC pins it back to the stored value on every save, so touching up somebody else's imported design does not put your name on their work. |
+| `author` | string | no (default `""`) | Who made it, ≤ 64 characters. Set once, when the design is created, and never rewritten — GlyphWorks pins it back to the stored value on every save, so touching up somebody else's imported design does not put your name on their work. |
 | `createdAt` | string | **yes** | ISO-8601 UTC instant. See [§6](#6-timestamps). |
 | `modifiedAt` | string | **yes** | ISO-8601 UTC instant, restamped on every save. |
-| `createdWith` | string | no (default `""`) | Free diagnostic text naming the producing program, ≤ 64 characters, e.g. `GMTC 2.0.0`. Purely informational; put something useful in it, because it is what tells a maintainer which tool produced a file that misbehaves. |
+| `createdWith` | string | no (default `""`) | Free diagnostic text naming the producing program, ≤ 64 characters, e.g. `GlyphWorks 2.0.0`. Purely informational; put something useful in it, because it is what tells a maintainer which tool produced a file that misbehaves. |
 | `kind` | `"static"` \| `"dynamic"` | no (default `"static"`) | The author's declaration of what this is. A `static` design plays **only its first frame**, even if more are stored. |
 | `keyMode` | `"playOnce"` \| `"playPause"` | no (default `"playPause"`) | What one press of the Essential Key does. See below. |
 | `loop` | boolean | no (default `false`) | Whether a `playPause` animation repeats. See below. |
@@ -143,7 +143,7 @@ unknown codename is not an error either.
 **An empty variant is legal.** `{"frames": []}` means "no artwork for this device yet" — the
 second size starts as a blank canvas and nothing is ever auto-scaled between geometries, so
 this is a normal state, not a broken file. It is enough to satisfy the "at least one known
-variant" rule; GMTC will render its "nothing to play" placeholder for that device.
+variant" rule; GlyphWorks will render its "nothing to play" placeholder for that device.
 
 **Ordering is irrelevant.** `variants` is a JSON object; a reader looks its own device's
 codename up by key.
@@ -159,7 +159,7 @@ array**.
 ```
 
 means index `0` is off, index `1` is 50 % grey, index `2` is white. That is the default
-palette and what GMTC's editor offers today.
+palette and what GlyphWorks's editor offers today.
 
 **It is data, not a constant, on purpose.** An editor that later offers five or nine
 brightness steps simply writes a longer list; old files keep meaning exactly what they
@@ -197,7 +197,7 @@ and the resulting `out` is the brightness array pushed to the panel.
 Notes that matter if you are writing a tool:
 
 - **Case.** Readers accept upper-case `A`–`Z` as well as lower-case, because files get typed
-  by hand and pasted through tools that change case. GMTC only ever *writes* lower-case.
+  by hand and pasted through tools that change case. GlyphWorks only ever *writes* lower-case.
 - **ASCII only.** Only ASCII `0`–`9`, `a`–`z`, `A`–`Z` are digits here. Non-ASCII decimal
   digits (Arabic-Indic, Devanagari, …) are rejected deliberately: two visually different
   files decoding to the same frame is exactly the kind of ambiguity a format meant for
@@ -212,7 +212,7 @@ Notes that matter if you are writing a tool:
 ## 6. Timestamps
 
 `createdAt` and `modifiedAt` are **ISO-8601 UTC instants**, e.g. `2026-07-30T12:00:00Z`.
-GMTC writes them truncated to whole seconds, so they always have the compact `…T12:00:00Z`
+GlyphWorks writes them truncated to whole seconds, so they always have the compact `…T12:00:00Z`
 shape — sub-second precision would add noise to a file people read and diff by hand.
 
 Two reasons for strings rather than epoch millis:
@@ -223,7 +223,7 @@ Two reasons for strings rather than epoch millis:
 
 A reader parses them with `java.time.Instant.parse`, which on current runtimes also accepts
 an explicit offset (`2026-07-30T12:00:00+02:00`) and sub-second precision
-(`2026-07-30T12:00:00.500Z`). Both are **accepted and normalised**: GMTC rewrites every
+(`2026-07-30T12:00:00.500Z`). Both are **accepted and normalised**: GlyphWorks rewrites every
 timestamp into the canonical `yyyy-MM-ddTHH:mm:ssZ` form on decode, before the design
 reaches storage or the list.
 
@@ -236,7 +236,7 @@ alternative spellings sort wrongly as characters:
 
 Parsing has already resolved the text to an absolute instant, so re-formatting it canonically
 changes the spelling and nothing else. **Emit the `Z` form truncated to whole seconds
-anyway** — it is what GMTC writes, and it is what a re-export of your file will contain — but
+anyway** — it is what GlyphWorks writes, and it is what a re-export of your file will contain — but
 a file that does not is imported correctly rather than refused.
 
 The one timestamp shape that *is* refused is a year outside `0000`–`9999`
@@ -289,7 +289,7 @@ Three things are deliberately **not** errors:
 - **Palette entries outside `0..4095`** are clamped into range, as described in [§4](#4-levels--the-palette).
 
 A file that is accepted is **normalised** on the way in: timestamps rewritten into canonical
-UTC, palette entries clamped, unknown variants dropped. What GMTC then stores is the
+UTC, palette entries clamped, unknown variants dropped. What GlyphWorks then stores is the
 normalised design, so a re-export is not
 guaranteed byte-identical to the file you imported — but it is guaranteed to mean the same
 thing for every device the format knows about.
@@ -297,7 +297,7 @@ thing for every device the format knows about.
 Finally, two rules that are about the *importing app* rather than the file, but which a tool
 author should know:
 
-- **An import always becomes a new design.** GMTC reassigns `id` unconditionally on import,
+- **An import always becomes a new design.** GlyphWorks reassigns `id` unconditionally on import,
   not merely on collision, so a file carrying the id of a design already on the phone can
   never overwrite it.
 - **The export filename comes from `name`, sanitised** to letters and digits with everything
@@ -407,10 +407,10 @@ That is accepted as a **static** design (`kind` defaults to `static`) using the 
 A checklist for a producer:
 
 1. Emit `format` and a valid `id` (`[A-Za-z0-9_-]`, 1–64 characters). If you have nothing
-   better, a UUID with the hyphens stripped is what GMTC uses.
+   better, a UUID with the hyphens stripped is what GlyphWorks uses.
 2. Emit both timestamps in the `2026-07-30T12:00:00Z` form. Another ISO-8601 spelling of the
    same instant will be normalised into it on import rather than refused, but emitting the
-   canonical form means the file you shipped and the file GMTC re-exports agree.
+   canonical form means the file you shipped and the file GlyphWorks re-exports agree.
 3. Emit at least one variant with a **known** codename — `bellsprout` or `arbok`.
 4. Emit `cells` of exactly 169 (bellsprout) or 625 (arbok) characters, row-major, every
    character a base36 index that is `< levels.length`.

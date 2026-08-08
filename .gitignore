@@ -7,4 +7,9 @@ build/
 /captures
 .DS_Store
 /app/release
+/app/*/release
+docs/play-listing.md
 keystore.properties
+keystore.jks
+*.jks
+*.keystore

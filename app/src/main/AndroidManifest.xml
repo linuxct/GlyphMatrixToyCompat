@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
     android:installLocation="internalOnly">
 
     <!-- Nothing OS declares these custom system features (see
@@ -13,19 +12,31 @@
     <uses-feature android:name="com.nothing.feature" android:required="true" />
 
     <uses-permission android:name="com.nothing.ketchum.permission.ENABLE" />
-    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Both of these are the Music Visualizer, and it needs BOTH.
+         audio/AudioVisualizerEngine builds a Visualizer on session 0 — the global
+         output mix — and AudioFlinger gates session 0 on MODIFY_AUDIO_SETTINGS,
+         on top of the RECORD_AUDIO that any Visualizer needs. Without it the
+         constructor throws and the visualizer shows its "no audio" state.
+
+         DO NOT remove MODIFY_AUDIO_SETTINGS because nothing names it. No Kotlin
+         file does, and none can: it is a requirement of the framework call, not
+         of app code. It was deleted once on exactly that reasoning and it broke
+         music playback capture in the 3.0.0 pre-release. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- ACCESS_NETWORK_STATE without INTERNET is not an oversight: the ambient
+         screen draws a Wi-Fi/cellular indicator from getNetworkCapabilities
+         (util/AndroidPorts.kt). This build cannot open a socket at all — see the
+         github flavour's manifest for the permission it does not share. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Coarse only. Both call sites (sensors/CompassSensor, util/AndroidLocationPort)
+         want a latitude/longitude for magnetic declination and sunrise maths, where
+         a city-block fix and a metre-accurate one give the same answer. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- The assistant's turn keeps the process alive while it runs; see
-         ai/GlyphAiTurnService for why the type is dataSync and not shortService. -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <queries>
         <package android:name="com.nothing.ntessentialspace" />
@@ -33,17 +44,14 @@
         <package android:name="com.nothing.thirdparty" />
     </queries>
 
-    <!-- networkSecurityConfig below: HTTPS-only everywhere, with a loopback-only
-         exemption for the OAuth callback server. See res/xml/network_security_config.xml. -->
     <application
         android:name=".App"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:networkSecurityConfig="@xml/network_security_config"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:theme="@style/Theme.GlyphMatrixToyCompat">
+        android:theme="@style/Theme.GlyphWorks">
 
         <activity
             android:name=".ui.MainActivity"
@@ -104,7 +112,7 @@
                 android:resource="@string/toy_summary" />
             <meta-data
                 android:name="com.nothing.glyph.toy.introduction"
-                android:value="space.linuxct.glyphmatrixtoycompat.ui.MainActivity" />
+                android:value="space.linuxct.glyphworks.ui.MainActivity" />
             <meta-data
                 android:name="com.nothing.glyph.toy.longpress"
                 android:value="1" />
@@ -132,29 +140,6 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
-
-        <!-- Defer WorkManager to on-demand init (App is a Configuration.Provider):
-             its automatic startup initializer would touch credential-encrypted
-             storage, which crashes when this process starts in Direct Boot. -->
-        <provider
-            android:name="androidx.startup.InitializationProvider"
-            android:authorities="${applicationId}.androidx-startup"
-            android:exported="false"
-            tools:node="merge">
-            <meta-data
-                android:name="androidx.work.WorkManagerInitializer"
-                android:value="androidx.startup"
-                tools:node="remove" />
-        </provider>
-
-        <!-- Deliberately NOT directBootAware: it is started from a running turn,
-             a turn is started from the chat, and the chat only ever exists inside
-             an Activity — so nothing here can be reached before the first unlock,
-             which is the rule ai/ChatStore's credential-protected storage needs. -->
-        <service
-            android:name=".ai.GlyphAiTurnService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
 
         <service
             android:name=".key.KeyCaptureTileService"

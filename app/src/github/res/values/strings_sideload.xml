@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings that explain sideloading: restricted settings, App info, and the
+     'allow restricted settings' walkthrough. GitHub flavour only — a Play
+     install is never restricted, so this copy would be actively wrong there. -->
+<resources>
+    <string name="onb_key_sideload_title">Sideloaded this APK?</string>
+    <string name="onb_key_sideload_body">Android blocks accessibility services for apps installed outside a store (“Restricted setting”). If the toggle is greyed out:\n1. Open App info for GlyphWorks — button below\n2. Tap the ⋮ menu in the top-right corner\n3. Choose “Allow restricted settings”\n4. Come back and enable the listener again</string>
+    <string name="onb_key_appinfo">Open App info</string>
+    <!-- Guide: restricted settings for sideloads -->
+    <string name="tut_restricted_title">Sideloaded? Allow restricted settings</string>
+    <string name="tut_restricted_subtitle">If the accessibility toggle is greyed out</string>
+    <string name="tut_restricted_intro">Android blocks accessibility services for apps installed outside a store (“Restricted setting”). If the toggle is greyed out:</string>
+    <string name="tut_restricted_step1">Open App info for GlyphWorks (button below)</string>
+    <string name="tut_restricted_step2">Tap the ⋮ menu in the top-right corner</string>
+    <string name="tut_restricted_step3">Choose “Allow restricted settings”</string>
+    <string name="tut_restricted_step4">Return and enable the listener again</string>
+    <string name="tut_restricted_action">Open App info</string>
+</resources>

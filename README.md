@@ -2,7 +2,7 @@
   <img src="art/ic_launcher_512.png" alt="logo" width="192"><br/>
 </p>
 
-# Glyph Matrix Toy Compat (GMTC) <br/> [![Latest Version](https://img.shields.io/github/v/release/linuxct/GlyphMatrixToyCompat)](https://github.com/linuxct/GlyphMatrixToyCompat/releases/latest) ![Compatibility](https://img.shields.io/badge/compatible-Nothing%20Phone%204(a)%20Pro-black) ![Compatibility](https://img.shields.io/badge/compatible-Nothing%20Phone%203-white)
+# GlyphWorks <br/> [![Latest Version](https://img.shields.io/github/v/release/linuxct/glyphworks)](https://github.com/linuxct/glyphworks/releases/latest) ![Compatibility](https://img.shields.io/badge/compatible-Nothing%20Phone%204(a)%20Pro-black) ![Compatibility](https://img.shields.io/badge/compatible-Nothing%20Phone%203-white)
 
 **Add support for Nothing Phone 3-like Glyph Toy actions to the Nothing Phone 4a Pro.**
 
@@ -17,7 +17,7 @@ The Nothing Phone (4a) Pro has a 13×13 Glyph Matrix on its back, but no Glyph B
 official toy framework only supports a single always-on (AOD) toy there, and there is no
 hardware way to interact with a toy or to switch between toys.
 
-GMTC turns the **Essential Key** into that missing control. It ships a full catalogue of
+GlyphWorks turns the **Essential Key** into that missing control. It ships a full catalogue of
 Glyph Toys ("screens" internally) rendered through the official Glyph Matrix SDK — plus a
 pixel editor for [drawing your own](#create--your-own-designs) — and lets you drive all of
 them from the key: on the lock screen, on the Always-On Display, and while the phone is
@@ -206,7 +206,7 @@ later from the main screen:
    settings, and a dedicated card for sideloaded installs: Android's "Restricted setting"
    block and the App info → ⋮ → *Allow restricted settings* dance, with a direct App info
    button.
-2. **Put GMTC on the matrix** — explains the always-on Glyph Toy concept and deep-links to
+2. **Put GlyphWorks on the matrix** — explains the always-on Glyph Toy concept and deep-links to
    the system toy picker (the same deeplink the main screen uses).
 3. **Permissions** — all optional runtime permissions in one card (notifications, microphone,
    location, exact alarms), each with a plain-language explanation of the single feature it
@@ -324,14 +324,14 @@ request itself.
      including on the lock screen and before the first unlock after a reboot; it never
      reads screen content). Sideloaded installs may need *Allow restricted settings*
      first — both onboarding and the Tutorials tab walk through it.
-   - **Select "Glyph Matrix Toy Compat" as the Always-on Glyph Toy** — deep-linked straight
+   - **Select "GlyphWorks" as the Always-on Glyph Toy** — deep-linked straight
      to the picker (Settings → Glyph Interface → Flip to Glyph) so the system keeps the
      matrix rendering during AOD. The checklist verifies the selection by the system's
      actual toy binding.
    - **Pick a key mode** — Regular or Menu mode (only offered once the listener is on).
    - Grant the optional permissions you want: microphone (music visualizer), location
      (solar path, compass declination), notifications + exact alarms (Timer).
-3. **Hand the Essential Key over to GMTC** (manual system steps — also available as a guide
+3. **Hand the Essential Key over to GlyphWorks** (manual system steps — also available as a guide
    in the Tutorials tab). Do **not** disable the Essential Space or Essential Recorder
    apps. Instead:
    1. Settings → Intelligence Toolkit → **Essential Key Settings** → enable
@@ -340,7 +340,7 @@ request itself.
       *"Activate via Essential Key"*.
 
    This stops the system from acting on the key directly; if a pop-up still slips
-   through on some firmware, GMTC dismisses it automatically.
+   through on some firmware, GlyphWorks dismisses it automatically.
 4. Press the Essential Key twice to start cycling.
 
 The accessibility service survives reboots automatically — no re-enabling needed.
@@ -350,12 +350,39 @@ The accessibility service survives reboots automatically — no re-enabling need
 Requirements: JDK 17 and an Android SDK with platform 37. Toolchain: AGP 9.3.0, Kotlin
 2.2.10 (+ Compose compiler plugin), Gradle 9.5.0 wrapper, minSdk 33 / target & compileSdk 37.
 
+### Two flavours
+
+The build has one flavour dimension, `distribution`, with **`github`** (the default, and what
+this README describes) and **`play`**.
+
+The Play build ships **without the design assistant and without the update checker** — not
+disabled, absent. `src/github/` holds `ai/`, `core/ai/`, `update/`, the AI dialogs and their
+strings; `src/play/` does not, so none of it reaches that APK, and it holds no `INTERNET`
+permission at all. That is what lets the Play listing answer "no data collected, no data
+shared" in a way a reviewer can check from the binary:
+
 ```sh
-./gradlew :app:assembleDebug          # debug build
-./gradlew :app:assembleRelease        # release build (R8 shrink)
-./gradlew :app:testDebugUnitTest      # run the JVM test suite
-./gradlew :app:lintDebug              # lint
+aapt2 dump permissions app-play-release.apk | grep INTERNET                     # no output
+unzip -p app-play-release.apk classes.dex | strings | grep -ciE 'openai|codex'  # 0
 ```
+
+Each excluded entry point is a seam: one function declared **twice** with the same signature,
+real in `src/github/…/ui/OptionalFeatures.kt` and empty in `src/play/…/ui/OptionalFeatures.kt`.
+`src/main` calls them unconditionally and never names an AI or updater type. Nothing checks
+that the two files agree except a build of the other flavour, which is why CI builds both.
+
+```sh
+./gradlew :app:assembleGithubDebug     # debug build (default flavour)
+./gradlew :app:assembleGithubRelease   # release build (R8 shrink)
+./gradlew :app:assemblePlayDebug       # the Play build
+./gradlew :app:bundlePlayRelease       # the .aab uploaded to Play
+./gradlew :app:testGithubDebugUnitTest # the JVM test suite
+./gradlew :app:lintGithubDebug         # lint
+```
+
+`testPlayDebugUnitTest` runs fewer tests than `testGithubDebug`, and that is correct rather
+than a gap: the AI and updater suites live in `src/testGithub/`, testing code the Play build
+does not contain.
 
 Point the build at your SDK with `local.properties` (`sdk.dir=…`). The official Glyph
 Matrix SDK is bundled at `app/libs/glyph-matrix-sdk-2.0.aar`.
@@ -369,12 +396,23 @@ proguard file keeps the Glyph SDK, the frozen component names, and `DebugLog`.
 
 Two GitHub Actions workflows live in `.github/workflows/`:
 
-- **CI** (`ci.yaml`) — builds a debug APK on every push/PR and uploads it as an artifact.
+- **CI** (`ci.yaml`) — builds and tests **both** flavours on every push/PR and uploads the two
+  debug APKs.
 - **Release** (`release.yaml`) — manual dispatch: decodes the signing keystore from repo
-  secrets (`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`), builds a
-  signed release APK, and publishes a GitHub release tagged `v<versionName>` with
-  commit-derived release notes. Signing config is driven by a repo-root
-  `keystore.properties`; without it, local release builds are simply unsigned.
+  secrets (`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`), builds the
+  `github` APK and the `play` bundle off the same commit and the same key, and publishes a
+  GitHub release tagged `v<versionName>` carrying **both**:
+
+  | Asset | What it is |
+  |---|---|
+  | `glyphworks-<version>.apk` | The sideload build. Install this one. |
+  | `glyphworks-<version>-play.aab` | The Play build, for uploading to the Play Console. Not installable directly. |
+
+  Signing is on the `release` build type, so both variants take the same certificate, and the
+  workflow **verifies** that before it creates the tag — absent a `keystore.properties`,
+  Gradle emits an unsigned release rather than failing, which would otherwise surface as a
+  Play Console rejection hours after a green run. Locally, a repo-root `keystore.properties`
+  drives the same config; without it your release builds are simply unsigned.
 
 ### Tests and ASCII goldens
 
@@ -384,7 +422,7 @@ at both 13×13 and 25×25 against **ASCII golden files** (`app/src/test/resource
 changes with:
 
 ```sh
-./gradlew :app:testDebugUnitTest -DupdateGoldens=true
+./gradlew :app:testGithubDebugUnitTest -DupdateGoldens=true
 ```
 
 ## Debugging
@@ -393,7 +431,7 @@ The whole pipeline (key capture, click routing, screen switching, Glyph service 
 logs under a single tag, in release builds too:
 
 ```sh
-adb logcat -s GlyphToyCompat
+adb logcat -s GlyphWorks
 ```
 
 Unrecognized hardware keys are logged with their scan code — the Essential Key's scan
@@ -404,21 +442,21 @@ Replay the onboarding at any time (resets the completed flag and routes through 
 first-launch path):
 
 ```sh
-adb shell am start -S -n space.linuxct.glyphmatrixtoycompat/.ui.MainActivity --ez restart_onboarding true
+adb shell am start -S -n space.linuxct.glyphworks/.ui.MainActivity --ez restart_onboarding true
 ```
 
 ### Essential Key coexistence
 
 The accessibility service watches window events from the Essential Space / Essential
 Recorder packages: on firmware where the system reacts to the key before the key filter can
-consume it, GMTC dismisses the resulting pop-up automatically (BACK when unlocked, HOME when
+consume it, GlyphWorks dismisses the resulting pop-up automatically (BACK when unlocked, HOME when
 locked). The clean solution is still the system-side hand-off in the Setup steps above —
 keep those apps enabled.
 
 ## Project layout
 
 ```
-app/src/main/kotlin/space/linuxct/glyphmatrixtoycompat/
+app/src/main/kotlin/space/linuxct/glyphworks/
 ├── core/      GlyphLink (SDK binding + self-healing), ScreenManager, SessionArbiter,
 │              scheduler, prefs (device-protected storage), ports
 │   └ design/  The glyph.design format: model, codec + validation, cell encoding

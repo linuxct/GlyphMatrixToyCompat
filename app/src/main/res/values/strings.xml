@@ -1,19 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Glyph Matrix Toy Compat</string>
-    <string name="main_title">Glyph Matrix Toy Compat (GMTC)</string>
+    <string name="app_name">GlyphWorks for Nothing</string>
 
     <!-- Accessibility service -->
-    <string name="accessibility_service_label">Glyph Matrix Toy Compat</string>
-    <string name="accessibility_service_description">Enables Glyph Matrix Toy Compat to detect presses of the Essential Key so you can control Glyph Toys: press once for a Glyph Touch action, twice to switch to the next toy, three times to return to the background toy. The service observes hardware key presses and Essential Space window events (to dismiss it when the system still reacts to a captured press); it never reads screen content.</string>
+    <string name="accessibility_service_label">GlyphWorks</string>
+    <string name="accessibility_service_description">Enables GlyphWorks to detect presses of the Essential Key so you can control Glyph Toys: press once for a Glyph Touch action, twice to switch to the next toy, three times to return to the background toy. The service observes hardware key presses and consumes the ones it recognises, so Essential Space does not open on top of the toy; it also watches Essential Space window events to dismiss it when the system still reacts to a captured press. It never reads screen content, and nothing it observes is stored or transmitted.</string>
 
     <!-- Glyph toy registration -->
-    <string name="toy_name">Glyph Matrix Toy Compat</string>
+    <string name="toy_name">GlyphWorks</string>
     <string name="toy_summary">Glyph Toys, cycled with the Essential Key</string>
 
     <!-- Disclosure -->
     <string name="disclosure_title">Accessibility permission needed</string>
-    <string name="disclosure_body">Glyph Matrix Toy Compat uses an accessibility service to detect presses of your phone’s Essential Key, including on the lock screen and Always-On Display. This is the only way a normal app can react to that key.\n\nWhat the service does:\n• Listens for Essential Key presses and consumes them so Essential Space does not open\n• Single press: Glyph Touch action on the current toy\n• Double press: switch to the next toy\n• Triple press: return to the background toy\n\nWhat the service does NOT do:\n• It cannot and does not read your screen content\n• It does not collect or transmit any data\n\nOn the next screen, enable “Glyph Matrix Toy Compat” under Downloaded apps.</string>
+    <string name="disclosure_body">GlyphWorks uses an accessibility service to detect presses of your phone’s Essential Key, including on the lock screen and Always-On Display. This is the only way a normal app can react to that key.\n\nWhat the service does:\n• Listens for Essential Key presses and consumes them so Essential Space does not open\n• Single press: Glyph Touch action on the current toy\n• Double press: switch to the next toy\n• Triple press: return to the background toy\n\nWhat the service does NOT do:\n• It cannot and does not read your screen content\n• It does not store or transmit anything it observes — key presses are counted in memory and turned into a toy action\n\nOn the next screen, enable “GlyphWorks” under Downloaded apps.</string>
     <string name="disclosure_accept">Continue to Settings</string>
     <string name="disclosure_decline">Not now</string>
 
@@ -21,20 +20,6 @@
     <string name="channel_timer">Timer</string>
     <string name="notif_timer_title">Time’s up</string>
     <string name="notif_timer_body">Your timer has finished.</string>
-    <string name="channel_updates">App updates</string>
-    <string name="notif_update_title">Update available</string>
-    <string name="notif_update_body">GMTC %1$s is out — tap to open the download page.</string>
-    <string name="channel_ai">Assistant at work</string>
-    <string name="notif_ai_turn_title">Working on your design</string>
-    <string name="notif_ai_turn_body">The assistant is drawing “%1$s”. Tap to watch.</string>
-
-    <!-- Update check -->
-    <string name="update_check_title">Check for updates</string>
-    <string name="update_idle">Version %1$s installed — tap to check now (also checked daily)</string>
-    <string name="update_checking">Checking…</string>
-    <string name="update_up_to_date">Up to date (version %1$s)</string>
-    <string name="update_available">Version %1$s available — tap to download</string>
-    <string name="update_failed">Check failed: %1$s</string>
 
     <!-- Onboarding -->
     <string name="onb_back">Back</string>
@@ -42,23 +27,20 @@
     <string name="onb_done">Get started</string>
 
     <string name="onb_key_title">Take over the Essential Key</string>
-    <string name="onb_key_body">Glyph Matrix Toy Compat (GMTC) listens for your phone’s Essential Key through an accessibility service — the only way a regular app can react to that key, even on the lock screen and Always-On Display.\n\nWith the listener on:\n• Press once — Glyph Touch action on the current toy\n• Press twice — switch to the next toy\n• Press three times — return to the background toy\n\nThe service never reads your screen content and never collects or transmits any data. You can skip this step; the key simply keeps its stock behaviour.</string>
+    <string name="onb_key_body">GlyphWorks listens for your phone’s Essential Key through an accessibility service — the only way a regular app can react to that key, even on the lock screen and Always-On Display.\n\nWith the listener on:\n• Press once — Glyph Touch action on the current toy\n• Press twice — switch to the next toy\n• Press three times — return to the background toy\n\nThe service never reads your screen content and never collects or transmits any data. You can skip this step; the key simply keeps its stock behaviour.</string>
     <string name="onb_key_enable">Enable the listener</string>
     <string name="onb_key_status_on">Listener running — the Essential Key is yours</string>
     <string name="onb_key_status_off">Listener off — enable it now or skip for later</string>
-    <string name="onb_key_sideload_title">Sideloaded this APK?</string>
-    <string name="onb_key_sideload_body">Android blocks accessibility services for apps installed outside a store (“Restricted setting”). If the toggle is greyed out:\n1. Open App info for Glyph Matrix Toy Compat (GMTC) — button below\n2. Tap the ⋮ menu in the top-right corner\n3. Choose “Allow restricted settings”\n4. Come back and enable the listener again</string>
-    <string name="onb_key_appinfo">Open App info</string>
 
-    <string name="onb_toy_title">Put Glyph Matrix Toy Compat (GMTC) on the matrix</string>
-    <string name="onb_toy_body">Nothing OS shows one Glyph Toy at a time. Select “Glyph Matrix Toy Compat” as your always-on toy and every screen in this app — clock, compass, dice, visualizer and friends — takes over the matrix, Always-On Display included.</string>
+    <string name="onb_toy_title">Put GlyphWorks on the matrix</string>
+    <string name="onb_toy_body">Nothing OS shows one Glyph Toy at a time. Select “GlyphWorks” as your always-on toy and every screen in this app — clock, compass, dice, visualizer and friends — takes over the matrix, Always-On Display included.</string>
     <string name="onb_toy_open">Open Glyph settings</string>
-    <string name="onb_toy_hint">Pick “Glyph Matrix Toy Compat” in the list that opens, then come back here.</string>
+    <string name="onb_toy_hint">Pick “GlyphWorks” in the list that opens, then come back here.</string>
 
     <string name="onb_perms_title">A few small favours</string>
     <string name="onb_perms_body">Each permission powers exactly one thing, and all of them are optional — skip any and the related toy just sits things out.</string>
     <string name="onb_perm_notif">Notifications</string>
-    <string name="onb_perm_notif_why">The Timer chimes when it runs out, and you’ll hear about new Glyph Matrix Toy Compat (GMTC) releases.</string>
+    <string name="onb_perm_notif_why">The Timer chimes when it runs out, and you’ll hear about new GlyphWorks releases.</string>
     <string name="onb_perm_mic">Microphone</string>
     <string name="onb_perm_mic_why">The Music Visualizer dances to what’s playing. Audio is analysed on-device, never stored, never sent anywhere.</string>
     <string name="onb_perm_loc">Location</string>
@@ -83,19 +65,18 @@
     <string name="onb_create_action">Take me to Create</string>
     <string name="onb_create_hint">Or carry on — Create is one tap away in the navigation bar whenever you want it.</string>
 
-    <string name="onb_done_title">Welcome to Glyph Matrix Toy Compat (GMTC)</string>
+    <string name="onb_done_title">Welcome to GlyphWorks</string>
     <string name="onb_done_body">Your Glyph Matrix is officially over-qualified. Everything you just set up — and plenty you haven’t seen yet — lives in the main screen: reorder toys, tweak their settings, or revisit any of these steps.\n\nNow go press that key.</string>
     <string name="onb_recap_key">Essential Key listener</string>
 
     <string name="glyph_settings_unavailable">Glyph settings not available</string>
 
     <!-- Setup checklist -->
-    <string name="checklist_title">Setup</string>
     <string name="checklist_accessibility">Essential Key listener (accessibility service)</string>
     <string name="checklist_accessibility_on">Running — Essential Key is captured</string>
     <string name="checklist_accessibility_off">Off — tap to enable in Accessibility settings</string>
     <string name="checklist_toy">Always-on Glyph Toy</string>
-    <string name="checklist_toy_hint">Select “Glyph Matrix Toy Compat” in Glyph settings so toys keep running on AOD (tap to open)</string>
+    <string name="checklist_toy_hint">Select “GlyphWorks” in Glyph settings so toys keep running on AOD (tap to open)</string>
     <string name="checklist_toy_on">Selected — verified by a system toy binding (tap to change)</string>
     <string name="checklist_notifications">Notifications (Timer chime)</string>
     <string name="checklist_mic">Microphone (music visualizer)</string>
@@ -106,11 +87,10 @@
     <string name="checklist_hint_guides">Step-by-step guides for the trickier items live in the Tutorials tab.</string>
     <string name="checklist_granted">Granted</string>
     <string name="checklist_tap_to_grant">Tap to grant</string>
-    <string name="checklist_unsupported">This device has no Glyph Matrix — rendering is disabled. (Phone (3) or Phone (4a) Pro required.)</string>
 
     <!-- Hard gate on unsupported hardware -->
     <string name="unsupported_title">Unsupported device</string>
-    <string name="unsupported_body">Glyph Matrix Toy Compat only works on Nothing phones with a Glyph Matrix — Phone (3) or Phone (4a) Pro running Nothing OS.\n\nThis device has neither the matrix nor the Essential Key the app is built around, so there is nothing for it to do here.</string>
+    <string name="unsupported_body">GlyphWorks only works on Nothing phones with a Glyph Matrix — Phone (3) or Phone (4a) Pro running Nothing OS.\n\nThis device has neither the matrix nor the Essential Key the app is built around, so there is nothing for it to do here.</string>
 
     <!-- Settings UI -->
     <string name="master_toggle">Capture Essential Key</string>
@@ -122,7 +102,6 @@
     <string name="auto_brightness_off">Automatic brightness off. Tap to let the Glyph follow the room light.</string>
     <string name="screens_title">Glyph Toys</string>
     <string name="screens_reorder_hint">Drag the handle to change the cycle order</string>
-    <string name="preview">Preview</string>
     <string name="set_active">Set as active toy</string>
     <string name="settings">Settings</string>
 
@@ -141,10 +120,6 @@
     <!-- Settings tab section headers -->
     <string name="section_initial_setup">Initial setup</string>
     <string name="section_app_settings">App settings</string>
-    <!-- The design assistant's own settings, grouped so that a model id, a round
-         budget and a reasoning level read as three knobs on one feature rather
-         than as three unrelated rows among the app's general settings. -->
-    <string name="section_ai_settings">AI settings</string>
     <!-- Spoken description of a collapsible section header's chevron. The header
          text is read out beside it, so these say only what the tap will do. -->
     <string name="section_expand">Expand</string>
@@ -192,17 +167,7 @@
     <string name="tut_handover_intro">Do NOT disable the Essential Space or Essential Recorder apps — just tell the system to wait before acting on the key:</string>
     <string name="tut_handover_step1">In Settings → Intelligence Toolkit → Essential Key Settings, enable “Activate with single tap before use”.</string>
     <string name="tut_handover_step2">In Settings → Intelligence Toolkit → Essential Voice, disable “Activate via Essential Key”.</string>
-    <string name="tut_handover_note">This stops the system from reacting to the key directly. If a pop-up still slips through on some firmware, Glyph Matrix Toy Compat dismisses it automatically.</string>
-
-    <!-- Guide: restricted settings for sideloads -->
-    <string name="tut_restricted_title">Sideloaded? Allow restricted settings</string>
-    <string name="tut_restricted_subtitle">If the accessibility toggle is greyed out</string>
-    <string name="tut_restricted_intro">Android blocks accessibility services for apps installed outside a store (“Restricted setting”). If the toggle is greyed out:</string>
-    <string name="tut_restricted_step1">Open App info for Glyph Matrix Toy Compat (button below)</string>
-    <string name="tut_restricted_step2">Tap the ⋮ menu in the top-right corner</string>
-    <string name="tut_restricted_step3">Choose “Allow restricted settings”</string>
-    <string name="tut_restricted_step4">Return and enable the listener again</string>
-    <string name="tut_restricted_action">Open App info</string>
+    <string name="tut_handover_note">This stops the system from reacting to the key directly. If a pop-up still slips through on some firmware, GlyphWorks dismisses it automatically.</string>
 
     <string name="tut_c1_title">Single press — Glyph Touch</string>
     <string name="tut_c1_body">Fires the current toy’s action: roll the dice, flip the coin, +1 the counter, start or pause the timer. Toys without an action simply ignore it.</string>
@@ -270,42 +235,10 @@
     <string name="pref_creator_name_summary">Credited as the author on designs you make from now on. Designs you have already made keep the name they were saved with.</string>
     <string name="pref_creator_name_hint">Leave empty for no credit</string>
 
-    <!-- Assistant model (the model id the design assistant is asked for) -->
-    <string name="pref_ai_model">Assistant model</string>
-    <string name="pref_ai_model_summary">The model the design assistant talks to. If it stops answering, put a working model id here — it applies to your next message.</string>
-    <string name="pref_ai_model_hint">Leave empty for %1$s</string>
-    <string name="pref_ai_model_current">Asking for %1$s</string>
-    <string name="pref_ai_rounds">Assistant tool rounds</string>
-    <string name="pref_ai_rounds_summary">How many steps the assistant may take before it has to answer. A drawing usually lands well inside the default; a long animation may need more. Every step is another request, so higher costs more and takes longer.</string>
-    <string name="pref_ai_rounds_value">%1$d rounds</string>
-    <string name="pref_ai_rounds_default">%1$d rounds (default)</string>
-
-    <!-- Assistant reasoning effort. The labels are display names ONLY; the token
-         each one sends lives in core/ai/ChatWire.kt (ReasoningEffort.wire), so
-         the two can never drift. Low, Medium and High are the levels the service
-         documents; the three above them may not be accepted, which is what the
-         hint under the section says out loud rather than hiding. -->
-    <string name="pref_ai_effort">Assistant reasoning effort</string>
-    <string name="pref_ai_effort_summary">How long the assistant thinks before it answers. Higher is slower and costs more. It applies to your next message.</string>
-    <string name="pref_ai_effort_low">Low</string>
-    <string name="pref_ai_effort_medium">Medium</string>
-    <string name="pref_ai_effort_high">High</string>
-    <string name="pref_ai_effort_xhigh">Extra-High</string>
-    <string name="pref_ai_effort_max">Max</string>
-    <string name="pref_ai_effort_ultra">Ultra</string>
-    <!-- Shown under the dropdown: the exact token the request will carry, so a
-         rejected level can be matched against the error the chat shows. -->
-    <string name="pref_ai_effort_current">Sends effort “%1$s”</string>
-    <string name="pref_ai_effort_default">%1$s (default)</string>
-    <!-- Spoken for the caution pictogram beside an unverified level. A pictogram
-         is invisible to a screen reader, so this is the only form the warning
-         takes for anybody using one. -->
-    <string name="pref_ai_effort_unverified">May not be supported by every model</string>
-    <string name="pref_ai_effort_hint">Low, Medium and High are the levels the service documents. Extra-High, Max and Ultra may not be accepted — if a message then fails with an error mentioning “effort”, come back and choose High.</string>
-
     <!-- Create tab -->
     <string name="create_title">Your designs</string>
     <string name="create_hint">Designs you draw here play on the Glyph Matrix. Use “Show on Glyph Matrix” in a design\'s ⋮ menu to put one there.</string>
+
     <string name="create_new">New design</string>
     <string name="create_empty_title">Nothing drawn yet</string>
     <string name="create_empty_body">Your designs live here — a single still image, or an animation that plays on the Glyph Matrix. Start one with the + button beside the navigation bar.</string>
@@ -412,141 +345,6 @@
     <string name="editor_preview_badge">PREVIEW</string>
     <string name="editor_preview_expand">Preview of the design. Tap to enlarge it.</string>
     <string name="editor_preview_collapse">Preview of the design. Tap to shrink it back into the corner.</string>
-
-    <!-- Design assistant.
-         Three doors behind one sparkles button, in this order: the disclosure,
-         the sign-in, the conversation. The copy names OpenAI explicitly wherever
-         it appears, because that is who the account belongs to and where the
-         design, the messages and any attached photo actually go. -->
-    <string name="ai_action">Design with an assistant</string>
-    <string name="ai_title">Design with an assistant</string>
-    <string name="ai_body_signed_out">Sign in with your OpenAI account and an assistant can help you design Glyph art — describing what you want instead of placing every dot by hand. Signing in opens your browser.</string>
-    <string name="ai_body_signed_in">You\'re signed in with OpenAI. Opening the assistant…</string>
-    <string name="ai_waiting">Waiting for you to finish in the browser…</string>
-    <string name="ai_sign_in">Sign in</string>
-    <string name="ai_retry">Try again</string>
-    <string name="ai_sign_out">Sign out</string>
-    <string name="ai_cancel">Cancel</string>
-    <string name="ai_error_timeout">Sign-in timed out waiting for the browser. Try again.</string>
-    <string name="ai_error_port">Another sign-in is still finishing. Wait a moment and try again.</string>
-    <string name="ai_error_no_browser">No browser on this phone can open the sign-in page.</string>
-    <string name="ai_error_failed">Sign-in did not complete.</string>
-
-    <!-- The one-off disclosure, shown before anything at all leaves the device.
-         It has to answer three questions: what is sent, to whom, and what stays
-         here. Declining is simply closing it — nothing is stored either way. -->
-    <string name="ai_consent_title">Before you start</string>
-    <string name="ai_consent_body">To help with a design, the assistant is sent the design you have open — its artwork as text — along with the messages you type and any photo you attach. That goes to OpenAI, over the account you sign in with, and is subject to their terms and privacy policy.</string>
-    <string name="ai_consent_storage">Your conversation is kept on this phone, beside the design, and is deleted when the design is. Attached photos are not stored.</string>
-    <string name="ai_consent_accept">I understand</string>
-    <string name="ai_consent_decline">Not now</string>
-
-    <!-- The conversation itself. -->
-    <string name="ai_chat_empty_title">Describe what you want</string>
-    <string name="ai_chat_empty_body">Ask for a design in words — “a smiley face”, “make it blink”, “turn this photo into art” — and the assistant reads what is on your canvas and draws it. You can undo anything it changes.</string>
-    <string name="ai_chat_hint">Ask for a design…</string>
-    <string name="ai_chat_send">Send</string>
-    <string name="ai_chat_stop">Stop waiting</string>
-    <string name="ai_chat_attach">Attach a photo</string>
-    <string name="ai_chat_remove_photo">Remove this photo</string>
-    <string name="ai_chat_attach_failed">That image could not be read.</string>
-    <string name="ai_chat_interrupted">This reply was cut short when the app stopped.</string>
-    <string name="ai_chat_changed">The assistant changed your design.</string>
-    <string name="ai_chat_undo">Undo AI change</string>
-    <string name="ai_chat_copy">Copy</string>
-    <string name="ai_chat_dismiss">Dismiss</string>
-    <!-- The header's overflow. Clearing a conversation is destructive and gets a
-         confirmation, and the confirmation's job is to say the one thing a
-         person is right to worry about: the artwork is not part of this. -->
-    <string name="ai_chat_menu">More options for this conversation</string>
-    <string name="ai_chat_reset">Reset this chat</string>
-    <string name="ai_chat_reset_title">Reset this chat?</string>
-    <string name="ai_chat_reset_body">The conversation about this design is deleted from this phone and the assistant starts again with no memory of it. Your design is not touched — anything it already drew stays on the canvas.</string>
-    <string name="ai_chat_reset_confirm">Reset</string>
-    <plurals name="ai_chat_photo_count">
-        <item quantity="one">%1$d photo</item>
-        <item quantity="other">%1$d photos</item>
-    </plurals>
-
-    <!-- What the assistant is doing, while it does it. One per ChatTrace. -->
-    <string name="ai_trace_thinking">Working out what to draw…</string>
-    <string name="ai_trace_processing">Reading what came back…</string>
-    <string name="ai_trace_reading">Reading your design…</string>
-    <string name="ai_trace_applying">Putting it on your canvas…</string>
-    <string name="ai_trace_checking">Checking the drawing against the panel…</string>
-    <string name="ai_trace_running">Running %1$s…</string>
-
-    <!-- How long the turn in flight has been running. Minutes and seconds, shown
-         only once a turn is long enough that the wait is worth naming. -->
-    <string name="ai_elapsed">%1$d:%2$02d</string>
-
-    <!-- The live step list. A turn can take minutes because the assistant draws,
-         the app checks that drawing against the panel, and the assistant redraws
-         when the check fails — and none of that was visible before, so a working
-         turn read as a hang. The heading says which of the two is happening, and
-         it names the design rather than the assistant: what is being checked is
-         whether the drawing fits a 137-cell disc, not whether the assistant was
-         careful. -->
-    <string name="ai_steps_title">Drawing, and checking if the design works…</string>
-    <string name="ai_steps_title_retrying">That draft didn\'t fit — drawing another…</string>
-
-    <!-- What it did, after the fact: in the live list while the turn runs, and
-         under the finished message afterwards. A failure names the attempt, so a
-         run of them reads as progress rather than as the same thing going wrong
-         over and over. -->
-    <string name="ai_tool_read">Read your design</string>
-    <string name="ai_tool_applied">Updated your design</string>
-    <!-- A passed check means the draft is LEGAL, not that the job is done: the
-         assistant is free to look at its own preview and draw another. Worded so
-         that a success followed by "Checked draft 7 — didn\'t fit" reads as two
-         drafts rather than as our validator being overruled. -->
-    <string name="ai_tool_checked">Draft %1$d — fits the panel, may still be redrawn</string>
-    <string name="ai_tool_failed">%1$s — didn\'t work</string>
-    <string name="ai_step_read_failed">Couldn\'t read your design — trying again</string>
-    <string name="ai_step_check_failed">Checked draft %1$d — didn\'t fit, redrawing</string>
-    <string name="ai_step_apply_failed">Draft %1$d — the canvas wouldn\'t take it, redrawing</string>
-
-    <!-- Why a turn produced no answer. Four categories because the recovery
-         differs; the server's own words are shown underneath, verbatim, and the
-         detail is copyable — a wrong model id, a rejected header and an expired
-         token all fail the same way and only that text tells them apart. -->
-    <string name="ai_chat_error_transport">Couldn\'t reach the assistant service.</string>
-    <string name="ai_chat_error_server">The assistant service refused the request.</string>
-    <string name="ai_chat_error_stuck">The assistant kept working without answering.</string>
-    <!-- The same run of rounds, but it had a drawing that passed its checks, so
-         that draft is on the canvas rather than thrown away. Says both halves:
-         it ran out of time, AND something landed. The undo banner is showing. -->
-    <string name="ai_chat_error_stuck_salvaged">It ran out of time. Its last checked draft is on your canvas — say what to change, or undo it.</string>
-    <string name="ai_chat_error_empty">The assistant finished without saying anything.</string>
-
-    <!-- Left IN the conversation, unlike the banners above, and only ever by a
-         turn that changed the design: the banner goes when the sheet closes, and
-         somebody reopening that design tomorrow would otherwise find artwork they
-         did not draw with nothing anywhere that explains it. Written as the
-         assistant, past tense, because that is what the rest of the thread reads
-         like — and it is never sent back to the model. -->
-    <string name="ai_chat_notice_salvaged">I ran out of time before I could finish, so I left you the last draft that passed my checks. It is on your canvas — say what to change, or undo it.</string>
-    <!-- The same hole, arrived at the other way: something landed on the canvas
-         and then the turn broke off. Vaguer on purpose — the reason is in the
-         banner while it is showing, and this only has to account for the change. -->
-    <string name="ai_chat_notice_changed">I changed your design and then couldn\'t finish the rest of what you asked for. The change is on your canvas — say what to change, or undo it.</string>
-
-    <!-- The inverse of the two above, and the reason they exist at all. A turn
-         that finishes with no editor open records the drawing and tells the model
-         it worked, so the reply above it in this thread already says the design
-         was changed. When the record is later dropped instead of applied, that
-         reply is left asserting something that never happened — so the thread
-         gets the correction here, in the assistant's own voice, past tense, and
-         never sent back to the model. One per reason, because "why" is the part
-         the user needs: the CONFLICT case in particular has to say that their own
-         work is what was kept, or "it was dropped" reads as a bug. -->
-    <string name="ai_chat_notice_deferred_conflict">Correction: I finished that drawing while you were away, but you had changed this design yourself before I could put it on your canvas — so I kept your version and dropped mine. Ask again and I\'ll redraw it.</string>
-    <!-- Aged out. Says how long rather than "expired", which means nothing here. -->
-    <string name="ai_chat_notice_deferred_expired">Correction: I finished that drawing while you were away, but it sat waiting more than a week, so it was too old to put on your canvas safely and I dropped it. Ask again and I\'ll redraw it.</string>
-    <!-- The design could not be found when the time came. Deliberately does not
-         say "deleted": a correction is only ever written onto a conversation that
-         still exists, and a deleted design has none. -->
-    <string name="ai_chat_notice_deferred_missing">Correction: I finished that drawing while you were away, but I couldn\'t find the design it was for when the time came to put it on your canvas, so I dropped it.</string>
 
     <!-- Timeline -->
     <string name="editor_frame_thumb">Frame %1$d</string>

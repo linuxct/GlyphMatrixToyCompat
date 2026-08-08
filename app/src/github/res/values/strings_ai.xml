@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings for the design assistant. GitHub flavour only — the Play build
+     ships without the assistant, so these names do not resolve there and
+     must not be referenced from src/main. -->
+<resources>
+    <string name="channel_ai">Assistant at work</string>
+    <string name="notif_ai_turn_title">Working on your design</string>
+    <string name="notif_ai_turn_body">The assistant is drawing “%1$s”. Tap to watch.</string>
+    <!-- The design assistant's own settings, grouped so that a model id, a round
+         budget and a reasoning level read as three knobs on one feature rather
+         than as three unrelated rows among the app's general settings. -->
+    <string name="section_ai_settings">AI settings</string>
+    <!-- Assistant model (the model id the design assistant is asked for) -->
+    <string name="pref_ai_model">Assistant model</string>
+    <string name="pref_ai_model_summary">The model the design assistant talks to. If it stops answering, put a working model id here — it applies to your next message.</string>
+    <string name="pref_ai_model_hint">Leave empty for %1$s</string>
+    <string name="pref_ai_model_current">Asking for %1$s</string>
+    <string name="pref_ai_rounds">Assistant tool rounds</string>
+    <string name="pref_ai_rounds_summary">How many steps the assistant may take before it has to answer. A drawing usually lands well inside the default; a long animation may need more. Every step is another request, so higher costs more and takes longer.</string>
+    <string name="pref_ai_rounds_value">%1$d rounds</string>
+    <string name="pref_ai_rounds_default">%1$d rounds (default)</string>
+    <!-- Assistant reasoning effort. The labels are display names ONLY; the token
+         each one sends lives in core/ai/ChatWire.kt (ReasoningEffort.wire), so
+         the two can never drift. Low, Medium and High are the levels the service
+         documents; the three above them may not be accepted, which is what the
+         hint under the section says out loud rather than hiding. -->
+    <string name="pref_ai_effort">Assistant reasoning effort</string>
+    <string name="pref_ai_effort_summary">How long the assistant thinks before it answers. Higher is slower and costs more. It applies to your next message.</string>
+    <string name="pref_ai_effort_low">Low</string>
+    <string name="pref_ai_effort_medium">Medium</string>
+    <string name="pref_ai_effort_high">High</string>
+    <string name="pref_ai_effort_xhigh">Extra-High</string>
+    <string name="pref_ai_effort_max">Max</string>
+    <string name="pref_ai_effort_ultra">Ultra</string>
+    <!-- Shown under the dropdown: the exact token the request will carry, so a
+         rejected level can be matched against the error the chat shows. -->
+    <string name="pref_ai_effort_current">Sends effort “%1$s”</string>
+    <string name="pref_ai_effort_default">%1$s (default)</string>
+    <!-- Spoken for the caution pictogram beside an unverified level. A pictogram
+         is invisible to a screen reader, so this is the only form the warning
+         takes for anybody using one. -->
+    <string name="pref_ai_effort_unverified">May not be supported by every model</string>
+    <string name="pref_ai_effort_hint">Low, Medium and High are the levels the service documents. Extra-High, Max and Ultra may not be accepted — if a message then fails with an error mentioning “effort”, come back and choose High.</string>
+    <!-- Design assistant.
+         Three doors behind one sparkles button, in this order: the disclosure,
+         the sign-in, the conversation. The copy names OpenAI explicitly wherever
+         it appears, because that is who the account belongs to and where the
+         design, the messages and any attached photo actually go. -->
+    <string name="ai_action">Design with an assistant</string>
+    <string name="ai_title">Design with an assistant</string>
+    <string name="ai_body_signed_out">Sign in with your OpenAI account and an assistant can help you design Glyph art — describing what you want instead of placing every dot by hand. Signing in opens your browser.</string>
+    <string name="ai_body_signed_in">You\'re signed in with OpenAI. Opening the assistant…</string>
+    <string name="ai_waiting">Waiting for you to finish in the browser…</string>
+    <string name="ai_sign_in">Sign in</string>
+    <string name="ai_retry">Try again</string>
+    <string name="ai_sign_out">Sign out</string>
+    <string name="ai_cancel">Cancel</string>
+    <string name="ai_error_timeout">Sign-in timed out waiting for the browser. Try again.</string>
+    <string name="ai_error_port">Another sign-in is still finishing. Wait a moment and try again.</string>
+    <string name="ai_error_no_browser">No browser on this phone can open the sign-in page.</string>
+    <string name="ai_error_failed">Sign-in did not complete.</string>
+    <!-- The one-off disclosure, shown before anything at all leaves the device.
+         It has to answer three questions: what is sent, to whom, and what stays
+         here. Declining is simply closing it — nothing is stored either way. -->
+    <string name="ai_consent_title">Before you start</string>
+    <string name="ai_consent_body">To help with a design, the assistant is sent the design you have open — its artwork as text — along with the messages you type and any photo you attach. That goes to OpenAI, over the account you sign in with, and is subject to their terms and privacy policy.</string>
+    <string name="ai_consent_storage">Your conversation is kept on this phone, beside the design, and is deleted when the design is. Attached photos are not stored.</string>
+    <string name="ai_consent_accept">I understand</string>
+    <string name="ai_consent_decline">Not now</string>
+    <!-- The conversation itself. -->
+    <string name="ai_chat_empty_title">Describe what you want</string>
+    <string name="ai_chat_empty_body">Ask for a design in words — “a smiley face”, “make it blink”, “turn this photo into art” — and the assistant reads what is on your canvas and draws it. You can undo anything it changes.</string>
+    <string name="ai_chat_hint">Ask for a design…</string>
+    <string name="ai_chat_send">Send</string>
+    <string name="ai_chat_stop">Stop waiting</string>
+    <string name="ai_chat_attach">Attach a photo</string>
+    <string name="ai_chat_remove_photo">Remove this photo</string>
+    <string name="ai_chat_attach_failed">That image could not be read.</string>
+    <string name="ai_chat_interrupted">This reply was cut short when the app stopped.</string>
+    <string name="ai_chat_changed">The assistant changed your design.</string>
+    <string name="ai_chat_undo">Undo AI change</string>
+    <string name="ai_chat_copy">Copy</string>
+    <string name="ai_chat_dismiss">Dismiss</string>
+    <!-- The header's overflow. Clearing a conversation is destructive and gets a
+         confirmation, and the confirmation's job is to say the one thing a
+         person is right to worry about: the artwork is not part of this. -->
+    <string name="ai_chat_menu">More options for this conversation</string>
+    <string name="ai_chat_reset">Reset this chat</string>
+    <string name="ai_chat_reset_title">Reset this chat?</string>
+    <string name="ai_chat_reset_body">The conversation about this design is deleted from this phone and the assistant starts again with no memory of it. Your design is not touched — anything it already drew stays on the canvas.</string>
+    <string name="ai_chat_reset_confirm">Reset</string>
+    <plurals name="ai_chat_photo_count">
+        <item quantity="one">%1$d photo</item>
+        <item quantity="other">%1$d photos</item>
+    </plurals>
+    <!-- What the assistant is doing, while it does it. One per ChatTrace. -->
+    <string name="ai_trace_thinking">Working out what to draw…</string>
+    <string name="ai_trace_processing">Reading what came back…</string>
+    <string name="ai_trace_reading">Reading your design…</string>
+    <string name="ai_trace_applying">Putting it on your canvas…</string>
+    <string name="ai_trace_checking">Checking the drawing against the panel…</string>
+    <string name="ai_trace_running">Running %1$s…</string>
+    <!-- How long the turn in flight has been running. Minutes and seconds, shown
+         only once a turn is long enough that the wait is worth naming. -->
+    <string name="ai_elapsed">%1$d:%2$02d</string>
+    <!-- The live step list. A turn can take minutes because the assistant draws,
+         the app checks that drawing against the panel, and the assistant redraws
+         when the check fails — and none of that was visible before, so a working
+         turn read as a hang. The heading says which of the two is happening, and
+         it names the design rather than the assistant: what is being checked is
+         whether the drawing fits a 137-cell disc, not whether the assistant was
+         careful. -->
+    <string name="ai_steps_title">Drawing, and checking if the design works…</string>
+    <string name="ai_steps_title_retrying">That draft didn\'t fit — drawing another…</string>
+    <!-- What it did, after the fact: in the live list while the turn runs, and
+         under the finished message afterwards. A failure names the attempt, so a
+         run of them reads as progress rather than as the same thing going wrong
+         over and over. -->
+    <string name="ai_tool_read">Read your design</string>
+    <string name="ai_tool_applied">Updated your design</string>
+    <!-- A passed check means the draft is LEGAL, not that the job is done: the
+         assistant is free to look at its own preview and draw another. Worded so
+         that a success followed by "Checked draft 7 — didn\'t fit" reads as two
+         drafts rather than as our validator being overruled. -->
+    <string name="ai_tool_checked">Draft %1$d — fits the panel, may still be redrawn</string>
+    <string name="ai_tool_failed">%1$s — didn\'t work</string>
+    <string name="ai_step_read_failed">Couldn\'t read your design — trying again</string>
+    <string name="ai_step_check_failed">Checked draft %1$d — didn\'t fit, redrawing</string>
+    <string name="ai_step_apply_failed">Draft %1$d — the canvas wouldn\'t take it, redrawing</string>
+    <!-- Why a turn produced no answer. Four categories because the recovery
+         differs; the server's own words are shown underneath, verbatim, and the
+         detail is copyable — a wrong model id, a rejected header and an expired
+         token all fail the same way and only that text tells them apart. -->
+    <string name="ai_chat_error_transport">Couldn\'t reach the assistant service.</string>
+    <string name="ai_chat_error_server">The assistant service refused the request.</string>
+    <string name="ai_chat_error_stuck">The assistant kept working without answering.</string>
+    <!-- The same run of rounds, but it had a drawing that passed its checks, so
+         that draft is on the canvas rather than thrown away. Says both halves:
+         it ran out of time, AND something landed. The undo banner is showing. -->
+    <string name="ai_chat_error_stuck_salvaged">It ran out of time. Its last checked draft is on your canvas — say what to change, or undo it.</string>
+    <string name="ai_chat_error_empty">The assistant finished without saying anything.</string>
+    <!-- Left IN the conversation, unlike the banners above, and only ever by a
+         turn that changed the design: the banner goes when the sheet closes, and
+         somebody reopening that design tomorrow would otherwise find artwork they
+         did not draw with nothing anywhere that explains it. Written as the
+         assistant, past tense, because that is what the rest of the thread reads
+         like — and it is never sent back to the model. -->
+    <string name="ai_chat_notice_salvaged">I ran out of time before I could finish, so I left you the last draft that passed my checks. It is on your canvas — say what to change, or undo it.</string>
+    <!-- The same hole, arrived at the other way: something landed on the canvas
+         and then the turn broke off. Vaguer on purpose — the reason is in the
+         banner while it is showing, and this only has to account for the change. -->
+    <string name="ai_chat_notice_changed">I changed your design and then couldn\'t finish the rest of what you asked for. The change is on your canvas — say what to change, or undo it.</string>
+    <!-- The inverse of the two above, and the reason they exist at all. A turn
+         that finishes with no editor open records the drawing and tells the model
+         it worked, so the reply above it in this thread already says the design
+         was changed. When the record is later dropped instead of applied, that
+         reply is left asserting something that never happened — so the thread
+         gets the correction here, in the assistant's own voice, past tense, and
+         never sent back to the model. One per reason, because "why" is the part
+         the user needs: the CONFLICT case in particular has to say that their own
+         work is what was kept, or "it was dropped" reads as a bug. -->
+    <string name="ai_chat_notice_deferred_conflict">Correction: I finished that drawing while you were away, but you had changed this design yourself before I could put it on your canvas — so I kept your version and dropped mine. Ask again and I\'ll redraw it.</string>
+    <!-- Aged out. Says how long rather than "expired", which means nothing here. -->
+    <string name="ai_chat_notice_deferred_expired">Correction: I finished that drawing while you were away, but it sat waiting more than a week, so it was too old to put on your canvas safely and I dropped it. Ask again and I\'ll redraw it.</string>
+    <!-- The design could not be found when the time came. Deliberately does not
+         say "deleted": a correction is only ever written onto a conversation that
+         still exists, and a deleted design has none. -->
+    <string name="ai_chat_notice_deferred_missing">Correction: I finished that drawing while you were away, but I couldn\'t find the design it was for when the time came to put it on your canvas, so I dropped it.</string>
+</resources>

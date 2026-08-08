@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "GlyphMatrixToyCompat"
+rootProject.name = "glyphworks"
 include(":app")

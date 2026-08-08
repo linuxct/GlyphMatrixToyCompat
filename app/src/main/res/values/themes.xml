@@ -8,7 +8,7 @@
       elements, so force them all to neutral gray. Mid-gray reads correctly in
       both light and dark, so no -night variant is needed.
     -->
-    <style name="Theme.GlyphMatrixToyCompat" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.GlyphWorks" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">#757575</item>
         <item name="colorSecondary">#757575</item>
         <item name="colorAccent">#757575</item>

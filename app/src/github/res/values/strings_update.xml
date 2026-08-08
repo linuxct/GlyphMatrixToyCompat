@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings for the in-app update checker. GitHub flavour only — the Play
+     build is updated by Play itself, and an app that updates itself
+     breaches the Device and Network Abuse policy. -->
+<resources>
+    <string name="channel_updates">App updates</string>
+    <string name="notif_update_title">Update available</string>
+    <string name="notif_update_body">GlyphWorks %1$s is out — tap to open the download page.</string>
+    <!-- Update check -->
+    <string name="update_check_title">Check for updates</string>
+    <string name="update_idle">Version %1$s installed — tap to check now (also checked daily)</string>
+    <string name="update_checking">Checking…</string>
+    <string name="update_up_to_date">Up to date (version %1$s)</string>
+    <string name="update_available">Version %1$s available — tap to download</string>
+    <string name="update_failed">Check failed: %1$s</string>
+</resources>

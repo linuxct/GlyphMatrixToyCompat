@@ -16,15 +16,15 @@ val keystoreProperties = Properties().apply {
 }
 
 android {
-    namespace = "space.linuxct.glyphmatrixtoycompat"
+    namespace = "space.linuxct.glyphworks"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "space.linuxct.glyphmatrixtoycompat"
+        applicationId = "space.linuxct.glyphworks"
         minSdk = 33
         targetSdk = 37
-        versionCode = 13
-        versionName = "2.2.0"
+        versionCode = 14
+        versionName = "3.0.0"
     }
 
     signingConfigs {
@@ -53,6 +53,35 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+        }
+    }
+
+    // ---------- distribution flavours ----------
+    //
+    // The Play build must not merely disable the design assistant and the update
+    // checker — their CODE must not be in the APK. That is what makes three Play
+    // filings unnecessary rather than merely favourable: no foreground-service
+    // justification, no data-collection entry on the Data Safety form, and no
+    // reviewer credentials for a sign-in. A runtime flag would leave the classes,
+    // the strings and the INTERNET permission in the binary, and a reviewer reads
+    // the binary.
+    //
+    // So `ai/`, `core/ai/`, `update/` and the three AI dialogs live in
+    // `src/github/`, never in `src/main/`, and the two flavours agree only on a
+    // seam — see `ui/OptionalFeatures.kt`, which exists twice with identical
+    // signatures. Nothing checks that the two agree except building both, which
+    // is why CI does.
+    //
+    // AGP names variants <flavour><BuildType>: githubDebug, githubRelease,
+    // playDebug, playRelease. `github` is the default for local work.
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("github") {
+            dimension = "distribution"
+            isDefault = true
+        }
+        create("play") {
+            dimension = "distribution"
         }
     }
 
@@ -95,7 +124,12 @@ dependencies {
     implementation("androidx.compose.material:material-icons-core:1.7.8")
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
-    implementation("androidx.work:work-runtime-ktx:2.10.0")
+    // WorkManager exists for ONE thing: the update checker's daily job. The Play
+    // build has no update checker, so it does not get the library either —
+    // `implementation` would leave it in that APK doing nothing, and `App`'s
+    // `Configuration.Provider` (plus the manifest's WorkManagerInitializer
+    // removal, which exists for Direct Boot) is github-only for the same reason.
+    "githubImplementation"("androidx.work:work-runtime-ktx:2.10.0")
     // The only non-AndroidX/Compose runtime dependency in the project, and it earns
     // its place: the design format is a published interchange format, so hand-rolled
     // org.json parsing (as update/UpdateChecker does for a three-field API response)

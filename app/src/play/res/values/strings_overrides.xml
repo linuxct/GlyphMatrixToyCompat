@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Overrides, not additions: every name here also exists in
+    src/main/res/values/strings.xml, and the flavour's copy wins.
+
+    These are the strings whose *text* describes something the Play build does not
+    have. The features themselves are gone at compile time (see
+    ui/OptionalFeatures.kt); this file is for the sentences that would otherwise
+    still promise them. Copy that names a button the user cannot see is worse than
+    no copy at all — and on the permissions screen it is worse still, because it
+    asks for a permission on grounds that do not apply.
+
+    Keep them in step with src/main's versions if those change. Nothing checks
+    that they agree, in either direction.
+-->
+<resources>
+
+    <!-- main: "…and you'll hear about new GlyphWorks releases." The update
+         checker is not in this build; the Timer chime is the only notification
+         it can post. -->
+    <string name="onb_perm_notif_why">The Timer chimes when it runs out.</string>
+
+    <!-- main: "Four buttons…", the fourth being the assistant's sparkles. The
+         editor's top bar has three here. The tour points at the bar and names its
+         icons one by one, so the count and the order both have to be right. -->
+    <string name="demo_cap_top_bar">Three buttons, left to right. Play runs the animation on the real Glyph Matrix, and pause puts the frame you are editing back on it — pressing play, or changing anything at all, also makes this the design the matrix keeps afterwards. The eye hides the preview disc when it sits over what you are drawing. The sliders are Design settings, which we are opening now — repeat, the Essential Key and artwork for the other phone size live behind them, the three easiest things in the editor to miss.</string>
+</resources>
